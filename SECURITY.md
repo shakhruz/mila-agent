@@ -10,6 +10,9 @@ advisory) on this repository, or e-mail hello@milagpt.io with "security" in the 
 Please include what you found, how to reproduce it and the impact.
 We acknowledge every report within 5 business days.
 
+Before you connect a bot: [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) — who can write to the session, what it can do,
+where the limits are and the known gaps.
+
 ## Scope
 
 In scope: the hooks and tools in `install/` and `templates/`, the send-guard, the
