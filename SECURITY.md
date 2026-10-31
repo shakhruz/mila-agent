@@ -19,6 +19,18 @@ pairing flow guidance.
 Out of scope: vulnerabilities in Claude Code, Telegram or other upstream software
 (report those to their vendors), and misconfiguration of your own server.
 
+## What the send-guard is — and is not
+
+The send-guard (`templates/home/.claude/hooks/send-guard.py`, a `PreToolUse` hook on `reply`/`edit_message`) catches the
+model's mistakes: a message to a chat the owner did not connect, a key or token in the text, server paths, one client's
+matters in another client's chat. It fails closed by itself: if it cannot read its input or hits any error, it exits with
+code 2 and a deny, so the unchecked message is not sent (the `onFailure: "block"` setting is an extra layer where Claude
+Code supports it, not the only one).
+It is pattern matching, so it is **not** a security boundary against a hostile sender: a determined party can split or encode
+text, or use another tool. The boundaries are who may write to the session (pairing and allowlist), permission prompts
+(`default: ask`), and, for outward actions in the cloud, the consent proxy (`consent/`: keys held by a separate OS user,
+single-use consent for the exact payload).
+
 ## The development-channels flag
 
 `mila` starts Claude Code with `--dangerously-load-development-channels plugin:mila-telegram@<marketplace>`.

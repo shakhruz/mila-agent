@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Тест сторожа отправки (send-guard.py). С onFailure: "block" (CC 2.1.295+) падение сторожа = ни одно сообщение не уходит,
-поэтому сторож держим под тестом: каждый случай — exit 0 и решение «пропустить» или «deny» с причиной. Песочница: свой HOME."""
+поэтому сторож держим под тестом: каждый случай — exit 0 и решение «пропустить» или «deny» с причиной; не смог проверить — exit 2 и deny. Песочница: свой HOME."""
 import json, os, subprocess, sys, tempfile
 H = os.path.dirname(os.path.abspath(__file__)); G = os.path.join(H, "send-guard.py")
 home = tempfile.mkdtemp(); os.makedirs(os.path.join(home, ".claude/channels/telegram"))
@@ -26,7 +26,15 @@ chk("извинение хозяину — стоп (закон 7)", {"tool_name
 chk("ключ провайдера в тексте — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "ключ " + "sk-" + "abcdefghijklmnopqrstuv"}}, "deny")   # фальшивка склеивается — сканер ядра чист
 chk("серверный путь — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "файл /srv/x"}}, "deny")
 chk("другой инструмент — не мешает", {"tool_name": "Bash", "tool_input": {"command": "ls"}}, "pass")
-chk("мусор на входе — не мешает (exit 0)", "не json", "pass")
+def chk_closed(name, inp):   # fail closed: сторож не смог проверить → exit 2 + deny, сообщение не уходит
+    global ok, n; n += 1
+    code, dec, out = run(inp); good = code == 2 and dec == "deny"
+    ok += good; print(("✅ " if good else "❌ ") + name + ("" if good else f"  (код {code}, решение {dec or 'пропуск'}: {out[:200]})"))
+chk_closed("мусор на входе — блок (exit 2), непроверенное не уходит", "не json")
+chk_closed("вход — не объект JSON — блок (exit 2)", "[1, 2]")
+chk_closed("ошибка внутри сторожа (tool_input — список) — блок (exit 2), не пропуск", {"tool_name": R, "tool_input": ["x"]})
+code, dec, out = run({"tool_name": "Bash", "tool_input": {"command": "ls"}}); n += 1; ok += code == 0 and not out.strip()
+print(("✅ " if code == 0 and not out.strip() else "❌ ") + "не наш инструмент — exit 0, без решения")
 # чаты одного дела (агентство: группа клиента Acme → рабочий чат)
 ev = os.path.join(home, ".claude/channels/telegram/inbound"); os.makedirs(ev, exist_ok=True)
 with open(os.path.join(ev, "events.jsonl"), "w") as f:

@@ -181,8 +181,9 @@ Details: [skills/mila-export](skills/mila-export/SKILL.md). To save the memory o
 
 ## Safety
 
-The send-guard hook blocks messages that would leak one conversation into another or expose server
-paths; if the guard itself fails, nothing is sent. See [SECURITY.md](SECURITY.md).
+The send-guard hook catches the model's mistakes — a message that would leak one conversation into another or expose
+server paths; if the guard itself fails, nothing is sent. It is a safety net, not a security boundary: who may write to
+Mila (pairing, allowlist), permission prompts and the consent proxy for outward actions are. See [SECURITY.md](SECURITY.md).
 
 ## Who builds Mila
 

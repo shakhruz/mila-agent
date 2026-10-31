@@ -2,14 +2,30 @@
 """send-guard.py — PreToolUse-хук Компаньона на reply/edit_message.
 Стоит на пути отправки, потому что правилом текст не лечится (04.08, 25.08, 04.09).
 Блокирует: адресат не хозяин · ключи/токены · id чужих чатов · кухня (пути, podman, сырые ошибки провайдера)
-· markdown без format=markdownv2. Непонятный вход — не мешаем (exit 0). Секретов не печатает."""
+· markdown без format=markdownv2. Секретов не печатает.
+Fail closed (the hook itself, not only the settings field): input it cannot read, or any unexpected error inside the guard → exit 2
+and a deny — the message is not sent. Not our tool → exit 0. This guard catches the model's mistakes; it is not a security boundary
+against a hostile sender (see docs/THREAT-MODEL.md)."""
 import json, os, re, sys
+
+
+def _block(reason):
+    """Exit 2 = Claude Code blocks the tool call; the JSON deny says why (no secrets in the reason)."""
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                             "permissionDecisionReason": "Не отправляю: " + reason}}, ensure_ascii=False))
+    sys.stderr.write("send-guard: blocked — %s\n" % reason)
+    sys.exit(2)
+
+
+sys.excepthook = lambda t, e, tb: _block("сторож отправки не смог проверить сообщение (%s) — не отправляю непроверенное" % t.__name__)
 
 raw = sys.stdin.read()
 try:
     p = json.loads(raw)
+    if not isinstance(p, dict):
+        raise ValueError("not an object")
 except Exception:
-    sys.exit(0)
+    _block("вход сторожа не читается — не отправляю непроверенное")
 tool = p.get("tool_name") or ""
 if not (tool.endswith("__reply") or tool.endswith("__edit_message")):
     sys.exit(0)
