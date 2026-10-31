@@ -2,7 +2,7 @@
 # release.sh X.Y.Z [--no-tag] — выпуск версии ядра. НИЧЕГО не пушит: в конце печатает команду пуша.
 #   1. дерево чистое, версия новее последней; в CHANGELOG.md есть раздел "## vX.Y.Z" с блоком «Для хозяина»/«For the owner»
 #   2. тесты mila-update, frontmatter, comments — зелёные
-#   3. release.json: version, tag, date → коммит «release vX.Y.Z»
+#   3. release.json: version, tag, date; SHA256SUMS (get.sh, release.json) → коммит «release vX.Y.Z»
 #   4. тег vX.Y.Z: подписанный (git tag -s), если задан user.signingkey; иначе аннотированный БЕЗ подписи (печатается отметка)
 # Канал canary = main; канал stable = теги vX.Y.Z (без -rc). Отзыв релиза: добавить тег в yanked.json на main.
 set -eu
@@ -31,7 +31,8 @@ v = sys.argv[1]; p = "release.json"; m = json.load(open(p, encoding="utf-8"))
 m.update({"version": v, "tag": "v" + v, "date": time.strftime("%Y-%m-%d"), "notes": "CHANGELOG.md - section v" + v})
 json.dump(m, open(p, "w", encoding="utf-8"), ensure_ascii=False, indent=2); open(p, "a").write("\n")
 PY
-git add release.json; git commit -qm "release v$V"
+python3 -c 'import hashlib,sys;[print(hashlib.sha256(open(f,"rb").read()).hexdigest()+"  "+f) for f in sys.argv[1:]]' install/get.sh release.json > SHA256SUMS   # checksums in the tag: README «Check before running» (sha256sum -c format)
+git add release.json SHA256SUMS; git commit -qm "release v$V"
 if [ "$NOTAG" = "--no-tag" ]; then echo "коммит release v$V создан, тег не ставлю (--no-tag)"; exit 0; fi
 if [ -n "$(git config user.signingkey || true)" ]; then
   git tag -s "v$V" -m "Mila v$V"; echo "тег v$V подписан"

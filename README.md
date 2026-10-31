@@ -7,11 +7,11 @@
 <p align="center"><b>Turn Claude Code into an employee that lives in Telegram.</b><br>
 Free, open source, Apache-2.0. Made with ❤️ in Uzbekistan.</p>
 
-<p align="center">She answers your customers on Telegram, remembers every promise — and asks your OK before broadcasts, paid work and anything sent to new chats.</p>
+<p align="center">She answers your customers on Telegram, remembers every promise — and asks your OK before broadcasts, paid work and anything sent to new chats. Ordinary replies in chats you connected go without asking.</p>
 
 <p align="center">
   <a href="#quick-start"><b>Install</b></a> ·
-  <a href="https://github.com/shakhruz/mila-agent/stargazers"><b>★ Star</b></a> ·
+  <a href="docs/THREAT-MODEL.md"><b>Threat model</b></a> ·
   <a href="https://github.com/shakhruz/mila-agent/discussions"><b>Community</b></a> ·
   <a href="https://milaagent.com">milaagent.com</a> ·
   <a href="https://mila.market">Mila Market</a> ·
@@ -19,7 +19,6 @@ Free, open source, Apache-2.0. Made with ❤️ in Uzbekistan.</p>
 </p>
 
 <p align="center">
-  <a href="https://github.com/shakhruz/mila-agent/stargazers"><img src="https://img.shields.io/github/stars/shakhruz/mila-agent?style=flat&logo=github" alt="GitHub stars"></a>
   <a href="https://github.com/shakhruz/mila-agent/releases/latest"><img src="https://img.shields.io/github/v/release/shakhruz/mila-agent?sort=semver&label=release" alt="Latest release"></a>
   <a href="https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml"><img src="https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0"></a>
@@ -34,8 +33,7 @@ curl -fsSL https://raw.githubusercontent.com/shakhruz/mila-agent/main/install/ge
 <p align="center">≈ 5 minutes · macOS, Linux (Windows via WSL) · bring your own Claude plan or Anthropic API key<br>
 Latest: <a href="https://github.com/shakhruz/mila-agent/releases/latest">v1.6.6</a> · install command checked from scratch on Linux, Oct 30</p>
 
-<p align="center">If Mila saves you time, <a href="https://github.com/shakhruz/mila-agent/stargazers">star the repo</a> — it helps other business owners find her.<br>
-Questions and ideas: <a href="https://github.com/shakhruz/mila-agent/discussions">GitHub Discussions</a>.</p>
+<p align="center">Questions and ideas: <a href="https://github.com/shakhruz/mila-agent/discussions">GitHub Discussions</a>.</p>
 
 <p align="center"><img src="docs/preview.png" alt="Mila answering a customer in Telegram" width="720"></p>
 
@@ -58,14 +56,6 @@ Customer: 11, please.
 Mila:     Done ✅ I'll send the address and remind you on Saturday morning.
 ```
 *Next morning the owner gets one line: new client · viewing Saturday 11:00 · reminder set.*
-
-## Three ways to get your Mila
-
-| | | |
-|---|---|---|
-| **Build one** — free | Install Mila Agent yourself, on your computer or a server. | [Quick start ↓](#quick-start) |
-| **Hire one** | Ready-made Milas for a job — moderator, manager, SMM and more. The first one is free. | [mila.market](https://mila.market) |
-| **Launch your own** | MilaGPT Studio sets your Mila up with you and helps turn your expertise into a product. | [milagpt.io/akselerator](https://milagpt.io/akselerator/) |
 
 ## How Mila compares
 
@@ -124,6 +114,9 @@ One command:
 curl -fsSL https://raw.githubusercontent.com/shakhruz/mila-agent/main/install/get.sh | bash
 ```
 
+**Check before running.** From the next release (v1.7.0) each release tag will carry `SHA256SUMS` for `install/get.sh` and
+`release.json`, so you can compare the script you downloaded with the one in the tag before running it.
+
 It checks Claude Code, Bun and git, clones the kit to `~/mila`, runs `install/install.sh` and installs the Telegram plugin `mila-telegram` (existing files are backed up as `<file>.bak-YYYYMMDD-HHMMSS`). Prefer to look first? `curl -fsSL https://raw.githubusercontent.com/shakhruz/mila-agent/main/install/get.sh | MILA_INSTALL_ARGS=--dry-run bash` — or clone and run `./install/install.sh --dry-run`: it shows exactly what will be touched.
 
 Then three steps, each checked before the next:
@@ -143,8 +136,9 @@ Then start Mila with `mila`. `mila onboard --check` shows the three steps withou
 Claude Code: the plain `--channels` flag accepts only plugins on Anthropic's approved list, and `mila-telegram` is not on it
 yet. The development flag lets this one plugin, named in the command, push messages into your session; it does not
 skip permission prompts and does not load anything else. Messages still reach Mila only from people you paired or allowed.
-If the plugin is accepted into Anthropic's plugin marketplace, `mila` will switch to plain `--channels`. Details:
-[Claude Code — channels](https://code.claude.com/docs/en/channels#research-preview).
+The plugin is not listed in Anthropic's plugin marketplace yet; once it is, `mila` will switch to plain `--channels`. Details:
+[Claude Code — channels](https://code.claude.com/docs/en/channels#research-preview), [SECURITY.md](SECURITY.md#the-development-channels-flag),
+[threat model](docs/THREAT-MODEL.md).
 
 When it works, `mila doctor` looks like this (yellow lines are hints, not errors):
 
@@ -191,11 +185,20 @@ and the [threat model](docs/THREAT-MODEL.md): who can write to Mila, what she ca
 MILAGPT is a small team led by **Shakhruz Ashot Ashirov** - founder of MILAGPT and AshotAI, 40 years in software,
 28 of them in commercial development and online marketing (Disney, Apple, AT&T), and **Farangiz Sharapova** -
 co-founder of MILAGPT. A fleet of Milas works next to us every day: development, quality, content, clients -
-this repository is the core they run on.
+this repository is the core they run on. Most commits here are written by one of them, Mila Development (an agent),
+and reviewed by Mila Quality and the owner before they land.
 
 **Developers, join us.** Build a skill, fix a hook, translate a skill to your language, tell us what broke.
 Every pull request is read by a person and by Mila Quality. Good contributors are invited to the core team.
 Start with [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Getting a Mila
+
+| | | |
+|---|---|---|
+| **Build one** — free | Install Mila Agent yourself, on your computer or a server. | [Quick start ↓](#quick-start) |
+| **Hire one** | Ready-made Milas for a job — moderator, manager, SMM and more. The first one is free. | [mila.market](https://mila.market) |
+| **Launch your own** | MilaGPT Studio sets your Mila up with you and helps turn your expertise into a product. | [milagpt.io/akselerator](https://milagpt.io/akselerator/) |
 
 ## ⭐ Help Mila grow
 
