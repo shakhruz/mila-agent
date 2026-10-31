@@ -1,0 +1,44 @@
+{
+ "id": "business-assistant",
+ "version": "0.1.0",
+ "title": {
+  "ru": "Бизнес-помощник",
+  "en": "Business assistant",
+  "uz": "Biznes yordamchi"
+ },
+ "requires_core": "1.6.0",
+ "core_skills": [
+  "communication",
+  "client-chat",
+  "tasks",
+  "tasks-discipline",
+  "pult-dnya",
+  "inbox",
+  "inbox-triage",
+  "crm-dialogs",
+  "lead-qualify",
+  "dialog-close",
+  "draft-and-check",
+  "mail-outbound",
+  "plan-fakt",
+  "raspisanie",
+  "obratnaya-svyaz",
+  "iniciativa",
+  "plain-words",
+  "cards",
+  "onboarding"
+ ],
+ "skills": [],
+ "first_tasks": {
+  "ru": [
+   "Пришлите список дел на неделю — разложу по дням и каждое утро буду присылать план.",
+   "Добавьте меня в рабочий чат — буду записывать поручения и напоминать, чей ход.",
+   "Каждую пятницу — итог недели: что сделано, что ждёт, что сдвинулось."
+  ],
+  "en": [
+   "Send me this week's to-do list — I'll plan the days and send you a plan every morning.",
+   "Add me to your work chat — I'll record tasks and remind whose turn it is.",
+   "Every Friday — the week's wrap-up: done, waiting, moved."
+  ]
+ }
+}

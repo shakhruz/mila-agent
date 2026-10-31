@@ -6,3 +6,4 @@ our-bots.json
 __pycache__/
 *.pyc
 FLEET-MOVE.md
+dist/

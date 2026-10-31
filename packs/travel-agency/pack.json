@@ -1,0 +1,43 @@
+{
+ "id": "travel-agency",
+ "version": "0.1.0",
+ "title": {
+  "ru": "Турагентство",
+  "en": "Travel agency",
+  "uz": "Turagentlik"
+ },
+ "requires_core": "1.6.0",
+ "core_skills": [
+  "communication",
+  "client-chat",
+  "guest-path",
+  "lead-qualify",
+  "crm-dialogs",
+  "dialog-close",
+  "reply-from-examples",
+  "draft-and-check",
+  "polite-no",
+  "escalate-to-owner",
+  "tasks",
+  "pult-dnya",
+  "raspisanie",
+  "plan-fakt",
+  "metki-atribuciya",
+  "obratnaya-svyaz",
+  "cards",
+  "onboarding"
+ ],
+ "skills": [],
+ "first_tasks": {
+  "ru": [
+   "Пришлите текущие туры и цены (файл или ссылки) — отвечу клиентам по ним и только по ним.",
+   "Подключите меня к чату заявок — каждая заявка получит карточку: куда, когда, сколько человек, бюджет, чей ход.",
+   "Каждый вечер — список заявок без ответа и туров, где горят сроки оплаты."
+  ],
+  "en": [
+   "Send me the current tours and prices — I'll answer clients from them and only from them.",
+   "Connect me to the request chat — each request gets a card: where, when, how many, budget, whose turn.",
+   "Every evening — requests without an answer and tours with payment deadlines close."
+  ]
+ }
+}

@@ -1,0 +1,45 @@
+{
+ "id": "content-expert",
+ "version": "0.1.0",
+ "title": {
+  "ru": "Контент-эксперт",
+  "en": "Content expert",
+  "uz": "Kontent ekspert"
+ },
+ "requires_core": "1.6.0",
+ "core_skills": [
+  "communication",
+  "humanizer-ru",
+  "humanizer-uz",
+  "draft-and-check",
+  "infographic",
+  "flashcards",
+  "mini-podcast",
+  "live-frames",
+  "video-overview",
+  "youtube-research",
+  "kreativ-proverka",
+  "ab-test",
+  "metki-atribuciya",
+  "plan-fakt",
+  "raspisanie",
+  "tasks",
+  "pult-dnya",
+  "obratnaya-svyaz",
+  "cards",
+  "onboarding"
+ ],
+ "skills": [],
+ "first_tasks": {
+  "ru": [
+   "Пришлите 5–10 своих лучших постов — соберу ваш голос и предложу контент-план на 2 недели.",
+   "Дайте тему эфира или урока — сделаю пост, карусель и короткий сценарий видео; публикую только после вашего «да».",
+   "Каждый понедельник — что зашло на прошлой неделе и что повторить."
+  ],
+  "en": [
+   "Send 5–10 of your best posts — I'll learn your voice and propose a two-week content plan.",
+   "Give me a topic — I'll make a post, a carousel and a short video script; nothing is published without your yes.",
+   "Every Monday — what worked last week and what to repeat."
+  ]
+ }
+}
