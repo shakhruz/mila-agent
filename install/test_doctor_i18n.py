@@ -43,4 +43,9 @@ check("owner.json uz → узбекские строки (maxfiylik / kirish)", 
 import importlib.util
 spec = importlib.util.spec_from_file_location("doc", os.path.join(H, "doctor.py")); D = importlib.util.module_from_spec(spec); spec.loader.exec_module(D)
 check("колонка ровная и для иероглифов: pad считает ширину на экране", D.pad("隐私", 6) == "隐私  " and D.pad("бот", 6) == "бот   ")
+zh_line = "对「被提及时回复」模式来说这是正常的。若要「回复所有人」请关闭：@BotFather → /setprivacy → 选择机器人 → Disable"
+w = D.wrap(zh_line, 60)
+check("перенос по клеткам: китайская строка — ни одна строка не шире 60 клеток, текст цел", all(D.cells(x) <= 60 for x in w) and "".join(w).replace(" ", "") == zh_line.replace(" ", ""), w)
+check("перенос не рвёт @BotFather внутри китайской строки", not any(x.endswith("@B") for x in w) and any("@BotFather" in x for x in w), w)
+check("русский перенос как раньше", D.wrap("раз два три четыре", 9) == ["раз два", "три", "четыре"], D.wrap("раз два три четыре", 9))
 shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

@@ -584,19 +584,39 @@ def main():
     return 1 if rep.bad else 0
 
 
-def pad(s, width):
-    """Дополнить до ширины на экране: иероглифы занимают две клетки (китайский вывод ровный, как русский)."""
+def cells(s):
+    """Ширина на экране: иероглиф и полноширинный знак — две клетки."""
     import unicodedata
-    w = sum(2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1 for ch in s)
-    return s + " " * max(0, width - w)
+    return sum(2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1 for ch in s)
+
+
+def pad(s, width):
+    """Дополнить до ширины на экране (китайский вывод ровный, как русский)."""
+    return s + " " * max(0, width - cells(s))
 
 
 def wrap(text, width):
-    words, line, out = text.split(), "", []
-    for w in words:
-        if len(line) + len(w) + 1 > width:
-            out.append(line)
-            line = w
+    """Перенос по клеткам; слово шире строки (китайский без пробелов) режется по знакам."""
+    out, line = [], ""
+    for w in text.split():
+        while cells(w) > width:                       # длинный кусок без пробелов — по знакам
+            room = width - cells(line) - (1 if line else 0)
+            cut, n = "", 0
+            for ch in w:
+                if n + cells(ch) > max(room, 1):
+                    break
+                cut, n = cut + ch, n + cells(ch)
+            asc = lambda c: c.isascii() and (c.isalnum() or c in "@_./-")
+            if cut and len(cut) < len(w) and asc(cut[-1]) and asc(w[len(cut)]):   # не рвать @имя, путь, слово латиницей
+                k = len(cut)
+                while k and asc(cut[k - 1]):
+                    k -= 1
+                cut = cut[:k] or cut
+            if not cut:
+                out.append(line); line = ""; continue
+            out.append((line + " " + cut).strip()); line = ""; w = w[len(cut):]
+        if line and cells(line) + 1 + cells(w) > width:
+            out.append(line); line = w
         else:
             line = (line + " " + w).strip()
     if line:
