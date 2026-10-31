@@ -15,7 +15,7 @@ for r in roles:
     files = {nm[len(base) + 1:]: z.read(nm) for nm in names}
     good = all(hashlib.sha256(files[k]).hexdigest() == v for k, v in m["files"].items())
     check("%s: собирается; повторная сборка — те же байты; manifest sha256 = файлы; ROLE, WHAT, install.sh, INSTALL.md внутри" % r,
-          open(p1, "rb").read() == open(p2, "rb").read() and good and {"ROLE.md", "WHAT.md", "install.sh", "INSTALL.md", "manifest.json"} <= set(files), sorted(files))
+          open(p1, "rb").read() == open(p2, "rb").read() and good and ({"README.md"} if pm.json.load(open(os.path.join(ROOT, "packs", r, "pack.json"))).get("kind") == "addon" else {"ROLE.md", "WHAT.md"}) | {"install.sh", "INSTALL.md", "manifest.json"} <= set(files), sorted(files))
 pm_, mm = pm.build("manager", os.path.join(T, "m"))
 check("manager: курс установки COURSE.md в пакете и в манифесте", "COURSE.md" in mm["files"])
 bad = os.path.join(T, "badrepo"); shutil.copytree(ROOT, bad, ignore=shutil.ignore_patterns(".git", "__pycache__", "dist", "node_modules"))
@@ -49,6 +49,14 @@ role = open(os.path.join(work, "ROLE.md"), encoding="utf-8").read(); baks = [f f
 check("установка: ROLE и WHAT на месте, прежний ROLE.md — в .bak", r.returncode == 0 and "турагентства" in role and os.path.exists(os.path.join(work, "WHAT.md")) and len(baks) == 1, r.stdout + r.stderr)
 subprocess.run(["bash", sh], capture_output=True, text=True, env=env)
 check("строка в CLAUDE.md — одна, и после повторной установки", open(os.path.join(work, "CLAUDE.md")).read().count("ROLE.md right after the constitution") == 1)
+# an opt-in add-on (owner-telegram): only its skill is put in place; ROLE.md and CLAUDE.md stay the owner's
+pa, ma = pm.build("owner-telegram", os.path.join(T, "ad")); exa = os.path.join(T, "xa"); zipfile.ZipFile(pa).extractall(exa)
+sha = os.path.join(exa, os.listdir(exa)[0], "install.sh"); role0 = open(os.path.join(work, "ROLE.md"), "rb").read(); cl0 = open(os.path.join(work, "CLAUDE.md"), "rb").read()
+r = subprocess.run(["bash", sha], capture_output=True, text=True, env=env)
+check("пакет-дополнение: ставит только навык, ROLE.md и CLAUDE.md не тронуты, ROLE в архиве нет",
+      r.returncode == 0 and os.path.isfile(os.path.join(claude, "skills", "owner-telegram", "scripts", "reader.py")) and open(os.path.join(work, "ROLE.md"), "rb").read() == role0
+      and open(os.path.join(work, "CLAUDE.md"), "rb").read() == cl0 and "ROLE.md" not in ma["files"] and "README.md" in ma["files"], r.stdout + r.stderr)
+check("owner-telegram больше не в ядре: только в packs/ (по желанию)", not os.path.exists(os.path.join(ROOT, "skills", "owner-telegram")))
 shutil.rmtree(os.path.join(claude, "skills", m["core_skills"][0]))
 r = subprocess.run(["bash", sh], capture_output=True, text=True, env=env)
 check("нет навыка ядра — отказ (3), «mila update»", r.returncode == 3 and "mila update" in r.stdout, r.stdout)

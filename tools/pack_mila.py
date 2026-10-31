@@ -42,13 +42,12 @@ put() {   # put SRC DST
   run mkdir -p "$(dirname "$2")"; run cp "$1" "$2"
 }
 run mkdir -p "$WORK"
-put "$HERE/ROLE.md" "$WORK/ROLE.md"
-put "$HERE/WHAT.md" "$WORK/WHAT.md"
+if [[ -f "$HERE/ROLE.md" ]]; then put "$HERE/ROLE.md" "$WORK/ROLE.md"; put "$HERE/WHAT.md" "$WORK/WHAT.md"; fi   # an add-on pack has no role
 if [[ -d "$HERE/skills" ]]; then
   while IFS= read -r f; do put "$HERE/skills/$f" "$CLAUDE/skills/$f"; done < <(cd "$HERE/skills" && find . -type f | sed 's|^\./||')
 fi
 line="Read ~/work/ROLE.md right after the constitution — it is my role (installed from a ready-made Mila pack)."
-if ! grep -qsF "$line" "$WORK/CLAUDE.md"; then
+if [[ -f "$HERE/ROLE.md" ]] && ! grep -qsF "$line" "$WORK/CLAUDE.md"; then
   if [[ $DRY -eq 1 ]]; then say "would: append the ROLE.md line to $WORK/CLAUDE.md"; else printf '\n%s\n' "$line" >> "$WORK/CLAUDE.md"; fi
 fi
 say "installed: $(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print(d["title"]["en"], d["version"])' "$HERE/manifest.json")"
@@ -59,12 +58,12 @@ INSTALL_MD = """# Install · Установка — {title_en} / {title_ru} {ver
 
 **EN.** 1) Mila Agent first (one command, see the core README): `curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh | bash`,
 then `mila onboard` (your Telegram bot token, your own Claude sign-in). 2) Unpack this zip and run `bash install.sh --dry-run`, then
-`bash install.sh`: it puts ROLE.md and WHAT.md into ~/work, the pack's skills into ~/.claude/skills (anything existing is backed up),
+`bash install.sh`: it puts ROLE.md and WHAT.md into ~/work (role packs), the pack's skills into ~/.claude/skills (anything existing is backed up),
 adds one line to ~/work/CLAUDE.md and runs `mila doctor`. 3) Restart: `mila`. Write to your bot — Mila offers her first three tasks.
 Needs core {core} or newer; core skills used: {skills}.
 
 **RU.** 1) Сначала Mila Agent (одна команда из README ядра), затем `mila onboard` — токен вашего бота и ваш вход в Claude.
-2) Распакуйте архив: `bash install.sh --dry-run`, затем `bash install.sh` — ROLE.md и WHAT.md в ~/work, навыки пакета в
+2) Распакуйте архив: `bash install.sh --dry-run`, затем `bash install.sh` — ROLE.md и WHAT.md в ~/work (у пакета роли), навыки пакета в
 ~/.claude/skills (существующее — с резервной копией), строка в ~/work/CLAUDE.md, проверка `mila doctor`. 3) Перезапуск: `mila`.
 Напишите боту — Мила предложит первые три дела. Ядро не ниже {core}.
 """
@@ -81,7 +80,10 @@ def collect(role):
     meta = json.load(open(os.path.join(base, "pack.json"), encoding="utf-8"))
     if meta.get("id") != role or not re.fullmatch(r"[a-z0-9-]{2,40}", role):
         raise SystemExit("pack.json id must equal the folder name")
-    files = {"ROLE.md": open(os.path.join(base, "ROLE.md"), "rb").read(), "WHAT.md": open(os.path.join(base, "WHAT.md"), "rb").read()}
+    if meta.get("kind", "role") == "addon":   # an opt-in add-on (one or more skills, its README) — no ROLE/WHAT, the owner's role stays
+        files = {"README.md": open(os.path.join(base, "README.md"), "rb").read()}
+    else:
+        files = {"ROLE.md": open(os.path.join(base, "ROLE.md"), "rb").read(), "WHAT.md": open(os.path.join(base, "WHAT.md"), "rb").read()}
     for doc in meta.get("docs") or []:            # extra documents of the pack (a step-by-step course, …): plain names only
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,40}\.md", doc):
             raise SystemExit("docs: plain .md names only: %r" % doc)

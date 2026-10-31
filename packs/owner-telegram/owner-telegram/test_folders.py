@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """folders / folders-apply на заглушке клиента (настоящие типы Telethon, без сети и сессии)."""
 import asyncio, glob, json, os, re, sys, tempfile
-H = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, os.path.join(H, "scripts")); sys.path.insert(0, os.path.join(H, "..", "..", "tests", "fixtures"))
+H = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, os.path.join(H, "scripts")); sys.path.insert(0, os.path.join(H, "..", "..", "..", "tests", "fixtures"))
 try:
     from fake_people import OWNER_ID
 except ImportError:   # навык стоит в доме Милы без клона ядра (прогон на месте) — те же вымышленные значения

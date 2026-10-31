@@ -1,0 +1,14 @@
+{
+ "id": "owner-telegram",
+ "kind": "addon",
+ "version": "0.1.0",
+ "title": {
+  "ru": "Личка хозяина — личный Telegram (по желанию)",
+  "en": "The owner's personal Telegram (opt-in)"
+ },
+ "requires_core": "1.6.6",
+ "core_skills": [],
+ "skills": [
+  "owner-telegram"
+ ]
+}

@@ -2,7 +2,7 @@
 """owner-telegram reader.py без сети (поддельный telethon): отправка запрещена; черновик и реакция — только в разрешённом
 личном чате и с согласия владельца; реакция — белый список; draft-clear стирает только мой черновик. Запуск: python3 test_reader.py"""
 import asyncio, contextlib, datetime, io, json, os, sys, tempfile, time, types
-H = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, os.path.join(H, "..", "..", "tests", "fixtures"))
+H = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, os.path.join(H, "..", "..", "..", "tests", "fixtures"))
 try:
     from fake_people import OWNER_ID, USER_ID, PEOPLE
 except ImportError:   # навык стоит в доме Милы без клона ядра (прогон на месте) — те же вымышленные значения

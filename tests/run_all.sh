@@ -15,5 +15,5 @@ run() { n=$((n+1)); local out td; td="$(mktemp -d "$RUN_TMP/t.XXXXXX")"; out=$(T
 while IFS= read -r t; do
   case "$t" in *.sh) run bash "$t" ;; *.py) run python3 "$t" ;; esac
 done < <(git ls-files | grep -E '(^|/)test_[^/]*\.(sh|py)$' | sort)
-run python3 tools/check_frontmatter.py skills templates
+run python3 tools/check_frontmatter.py skills templates packs
 echo; [ ${#bad[@]} -eq 0 ] && { echo "ALL GREEN · $n"; exit 0; } || { echo "FAILED ${#bad[@]}/$n: ${bad[*]}"; exit 1; }
