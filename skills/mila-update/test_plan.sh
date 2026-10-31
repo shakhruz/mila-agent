@@ -52,7 +52,9 @@ $U plan --src "$T/rel" --json > "$T/p3.json"
 chk "в версии оба блока, английский первым — беру русский «Для хозяина» (по всем строкам, до обрезки до 6)" "! grep -q 'English owner line' $T/p3.json && python3 -c \"
 import sys; sys.path.insert(0, '$HERE'); import update as U; g=[l for v, l in U.changelog_since('$T/rel', 'v1.5.1', None) if v == 'v1.5.3']
 sys.exit(0 if any('Пульт дня' in l for l in g) and not any('English owner' in l for l in g) else 1)\""
-sed -i 's/^\*\*Для хозяина\*\*$/**For the owner**/' "$T/rel/CHANGELOG.md"
+python3 - "$T/rel/CHANGELOG.md" <<'PY'
+import re, sys; p = sys.argv[1]; t = open(p, encoding="utf-8").read(); open(p, "w", encoding="utf-8").write(re.sub(r"(?m)^\*\*Для хозяина\*\*$", "**For the owner**", t))   # not sed -i: BSD sed on macOS reads the script as a backup suffix
+PY
 $U plan --src "$T/rel" --json > "$T/p2.json"
 chk "версия без русского блока «Для хозяина» — строка без английского текста" "grep -q 'описания для хозяина в этой версии нет' $T/p2.json && ! grep -q 'day board' $T/p2.json"
 echo "новая статья" >> "$T/rel/CONSTITUTION.md"; rm -f "$f"; cp "$T/rel/install/$(basename $h)" /dev/null

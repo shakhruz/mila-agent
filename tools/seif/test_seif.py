@@ -53,7 +53,7 @@ check("ссылка в несуществующий дом — отказ", r.re
 import pwd
 chowned = []
 _orig = os.chown
-def spy(path, uid, gid, **kw): chowned.append(os.path.relpath(path, home2)); return _orig(path, uid, gid, **kw)
+def spy(path, uid, gid, **kw): chowned.append(os.path.relpath(os.path.realpath(path), os.path.realpath(home2))); return _orig(path, uid, gid, **kw)   # realpath both: macOS temp dirs live under /private/var via a symlink
 os.chown = spy; seif.os.chown = spy
 r = subprocess.run([sys.executable, os.path.join(H, "seif.py"), "link", "fresh", "API_KEY"], capture_output=True, text=True, env=os.environ)
 t3 = json.loads(r.stdout)["url"].split("?")[0].rstrip("/").split("/")[-1]
