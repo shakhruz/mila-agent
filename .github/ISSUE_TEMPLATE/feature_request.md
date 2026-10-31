@@ -1,11 +1,11 @@
 ---
-name: Feature request / Идея
-about: A skill or behaviour you want Mila to have / Навык или поведение, которое хотите от Милы
+name: Feature request
+about: A skill or behaviour you want Mila to have
 labels: enhancement
 ---
 
-**What should Mila do / Что Мила должна делать**
+**What should Mila do**
 
-**Why — what it saves for the owner / Зачем — что это даёт владельцу**
+**Why — what it saves for the owner**
 
-**Example of a good result / Пример хорошего результата**
+**Example of a good result**

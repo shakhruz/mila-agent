@@ -8,7 +8,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install pyyaml
-      - run: python tools/check_frontmatter.py skills templates   # «: » в description без кавычек ломает разбор навыка
-      - run: python templates/home/.claude/hooks/test_send_guard.py   # сторож отправки с onFailure: block — падение = немота Милы
-      - run: python tools/check_comments.py $(git ls-files '*.js' '*.mjs' '*.html' | grep -v -e vendor/ -e '\.min\.js$')   # код после «//» в одной строке
-      - run: for d in skills templates tools canon packs deploy install docs; do python skills/mila-export/mila_export.py scan "$d" || exit 1; done   # свой сканер секретов по ядру: фальшивки в тестах — только склейкой (sync флота стоял 3 суток, 24.10)
+      - run: python tools/check_frontmatter.py skills templates   # an unquoted «: » in description breaks skill parsing
+      - run: python templates/home/.claude/hooks/test_send_guard.py   # the send guard runs with onFailure: block — a crash would silence Mila
+      - run: python tools/check_comments.py $(git ls-files '*.js' '*.mjs' '*.html' | grep -v -e vendor/ -e '\.min\.js$')   # no code after «//» on one line
+      - run: for d in skills templates tools canon packs deploy install docs; do python skills/mila-export/mila_export.py scan "$d" || exit 1; done   # our own secret scanner over the core: fake secrets in tests are glued at run time

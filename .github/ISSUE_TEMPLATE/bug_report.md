@@ -1,19 +1,19 @@
 ---
-name: Bug report / Ошибка
-about: Mila did something wrong or broke / Мила сделала не то или сломалась
+name: Bug report
+about: Mila did something wrong or broke
 labels: bug
 ---
 
-**What happened / Что случилось**
-<!-- One or two sentences. No tokens, passwords, phone numbers or client names. / Без токенов, паролей, телефонов и имён клиентов. -->
+**What happened**
+<!-- One or two sentences. No tokens, passwords, phone numbers or client names. Russian is fine too. -->
 
-**What you expected / Что ожидали**
+**What you expected**
 
-**How to repeat / Как повторить**
+**How to repeat**
 1.
 2.
 
-**Environment / Окружение**
-- `mila doctor` output (paste) / вывод `mila doctor`:
-- OS / ОС:
-- Version (tag or commit) / версия:
+**Environment**
+- `mila doctor` output (paste):
+- OS:
+- Version (tag or commit):
