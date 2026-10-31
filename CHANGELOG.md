@@ -8,6 +8,7 @@
 - Обновление ставит себя новой программой из выпуска: старая больше не сможет поставить половину и записать новую версию.
 - Открытое ядро стало чище: в публичных файлах нет внутренних пометок команды; в корне — инструкция для Claude Code, как поставить Милу человеку.
 - Ночное обновление считает себя успешным только по явному «готово» от новой программы — иначе честно пишет «не поставлено», версия прежняя.
+- «Личка хозяина» (ваш личный Telegram) больше не ставится с ядром — это отдельный пакет по вашему желанию; у кого она уже стоит, остаётся как есть.
 
 </details>
 
@@ -15,6 +16,7 @@
 - The update installs itself with the release's own program: an old one can no longer install half and record the new version.
 - The open core is cleaner: no internal team marks in public files; at the root, instructions for Claude Code on how to install Mila for a person.
 - The nightly update counts itself successful only on an explicit «done» from the new program — otherwise it honestly says «not installed» and the version stays.
+- «The owner's DMs» (your personal Telegram) no longer comes with the core — it is a separate opt-in pack; where it is already installed, it stays as it is.
 
 **For Milas**
 - `mila-update apply` (and the nightly auto-patch) run the release's own `update.py` when it is newer — only after the manifest check, only a regular file listed in the manifest, forward only, once.
@@ -24,6 +26,10 @@
 - README comparison: every cell links to its source or says «no data».
 - `tools/kitchen_lint.py --log A..B` checks commit messages of a range before a push (history is public).
 - Tests clean up after themselves: every shell test removes its sandbox, `run_all` gives each test its own `TMPDIR` — a full run leaves nothing in `/tmp`.
+- Install from a release, not from `main`: the command is `…/releases/latest/download/get.sh`; `tools/release.sh` writes `SHA256SUMS` with the asset names (`sha256sum -c --ignore-missing`) and prints the `gh release create … install/get.sh SHA256SUMS` step.
+- `owner-telegram` moved to `packs/owner-telegram` — an opt-in add-on (`"kind": "addon"` in `pack.json`: only its skills are installed, ROLE.md and CLAUDE.md stay); its README says what the user session can do and where its files are. Homes that have it keep their copy; the core no longer updates it.
+- `docs/THREAT-MODEL.md`: inputs besides text (attachments, links, mail, files), a table «action → which layer stops it» with the laptop column, where each secret lives; «secrets out of the chat» no longer reads as «out of reach».
+- English at the root and in `.github/`: the constitution's translation (`CONSTITUTION.en.md`, the Russian text stays the one Milas read), Code of Conduct (Russian beside it), issue/PR templates, CI comments; CHANGELOG owner notes in English with the Russian kept collapsed for installed updaters. `check_frontmatter` also checks `packs/`.
 
 ## v1.6.6 · 30.10 — your own pages on the screen, help with your personal Telegram, small updates by yourself
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
