@@ -570,7 +570,7 @@ def main():
     print(T("doctor.main.2") % STATE)
     print()
     for r in rep.rows:
-        print("%s %-18s %s" % (mark[r["level"]], r["name"], r["detail"]))
+        print("%s %s %s" % (mark[r["level"]], pad(r["name"], 18), r["detail"]))
         if r["fix"]:
             for i, chunk in enumerate(wrap(r["fix"], 66)):
                 print("   %s %s" % ("→" if i == 0 else " ", chunk))
@@ -582,6 +582,13 @@ def main():
     else:
         print(T("doctor.main.5"))
     return 1 if rep.bad else 0
+
+
+def pad(s, width):
+    """Дополнить до ширины на экране: иероглифы занимают две клетки (китайский вывод ровный, как русский)."""
+    import unicodedata
+    w = sum(2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1 for ch in s)
+    return s + " " * max(0, width - w)
 
 
 def wrap(text, width):
