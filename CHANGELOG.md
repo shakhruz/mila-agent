@@ -2,10 +2,19 @@
 
 ## Unreleased (after v1.6.6)
 
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
 **Для хозяина**
 - Обновление ставит себя новой программой из выпуска: старая больше не сможет поставить половину и записать новую версию.
 - Открытое ядро стало чище: в публичных файлах нет внутренних пометок команды; в корне — инструкция для Claude Code, как поставить Милу человеку.
 - Ночное обновление считает себя успешным только по явному «готово» от новой программы — иначе честно пишет «не поставлено», версия прежняя.
+
+</details>
+
+**For the owner**
+- The update installs itself with the release's own program: an old one can no longer install half and record the new version.
+- The open core is cleaner: no internal team marks in public files; at the root, instructions for Claude Code on how to install Mila for a person.
+- The nightly update counts itself successful only on an explicit «done» from the new program — otherwise it honestly says «not installed» and the version stays.
 
 **For Milas**
 - `mila-update apply` (and the nightly auto-patch) run the release's own `update.py` when it is newer — only after the manifest check, only a regular file listed in the manifest, forward only, once.
@@ -17,10 +26,19 @@
 - Tests clean up after themselves: every shell test removes its sandbox, `run_all` gives each test its own `TMPDIR` — a full run leaves nothing in `/tmp`.
 
 ## v1.6.6 · 30.10 — your own pages on the screen, help with your personal Telegram, small updates by yourself
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
 **Для хозяина**
 - Мила показывает на вашем экране свои страницы — игру, слайды, квиз, — без помощи администратора.
 - Новая сила «Личка хозяина»: Мила разбирает ваш личный Telegram, кладёт черновики вашим голосом и ставит лайк на «спасибо» — только по вашему слову; отправляете всегда вы.
 - Скажете «мелкие обновления ставь сама» — Мила будет ставить исправления ночью сама; новые версии и правку конституции — только по вашей кнопке. Карточка обновления одна: новая заменяет прошлую.
+
+</details>
+
+**For the owner**
+- Mila shows her own pages on your screen — a game, slides, a quiz — without the administrator's help.
+- New power «The owner's DMs»: Mila sorts your personal Telegram, leaves drafts in your voice and likes a «thank you» — only on your word; you always send yourself.
+- Say «install small updates yourself» — Mila installs fixes at night; new versions and constitution changes only by your button. One update card: a new one replaces the last.
 
 **For Milas**
 - `screen page put/show/list/rm` — own HTML page on own screen; the hub serves pages from a separate host under a CSP sandbox.
@@ -33,9 +51,17 @@
 - CI installs telethon; `tests/run_ci_local.sh` uses exactly the workflow's Python packages. `mila-export` test: fake secret literals glued at run time.
 
 ## v1.6.5 · 28.10 — the approved constitution, a clearer update plan, green tests everywhere
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
 **Для хозяина**
 - В конституции ядра закон 4 — в вашей утверждённой редакции, как у всех Мил.
 - План обновления показывает пользу каждой новой версии короткой строкой — видно больше.
+
+</details>
+
+**For the owner**
+- Law 4 of the core constitution is in your approved wording, as for every Mila.
+- The update plan shows the benefit of each new version in a short line — you see more.
 
 **For Milas**
 - `CONSTITUTION.md`: law 4 = the owner-approved v2 text (20.09.2026), byte-equal to the fleet.
@@ -43,10 +69,19 @@
 - Tests pass in any time zone: `test_spend_tap` uses real offsets, `effect._ts` parses UTC with `calendar.timegm`; `tests/run_ci_local.sh` runs the suite like GitHub (clean HOME, CI=true, UTC + a DST zone).
 
 ## v1.6.4 · 28.10 — the look-back sees your assignments, the constitution stays yours
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
 **Для хозяина**
 - «Оглядка» снова видит ваши поручения в переписке и находит забытые; служебные сообщения за ваши не принимает.
 - План обновления больше не советует заменить конституцию: у вас может стоять ваша последняя редакция. Совет заменить старый сторож отправки остаётся.
 - Проверка готовности перед событием принимает подтверждение только текстом.
+
+</details>
+
+**For the owner**
+- The look-back sees your assignments in the chat again and finds forgotten ones; service messages are not taken for yours.
+- The update plan no longer advises replacing the constitution: you may have your own latest wording. The advice to replace an old send guard stays.
+- The readiness check before an event accepts a confirmation only as text.
 
 **For Milas**
 - `oglyadka`: the owner by the live channel tag (`user="<name>"`, not `user_id`): DM chat = owner, a group — by `--owner-user` / `OWNER_USERNAME`; non-numeric `message_id` (ticks, notes, file mail) is service inbound. In v1.6.3 it found 0 of 84 assignments on a live journal.
@@ -54,6 +89,8 @@
 - `bud-gotova`: proof must be a string.
 
 ## v1.6.3 · 28.10 — I come with a decision, get ready before events, keep the thread
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
 **Для хозяина**
 - Прихожу к вам с решением, а не с вопросом: моё предложение, 2–3 варианта с последствиями и совет. Голый вопрос «когда? сколько?» не отправляю.
 - Перед встречей, запуском или выступлением прохожу проверку по списку и закрываю, чего не хватает, до начала.
@@ -63,6 +100,17 @@
 - Трату выше порога, лимит и бюджеты меняю только по вашему нажатию кнопки.
 - План обновления показывает главное из каждой новой версии и советует заменить устаревший сторож отправки.
 
+</details>
+
+**For the owner**
+- I come to you with a decision, not a question: my proposal, 2–3 options with consequences and advice. I don't send a bare «when? how much?».
+- Before a meeting, launch or talk I go through a checklist and close what is missing before the start.
+- I don't lose the stream of your assignments: each is written down, urgent ones taken at once, nearly done ones finished; at midday and in the evening I reread the chat in case I forgot something.
+- A complaint about an assistant is first checked against its journal; you get an answer with facts and a ready step.
+- Before showing a deck or a page — a style council of three views so it looks professional.
+- Spending above the threshold, limits and budgets change only when you press the button.
+- The update plan shows the main point of each new version and advises replacing an outdated send guard.
+
 **For Milas**
 - New core skills (owner's word 28.10): `iniciativa` (`iniciativa_check.py`; `plain_words_check` runs it; `cards.py ask` needs `--rec` and a consequence per option), `bud-gotova` (`gotova.py`), `zhonglyor` (`zhonglyor.py`), `oglyadka` (`oglyadka.py` + `task.py scan-sent`), `stilnaya` (`stilnaya.py`), `razbor-lichki` (`razbor.py`).
 - `spend` (SPEND-TAP): `approve <id> --card <card_id>` — the tapper comes from the plugin's `cards.jsonl`, not from `--by`; the same lock on `limit`, `budget`, `owner`. Until the receiver records which button was pressed, a spend card has one button «✅ Делаем».
@@ -70,27 +118,51 @@
 - README: the «nothing goes out without the owner's yes» row says what the code does.
 
 ## v1.6.2 · 28.10 — the update recognises its own files after a host rollout
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
 **Для хозяина**
 - Обновление снова узнаёт свои файлы, если прошлое ставили с сервера: план показывает всё, что действительно обновится, а не малую часть.
+
+</details>
+
+**For the owner**
+- The update recognises its own files again when the last one was installed from the server: the plan shows everything that will really change, not a small part.
 
 **For Milas**
 - `mila-update`: paths in `version.json` are re-based to the current home on load (`.claude/`, `work/`, `.local/`); before, a rollout from the host (MILA_HOME) stored host paths and every file looked «differs» — the v1.6.1 plan would update 6 skills instead of 36. `test_fleet_keys.sh`.
 - `mila-update plan --json`: `get_versions` — which versions the «what you get» lines came from.
 
 ## v1.6.1 · 28.10 — the greeting in a client group, «switched on but not working»
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
 **Для хозяина**
 - В новой группе с вашим клиентом сначала здороваюсь коротко — стикер и «Привет, я …, искусственный интеллект.», потом приветствие клиенту, как у вас принято.
 - Самопроверка теперь находит то, что включено, но не работает, — и подсказывает, что сделать.
+
+</details>
+
+**For the owner**
+- In a new group with your client I first say a short hello — a sticker and «Hi, I'm …, an artificial intelligence.», then greet the client the way you do.
+- The self-check now finds what is switched on but not working — and says what to do.
 
 **For Milas**
 - `mila-in-chat`: in a new client group — step 0 sticker and the one line, then the home's welcome canon (`canon/WELCOME-NEW-GROUP.md`) verbatim if present; other groups — only the sticker and the line (owner's word 28.10).
 - `install/doctor.py`: `check_switches` — guest flow without MILAT_GUEST_CC=1 in the daemon's environment, missing guest key or prompt, review requests without handoffFile, student profile without prompt/folder, Jev without a gateway address, update cards without owner_chat.
 
 ## v1.6.0 · 28.10 — updates the owner can read, privacy at the source, the live screen, tasks without stalls
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
 **Для хозяина**
 - Обновления теперь понятны: перед обновлением вижу и показываю вам план — что получите, что изменится, что не тронется, риск; обновляюсь только по вашей кнопке.
 - Через несколько дней после обновления сама скажу, стало ли лучше; если хуже — предложу вернуть прежнюю версию одной кнопкой.
 - Беру отзыв после каждой сданной работы, не теряю задачи и не называю часов сдачи — только «беру» и «вернусь с результатом».
+
+</details>
+
+**For the owner**
+- Updates are now readable: before updating I see and show you a plan — what you get, what changes, what stays, the risk; I update only by your button.
+- A few days after an update I tell you myself whether it got better; if worse, I offer to return the previous version with one button.
+- I ask for feedback after every finished job, don't lose tasks and don't name delivery hours — only «I'm on it» and «I'll come back with the result».
 
 **For Milas**
 - `mila-update`: `plan` — readable update plan in the owner's card (all versions in between, changes by zone, untouched, risk; Russian owner blocks only); effect — «before» at apply, a «what changed» card 3–7 days later, judged by the share of answered messages, rollback only on the owner's press; `manual` — admin's manual inserts only with a journal record; `bootstrap-note` and the owner's yes for the first install on a client Mila.
@@ -108,11 +180,21 @@
 - Old skill names (aliases in `legacy/skills/`) stay one more release: removing them needs a migration step that checks no cron still calls the old script paths — planned for v1.7.0.
 
 ## v1.5.3 · 25.10 — day board, plan-vs-fact, marketing checks, our secret scanner in CI
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
 **Для хозяина**
 - Пульт дня: одно закреплённое сообщение — что в работе, что в очереди и что ждёт вашего ответа.
 - Итог недели по пятницам одним постом-слайдами: план и факт.
 - Проверка рекламы перед запуском: громкие слова без цифр и источника не пропускаю.
 
+</details>
+
+**For the owner**
+- Day board: one pinned message — what is in progress, what is queued and what waits for your answer.
+- Week results on Fridays as one slideshow post: plan and fact.
+- Ad check before launch: loud words without a number or a source don't pass.
+
+**For Milas**
 - `skills/pult-dnya` (new): the day board — one pinned message for the owner (in progress / queue / waiting / done, each with a number, who, why, evidence, conclusion). A new task gets a «#N queued, after #X, because…» line at once; «waiting for you» exists only as a question with buttons asked that minute (`wait` refuses without `--asked`); at most two in progress, 🔴 always gets in; morning plan with a 3–5 task auto-pool, the board is edited during the day, evening results; closing needs evidence. `day_board.py` (cards, phones and e-mails masked; a wait over an hour turns 🔴), `test_pult.py` 22/22. Pinned board on demand: `render` returns «empty» and «waiting» for the plugin's `/status` with «#N — answer» buttons and never changes the day file; numbers that are not phones (request №, chat id, person id) stay. `test_pult.py` 26/26.
 - `skills/plan-fakt` (new): Friday plan-vs-fact as one slideshow post — `collect.py` drafts the week from `WEEK.md`, day boards and `MONEY.md` (only if kept), personal data masked, an empty week says «нет данных»; `make_slides.py` 1080×1080 with any Chromium; `send_slideshow.py` one post. Test 17/17.
 - Marketing set, first three skills: `ab-test`, `kreativ-proverka`, `metki-atribuciya` — rules only from primary sources with links (Meta A/B best practices, Telegram Ads guidelines, Hopkins). Superlatives without a number or source nearby — block, with one — warning; caps: one word — warning, two or more — block. `test_check_ad` 19/19.
@@ -122,11 +204,21 @@
 - Secrets: our own scanner (`mila_export scan`) runs over every tracked file in CI (`tests/test_secret_scan.py`, with planted fakes that must be caught); fake keys in tests and key/password patterns in code are built by splicing, so fleet snapshot scanners don't trip on the core; a password assignment is caught from 8 characters. `test_export` 40/40, `test_secret_scan` 10/10.
 
 ## v1.5.2 · 21.10 — English first, five questions about the model, fleet roll from the host
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
 **Для хозяина**
 - Перед большой работой задаю 2–4 вопроса с готовыми вариантами — меньше переделок.
 - Сложное и важное делаю сильной моделью, простое — лёгкой: дешевле без потери качества.
 - Говорю на вашем языке, каким бы он ни был.
 
+</details>
+
+**For the owner**
+- Before big work I ask 2–4 questions with ready options — fewer redos.
+- Complex and important work goes to a strong model, simple work to a light one: cheaper without losing quality.
+- I speak your language, whatever it is.
+
+**For Milas**
 - English first: `communication` and `onboarding` skills in English (`SKILL.md`) with Russian beside (`SKILL.ru.md`); the owner's language can be any (LANG-ANY): Chinese, Arabic…; on «what can you do» — one benefit, not a list.
 - `skills/utochnenie-zadach` (new, base skill of every Mila): understand first, then do — 2–4 questions with ready options before substantial work; answers already given — no questions; urgent — result first with assumptions.
 - `skills/model-choice`: five questions → model tier (`tier.py`: light | strong | strong+yes; a costly error always goes to the strong model; in someone's name or irreversible — strong model and the person's yes).
@@ -139,11 +231,21 @@
 - `mila-update`: a Mila of the team itself (`"internal": true` in `mila-update.json`, or `MILA_INTERNAL=1` during a fleet roll) is not held by the newborn gate — she has no onboarding with an owner, so the core updates without `--newborn-ok`. Only the fleet admin sets it; every skip is written to the journal (`newborn_gate_skipped`, source config|env, apply|nightly) so a client Mila with the flag is visible. `test_update.sh` 26/26.
 
 ## v1.5.1 · 21.10 — safe, model choice, live frames, one-command install
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
 **Для хозяина**
 - Сейф: пароли и ключи вводите по одноразовой ссылке, не в чат.
 - Перед платной работой (картинки, видео, голос) — два варианта с ценой, выбираете кнопкой.
 - Видео-объяснение из голоса — без съёмки.
 
+</details>
+
+**For the owner**
+- Safe: you type passwords and keys on a one-time link, not in the chat.
+- Before paid work (images, video, voice) — two options with prices, you pick by button.
+- An explainer video from voice — no filming.
+
+**For Milas**
 - One-command install: `curl -fsSL …/install/get.sh | bash` (checks Claude Code, Bun, git); CI runs `tests/run_all.sh` on every push; issue/PR templates, Code of Conduct.
 - `skills/model-choice` (a partner's idea, 20.10): before any paid task (images, video, voice, transcription, translation, document analysis) Mila shows two options — budget / best quality: model, what you get, price for this job — with a recommendation, owner picks by button; `pick.py` + dated `catalog.json` (OpenRouter live, fal.ai, ElevenLabs). Test 6/6.
 - Mila Safe (owner 20.10, «Да, делаем сейф»): `tools/seif` — one-time link (30 min, single use, GET does not burn it) where the business owner types passwords, keys and cards; values go straight to `work/secrets/<name>.env` (600) of the Mila's home, journal without values, note to the companion; `skills/safe-link` — never ask secrets in chat, request a safe link, read with `safe_read.py` (mask only). Tests 12/12, 6/6.
