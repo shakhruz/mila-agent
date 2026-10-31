@@ -56,7 +56,7 @@ def chown(path):
 
 def mkdir_owned(base, *parts, mode=0o700):
     """Создать base/parts… по шагу и каждой НОВОЙ папке отдать хозяина (SEIF_UID): сервис идёт от root, иначе work/inbox
-    и work/secrets остаются root — компаньон не может в них писать (поймал Хранитель в canary 20.10).
+    и work/secrets остаются root — компаньон не может в них писать (нашёл canary 20.10).
     31.10: сервис идёт от root, а дом пишет Мила — ни одна папка пути не симлинк, путь внутри дома, иначе OSError (ничего не пишем)."""
     p = base = os.path.realpath(base)
     for part in parts:

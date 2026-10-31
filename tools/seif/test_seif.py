@@ -49,7 +49,7 @@ check("просроченная ссылка — 410", get("http://127.0.0.1:%d/
 check("чужой путь/мусорный токен — 410", get("http://127.0.0.1:%d/v/abc/" % srv.server_port)[0] == 410)
 r = subprocess.run([sys.executable, os.path.join(H, "seif.py"), "link", "nobody", "API_KEY"], capture_output=True, text=True, env=os.environ)
 check("ссылка в несуществующий дом — отказ", r.returncode != 0)
-# 20.10 (Хранитель, canary): в доме без work/ сейф создаёт work, secrets, inbox — все с хозяином дома (SEIF_UID), не root
+# canary 20.10: в доме без work/ сейф создаёт work, secrets, inbox — все с хозяином дома (SEIF_UID), не root
 import pwd
 chowned = []
 _orig = os.chown
