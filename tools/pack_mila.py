@@ -2,6 +2,7 @@
 """Ready-made Mila pack (RU: «пакет готовой Милы»): one zip a person installs on top of Mila Agent.
 
   python3 tools/pack_mila.py <role> [--out dist/] [--core-version X]   # packs/<role>/ → mila-pack-<role>-<version>.zip + manifest
+  python3 tools/pack_mila.py <role> --doc OFFER.md                    # + the seller's document (checked by the same secret scanner)
   python3 tools/pack_mila.py --list                                    # roles that have packs/<role>/pack.json
 
 A pack holds: ROLE.md (who this Mila is, her limits), WHAT.md (what she does, ru/en), pack-only skills (packs/<role>/<skill>/),
@@ -100,8 +101,13 @@ def collect(role):
     return meta, files
 
 
-def build(role, out, core_version=None):
+def build(role, out, core_version=None, extra_docs=()):
     meta, files = collect(role)
+    for path in extra_docs:                        # the seller's own documents (an offer, a hosting option) — not in this repo
+        name = os.path.basename(path)
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,40}\.md", name) or name in files:
+            raise SystemExit("--doc: a new plain .md name only: %r" % name)
+        files[name] = open(path, "rb").read()
     core = core_version or json.load(open(os.path.join(ROOT, "release.json"), encoding="utf-8")).get("version", meta.get("requires_core"))
     files["install.sh"] = INSTALL_SH.encode()
     files["INSTALL.md"] = INSTALL_MD.format(title_en=meta["title"]["en"], title_ru=meta["title"]["ru"], version=meta["version"],
@@ -136,13 +142,14 @@ def main(argv=None):
     ap.add_argument("--out", default=os.path.join(ROOT, "dist"))
     ap.add_argument("--core-version")
     ap.add_argument("--list", action="store_true")
+    ap.add_argument("--doc", action="append", default=[], help="add the seller's .md document to this build (e.g. a hosting offer)")
     a = ap.parse_args(argv)
     if a.list or not a.role:
         for r in sorted(os.listdir(os.path.join(ROOT, "packs"))):
             if os.path.isfile(os.path.join(ROOT, "packs", r, "pack.json")):
                 print(r)
         return 0
-    path, m = build(a.role, a.out, a.core_version)
+    path, m = build(a.role, a.out, a.core_version, a.doc)
     print(json.dumps({"ok": True, "zip": path, "files": len(m["files"]) + 1, "version": m["version"]}, ensure_ascii=False))
     return 0
 
