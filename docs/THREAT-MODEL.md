@@ -42,8 +42,8 @@ image and voice generation, payment links). Keys for those services are the main
 2. **Permission prompts** — `install/permission_policy.ts` with `default: ask`: rules decide routine tools, anything else asks the
    owner on a card with a deadline; a broken policy file turns everything into `ask`, never `allow`; a storm limit stops card floods.
    The policy is evaluated in the plugin (the `mila-telegram` repository), the rules live here.
-3. **Outward actions in the cloud — the consent proxy** (`consent/`). The service keys live only with a separate OS user
-   (`mila-io`); the session asks the proxy, the proxy shows the owner a card it signs itself, and executes only with a fresh,
+3. **Outward actions in the cloud — the consent proxy** (`consent/`, rolling out; today one category — publishing). The keys of
+   consent categories live only with a separate OS user (`mila-io`); the session asks the proxy, the proxy shows the owner a card it signs itself, and executes only with a fresh,
    single-use consent for the hash of that exact payload (text, targets, attachment contents). A changed text or a swapped file
    needs a new yes. Unclear input, a silent proxy, a forged or foreign button — no action.
 4. **The send-guard** (`templates/home/.claude/hooks/send-guard.py`) — a safety net for the model's mistakes (a reply to a chat that
@@ -62,9 +62,10 @@ image and voice generation, payment links). Keys for those services are the main
 | A reply to a chat that was not connected | the plugin refuses an unknown `chat_id`; the send-guard blocks it too | same |
 | A reply in a connected chat | the send-guard (patterns: keys, server paths, another client's matters) — a safety net only; ordinary replies go without asking | same |
 | A shell command, a file edit, a tool call | the permission policy: a rule allows routine ones, anything else asks the owner on a card | same |
-| A post, a mail, a broadcast through a service | cloud: the consent proxy — a fresh single-use yes for that exact payload | a skill with a key in reach: only the permission card for its command |
-| Reading a key file | cloud: the key belongs to `mila-io`, the session cannot read it | nothing: the session can read it |
-| Spending above a limit | a card with the owner's tap (`spend`), checked by the tool | same |
+| A post through a consent category (publishing today) | cloud, rolling out: the consent proxy — a fresh single-use yes for that exact payload | a skill with a key in reach: only the permission policy for its command |
+| A mail, a broadcast, any other service call | the skill asks the owner — behavioural, not a boundary; the permission policy for the command | same |
+| Reading a key file | cloud, rolling out: consent-category keys (publishing) belong to `mila-io`, the session cannot read them; every other key — same as a laptop | nothing: the session can read it |
+| Spending above a limit | the `spend` skill asks the owner on a card — behavioural: the session could call a service around it | same |
 | Writing in the owner's personal Telegram | the client allows only read, draft, folder and reaction requests — not a boundary | same |
 
 ## Where secrets live
@@ -73,8 +74,8 @@ image and voice generation, payment links). Keys for those services are the main
 |---|---|---|
 | Telegram bot token | `~/.claude/channels/telegram/.env` (600) | the session's OS user |
 | Keys the owner typed on the safe page | `~/work/secrets/<name>.env` (600) | the session's OS user |
-| Publishing key (e.g. Zernio) in the cloud setup | consent proxy state (`mila-io`) | only `mila-io` |
-| Mail, image, voice and other service keys on a laptop | `~/work/secrets/…` or the skill's environment | the session's OS user |
+| Publishing key (e.g. Zernio) in the cloud setup, rolling out | consent proxy state (`mila-io`) | only `mila-io` |
+| Mail, image, voice and other service keys (laptop and cloud) | `~/work/secrets/…` or the skill's environment | the session's OS user |
 | The owner's Telegram user session (add-on) | `~/work/secrets/owner-tg/` (700) | the session's OS user — full access to that account |
 | The owner's Claude sign-in | Claude Code's own credentials store | the session's OS user |
 
