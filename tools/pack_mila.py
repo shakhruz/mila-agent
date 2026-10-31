@@ -81,6 +81,10 @@ def collect(role):
     if meta.get("id") != role or not re.fullmatch(r"[a-z0-9-]{2,40}", role):
         raise SystemExit("pack.json id must equal the folder name")
     files = {"ROLE.md": open(os.path.join(base, "ROLE.md"), "rb").read(), "WHAT.md": open(os.path.join(base, "WHAT.md"), "rb").read()}
+    for doc in meta.get("docs") or []:            # extra documents of the pack (a step-by-step course, …): plain names only
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,40}\.md", doc):
+            raise SystemExit("docs: plain .md names only: %r" % doc)
+        files[doc] = open(os.path.join(base, doc), "rb").read()
     for sk in meta.get("skills") or []:
         d = os.path.join(base, sk)
         for dp, dn, fn in os.walk(d):

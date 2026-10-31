@@ -16,6 +16,12 @@ for r in roles:
     good = all(hashlib.sha256(files[k]).hexdigest() == v for k, v in m["files"].items())
     check("%s: собирается; повторная сборка — те же байты; manifest sha256 = файлы; ROLE, WHAT, install.sh, INSTALL.md внутри" % r,
           open(p1, "rb").read() == open(p2, "rb").read() and good and {"ROLE.md", "WHAT.md", "install.sh", "INSTALL.md", "manifest.json"} <= set(files), sorted(files))
+pm_, mm = pm.build("manager", os.path.join(T, "m"))
+check("manager: курс установки COURSE.md в пакете и в манифесте", "COURSE.md" in mm["files"])
+bad = os.path.join(T, "badrepo"); shutil.copytree(ROOT, bad, ignore=shutil.ignore_patterns(".git", "__pycache__", "dist", "node_modules"))
+j = json.load(open(os.path.join(bad, "packs", "manager", "pack.json"))); j["docs"] = ["../../etc/passwd"]; json.dump(j, open(os.path.join(bad, "packs", "manager", "pack.json"), "w"))
+r = subprocess.run([sys.executable, os.path.join(bad, "tools", "pack_mila.py"), "manager", "--out", os.path.join(T, "bad")], capture_output=True, text=True)
+check("docs с путём (../) — отказ сборки", r.returncode != 0 and "plain .md" in (r.stderr + r.stdout), r.stderr[-200:])
 # planted key stops the build
 fake = os.path.join(T, "repo"); shutil.copytree(ROOT, fake, ignore=shutil.ignore_patterns(".git", "__pycache__", "dist", "node_modules"))
 open(os.path.join(fake, "packs", "business-assistant", "ROLE.md"), "a").write("\nOPENROUTER_API_KEY=" + "sk" + "-o" + "r-v1-" + "a1b2c3d4e5f6" * 4 + "\n")
