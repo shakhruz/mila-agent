@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.." || exit 1
 # Python-пакеты — ровно из строки «pip install» в .github/workflows/tests.yml, в своём venv (кэш по строке). Нет сети — громко
 # предупреждаю и беру пакеты пользователя, как раньше.
 PIPLINE="$(grep -m1 -oE 'pip install [^#]*' .github/workflows/tests.yml | sed 's/^pip install //; s/ *$//')"
-VENV="${TMPDIR:-/tmp}/mila-ci-venv-$(printf '%s' "$PIPLINE" | sha256sum | cut -c1-12)"
+VENV="${TMPDIR:-/tmp}/mila-ci-venv-$(python3 -c 'import hashlib,sys;print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:12])' "$PIPLINE")"
 PYPATH_EXTRA=""
 if [ -x "$VENV/bin/python3" ] || { python3 -m venv "$VENV" >/dev/null 2>&1 && "$VENV/bin/pip" install -q $PIPLINE >/dev/null 2>&1; }; then
   export PATH="$VENV/bin:$PATH"; echo "пакеты Python — как в CI: $PIPLINE"
