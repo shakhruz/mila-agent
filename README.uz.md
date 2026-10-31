@@ -38,7 +38,7 @@ Qutidan 3 ta til — **inglizcha, ruscha, o‘zbekcha**; o‘zingiznikini bitta 
 ≈ 5 daqiqa. Kerak: Claude Code (Claude obunasi bilan), [Bun](https://bun.sh), `@BotFather`dan bot tokeni.
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/shakhruz/mila-agent/main/install/get.sh | bash
+curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh | bash
 ```
 
 Buyruq Claude Code, Bun va git’ni tekshiradi, to‘plamni `~/mila` ga yuklaydi va Telegram plaginini `mila-telegram` o‘rnatadi.

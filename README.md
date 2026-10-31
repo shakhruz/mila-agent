@@ -28,8 +28,9 @@ Free, open source, Apache-2.0. Made with ❤️ in Uzbekistan.</p>
 <p align="center"><b>English</b> · <a href="README.zh-CN.md">中文</a> · <a href="README.ru.md">Русский</a> · <a href="README.uz.md">Oʻzbekcha</a></p>
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/shakhruz/mila-agent/main/install/get.sh | bash
+curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh | bash
 ```
+<p align="center">Installs the latest release tag, not <code>main</code>. Runs as a Claude Code development channel (research preview) — see <a href="SECURITY.md#the-development-channels-flag">why</a>.</p>
 <p align="center">≈ 5 minutes · macOS, Linux (Windows via WSL) · bring your own Claude plan or Anthropic API key<br>
 Latest: <a href="https://github.com/shakhruz/mila-agent/releases/latest">v1.6.6</a> · install command checked from scratch on Linux, Oct 30</p>
 
@@ -118,13 +119,21 @@ Source: [Claude Code — legal and compliance](https://code.claude.com/docs/en/l
 One command:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/shakhruz/mila-agent/main/install/get.sh | bash
+curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh | bash
 ```
 
-**Check before running.** From the next release (v1.7.0) each release tag will carry `SHA256SUMS` for `install/get.sh` and
-`release.json`, so you can compare the script you downloaded with the one in the tag before running it.
+**Check before running.** Every release carries `get.sh` and `SHA256SUMS` as assets (from v1.7.0), so you can compare the script
+with the checksum of its release before running it:
 
-It checks Claude Code, Bun and git, clones the kit to `~/mila`, runs `install/install.sh` and installs the Telegram plugin `mila-telegram` (existing files are backed up as `<file>.bak-YYYYMMDD-HHMMSS`). Prefer to look first? `curl -fsSL https://raw.githubusercontent.com/shakhruz/mila-agent/main/install/get.sh | MILA_INSTALL_ARGS=--dry-run bash` — or clone and run `./install/install.sh --dry-run`: it shows exactly what will be touched.
+```sh
+curl -fsSLO https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh
+curl -fsSLO https://github.com/shakhruz/mila-agent/releases/latest/download/SHA256SUMS
+sha256sum -c --ignore-missing SHA256SUMS && bash get.sh     # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
+```
+
+Release tags are signed when the maintainer's key is set (`git tag -v vX.Y.Z`); unsigned tags are said so in the release notes.
+
+It checks Claude Code, Bun and git, clones the kit to `~/mila`, runs `install/install.sh` and installs the Telegram plugin `mila-telegram` (existing files are backed up as `<file>.bak-YYYYMMDD-HHMMSS`). Prefer to look first? `curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh | MILA_INSTALL_ARGS=--dry-run bash` — or clone and run `./install/install.sh --dry-run`: it shows exactly what will be touched.
 
 Then three steps, each checked before the next:
 
@@ -207,12 +216,9 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md).
 | **Hire one** | Ready-made Milas for a job — moderator, manager, SMM and more. The first one is free. | [mila.market](https://mila.market) |
 | **Launch your own** | MilaGPT Studio sets your Mila up with you and helps turn your expertise into a product. | [milagpt.io/akselerator](https://milagpt.io/akselerator/) |
 
-## ⭐ Help Mila grow
+## Built a skill or a role?
 
-If Mila saves you time, **star the repo** — it helps other business owners find her.
-Built a skill or a role? **Fork it**, send a pull request, or publish your Mila on [Mila Market](https://mila.market) and earn 75% of every sale.
-
-[![Star History Chart](https://api.star-history.com/svg?repos=shakhruz/mila-agent&type=Date)](https://star-history.com/#shakhruz/mila-agent&Date)
+Send a pull request, or publish your Mila on [Mila Market](https://mila.market) and earn 75% of every sale.
 
 ## Community
 

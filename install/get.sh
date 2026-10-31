@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Mila — one-command install / установка одной командой:
-#   curl -fsSL https://raw.githubusercontent.com/shakhruz/mila-agent/main/install/get.sh | bash
+#   curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh | bash
 # Checks what is needed (Claude Code, Bun, git), clones the kit to ~/mila (or updates it; an older ~/mila-companion is updated in place), runs install/install.sh.
 # Then installs the Telegram plugin: claude plugin marketplace add shakhruz/mila-telegram + claude plugin install mila-telegram@mila.
 # Env: MILA_DIR (where to clone), MILA_REF (branch/tag; default — latest stable tag vX.Y.Z, canary: MILA_REF=main), MILA_REPO, MILA_INSTALL_ARGS,

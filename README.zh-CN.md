@@ -31,7 +31,7 @@ Mila 是更大愿景的一部分 —— 阅读我们的宣言（英文）：[mil
 约需 5 分钟。你需要：Claude Code（以及 Claude 订阅）、[Bun](https://bun.sh)、从 `@BotFather` 获取的 Telegram 机器人 token。
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/shakhruz/mila-agent/main/install/get.sh | bash
+curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh | bash
 ```
 
 该命令会检查 Claude Code、Bun 和 git，把套件克隆到 `~/mila`，并安装 Telegram 插件 `mila-telegram`。

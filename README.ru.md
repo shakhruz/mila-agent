@@ -68,7 +68,7 @@ API-ключом; сама Мила работает только на Claude (�
 Одной командой:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/shakhruz/mila-agent/main/install/get.sh | bash
+curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh | bash
 ```
 
 Она проверит Claude Code, Bun и git, склонирует набор в `~/mila`, запустит `install/install.sh` и поставит плагин Telegram `mila-telegram` (заменяемые файлы сохраняются как `<файл>.bak-ГГГГММДД-ЧЧММСС`). Хотите сначала посмотреть — склонируйте и запустите `./install/install.sh --dry-run`: покажет, что будет затронуто.

@@ -28,7 +28,7 @@ command -v python3 >/dev/null 2>&1 || { echo "python3 is needed (it comes with M
 say() { printf '%s\n' "$*"; }
 run() { if [[ $DRY -eq 1 ]]; then say "would: $*"; else "$@"; fi; }
 if [[ ! -d "$CLAUDE/skills/mila-update" ]]; then
-  say "Mila Agent is not installed yet. First: curl -fsSL https://raw.githubusercontent.com/shakhruz/mila-agent/main/install/get.sh | bash"
+  say "Mila Agent is not installed yet. First: curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh | bash"
   exit 2
 fi
 missing=()
@@ -57,7 +57,7 @@ if command -v mila >/dev/null 2>&1 && [[ $DRY -eq 0 ]]; then mila doctor || true
 
 INSTALL_MD = """# Install · Установка — {title_en} / {title_ru} {version}
 
-**EN.** 1) Mila Agent first (one command, see the core README): `curl -fsSL https://raw.githubusercontent.com/shakhruz/mila-agent/main/install/get.sh | bash`,
+**EN.** 1) Mila Agent first (one command, see the core README): `curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh | bash`,
 then `mila onboard` (your Telegram bot token, your own Claude sign-in). 2) Unpack this zip and run `bash install.sh --dry-run`, then
 `bash install.sh`: it puts ROLE.md and WHAT.md into ~/work, the pack's skills into ~/.claude/skills (anything existing is backed up),
 adds one line to ~/work/CLAUDE.md and runs `mila doctor`. 3) Restart: `mila`. Write to your bot — Mila offers her first three tasks.
