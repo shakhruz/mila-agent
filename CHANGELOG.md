@@ -1,6 +1,6 @@
 # CHANGELOG · Mila
 
-## Unreleased (after v1.6.6)
+## v1.7.0 · 31.10 — install from a release, English where a reviewer looks first, the personal Telegram as an opt-in pack
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
