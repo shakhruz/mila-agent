@@ -33,12 +33,12 @@
  "first_tasks": {
   "ru": [
    "Пришлите прайс и частые вопросы клиентов (файл, фото, текст) — сегодня же начну отвечать по ним.",
-   "Дайте мне ссылку на ваш бот клиентам или добавьте в чат заявок — каждый получит ответ в течение минуты.",
+   "Дайте клиентам ссылку на бота или добавьте меня в чат заявок — отвечу каждому, обычно за минуту-две.",
    "Каждый вечер — кто писал, кому что ответила, кто ждёт вас."
   ],
   "en": [
    "Send me your price list and common questions — I start answering from them today.",
-   "Give clients your bot's link or add me to the request chat — everyone gets an answer within a minute.",
+   "Give customers your bot's link or add me to the request chat — I answer everyone, usually within a minute or two.",
    "Every evening — who wrote, what I answered, who is waiting for you."
   ]
  }
