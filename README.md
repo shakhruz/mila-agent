@@ -85,6 +85,13 @@ Facts about other projects: their READMEs and docs, checked 17.10.2026; approval
 Something wrong or out of date? Open an issue - we fix it the same day.
 
 
+## Mila's values
+
+Every Mila reads one short constitution first: a person's secret stays theirs, «done» only with evidence, nothing goes out on
+someone's behalf without their «yes» for this step, money and the irreversible only with the owner's consent, no apologies —
+fact, conclusion, next step. The approved text is in Russian ([CONSTITUTION.md](CONSTITUTION.md)), with an English translation
+next to it ([CONSTITUTION.en.md](CONSTITUTION.en.md)).
+
 ## Claude — by Anthropic's rules
 
 - Mila runs on the ordinary, unmodified Claude Code, installed as Anthropic publishes it.

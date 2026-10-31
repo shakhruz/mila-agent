@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""send-guard.py — PreToolUse-хук Компаньона на reply/edit_message.
-Стоит на пути отправки, потому что правилом текст не лечится (04.08, 25.08, 04.09).
-Блокирует: адресат не хозяин · ключи/токены · id чужих чатов · кухня (пути, podman, сырые ошибки провайдера)
-· markdown без format=markdownv2. Секретов не печатает.
+"""send-guard.py — a PreToolUse hook on reply / edit_message: the last check before a message leaves.
+It sits on the send path because a rule in the prompt does not fix a text that is already written.
+Blocks: a recipient who is not the owner or a connected chat · keys and tokens · ids of other chats · internals (server paths,
+container names, raw provider errors) · markdown without format=markdownv2. Prints no secrets.
 Fail closed (the hook itself, not only the settings field): input it cannot read, or any unexpected error inside the guard → exit 2
 and a deny — the message is not sent. Not our tool → exit 0. This guard catches the model's mistakes; it is not a security boundary
 against a hostile sender (see docs/THREAT-MODEL.md)."""
@@ -31,25 +31,25 @@ if not (tool.endswith("__reply") or tool.endswith("__edit_message")):
     sys.exit(0)
 args = p.get("tool_input") or {}
 _body = str(args.get("text") or "")
-_cap = str(args.get("caption") or "")   # подпись к фото/альбому уходит в Telegram так же — проверяю вместе с текстом
+_cap = str(args.get("caption") or "")   # a photo/album caption goes to Telegram too — checked with the text
 text = (_body + "\n" + _cap).strip() if _cap else _body
 chat_id = str(args.get("chat_id") or "").strip()
 owner = (os.environ.get("OWNER_ID") or "").strip()
 fmt = (args.get("format") or "text").lower()
 why = []
 
-# кроме хозяина разрешены
-# группы из access.json — туда компаньона подключает владелец карточкой — и личка допущенных (allowFrom).
+# besides the owner, allowed are the groups in access.json (the owner connects Mila there with a card)
+# and private chats of allowed people (allowFrom).
 _allowed = set()
 _card_allow = set()
 try:
     _acc = json.load(open(os.path.expanduser("~/.claude/channels/telegram/access.json"), encoding="utf-8"))
     _allowed = {str(k) for k in (_acc.get("groups") or {}).keys()} | {str(x) for x in (_acc.get("allowFrom") or [])}
-    _card_allow = {re.sub(r"\D", "", str(x)) for x in (_acc.get("cardAllow") or [])}   # наши реквизиты оплаты
+    _card_allow = {re.sub(r"\D", "", str(x)) for x in (_acc.get("cardAllow") or [])}   # the owner's own payment details (not masked)
 except Exception:
     pass
-# нет OWNER_ID — хватает access.json (allowFrom + группы);
-# нет ни того, ни другого — проверку адресата не делаем (Мила ещё не подключена, писать некуда кроме ответа)
+# no OWNER_ID — access.json (allowFrom + groups) is enough;
+# neither — no recipient check (Mila is not connected yet; the only place to write is the reply itself)
 if chat_id and (owner or _allowed) and chat_id != owner and chat_id not in _allowed:
     why.append("адресат %s — не хозяин и не подключённый чат: говорю только там, куда меня подключили" % chat_id)
 
@@ -64,9 +64,8 @@ SECRETS = [
 for rx, name in SECRETS:
     if re.search(rx, text):
         why.append("в тексте %s — секреты в чат не пишем, хозяину: «перевыпустить»" % name)
-# 13–19 цифр подряд
-# (пробелы/дефисы между ними — можно), проходят Луну → номер карты. В группу — стоп, автору переписать без номера;
-# хозяину и в личку — уходит, но номер заменён маской ****1234 (updatedInput). Телефон с «+» — не карта.
+# 13–19 digits in a row (spaces or dashes allowed) that pass the Luhn check → a card number. To a group — blocked, rewrite
+# without it; to the owner or a private chat — sent, with the number masked as ****1234 (updatedInput). A phone with «+» is not a card.
 _PAN = re.compile(r"(?<![\d+])(?:\d[ -]?){12,}\d(?![\d])")
 def _luhn(d):
     t = 0
@@ -87,7 +86,7 @@ def _cards(t):
                 d = re.sub(r"\D", "", txt[parts[i][0]:parts[j][1]])
                 if 13 <= len(d) <= 19 and len(set(d)) > 1 and _luhn(d) and d not in _card_allow:
                     cand.append((j, d))
-            hit = next((c for c in cand if len(c[1]) == 16), cand[0] if cand else None)   # 16 цифр — самый частый номер; иначе самое длинное окно
+            hit = next((c for c in cand if len(c[1]) == 16), cand[0] if cand else None)   # 16 digits is the usual card length; otherwise the longest window
             if not hit:
                 i += 1; continue
             out.append((m.start() + parts[i][0], m.start() + parts[hit[0]][1], hit[1])); i = hit[0] + 1
@@ -112,9 +111,8 @@ for rx, name in KITCHEN:
     if re.search(rx, text, re.I):
         why.append("кухня наружу (%s) — скажи результат словами человека" % name)
 
-# извинения и оправдания
-# в чат не уходят — ни клиенту, ни хозяину. Закон 7 конституции: факт · вывод · шаг, не «простите».
-# Исключение: dev-группа MILAGPT и текст с номером дефекта (D-0xxx) — отчёт, не оправдание.
+# apologies and excuses do not go out — neither to a client nor to the owner (constitution, law 7: fact · conclusion · step,
+# not «sorry»). Exception: the development chat and a text with a defect number (D-0xxx) — that is a report.
 _APOLOGY = re.compile(r"(?:\bизвин\w*|\bпрост(?:и|ите)\b|прошу прощения|\bмо[яй] (?:ошибк|вин|дыр)\w*|\bвиноват\w*|с опозданием|\bоправд\w*|к сожалению,? (?:я )?не (?:успел|смогл)\w*|\bsorry\b|\bapolog\w*)", re.I)
 if chat_id != os.environ.get("MILA_DEV_CHAT", "") and not re.search(r"\bD-0\d{3}\b", text):
     _m = _APOLOGY.search(text)
@@ -132,19 +130,19 @@ if fmt != "markdownv2":
                    "собери через tg.py умения milagpt-chat или убери разметку" % ", ".join(marks))
 
 # --- (D-NNNN, 20.09.2026) ---------------------------------------
-# У компаньона одна сессия на все чаты, стены между ними нет. Замок на выходе: в чат X не
-# уходит @тег человека или название чата, которых в X никогда не было, а в другом чате они есть.
-# Хозяину и внутренним чатам (~/.claude/hooks/internal-chats.json — список id) можно всё.
-# Реестр строится из журнала входящих; людей из трёх и более чатов считаем командой.
+# One session serves all chats, there is no wall between them. The lock on the way out: chat X does not get the @tag of a person
+# or the title of a chat that never appeared in X but did in another chat. The owner and internal chats
+# (~/.claude/hooks/internal-chats.json — a list of ids) may get anything. The register is built from the inbound journal;
+# people seen in three or more chats count as the team.
 try:
     _fc_internal = set()
     try:
         _fc_internal = {str(x) for x in json.load(open(os.path.expanduser("~/.claude/hooks/internal-chats.json"), encoding="utf-8"))}
     except Exception:
         pass
-    # Правило: чаты одного дела — ~/.claude/hooks/same-case-chats.json, список групп id
-    # ([["-100 группа клиента Acme", "<id> Agency Work"], …]); внутри группы люди и названия чатов — не «чужое дело».
-    # Только у этой Милы (конфиг компаньона), не глобально.
+    # Chats of one matter — ~/.claude/hooks/same-case-chats.json, a list of id groups
+    # ([["-100 Acme client group", "<id> Agency Work"], …]); inside a group people and chat titles are not «someone else's matter».
+    # Per Mila (her own config), not global.
     _fc_groups = []
     try:
         _fc_groups = [{str(x) for x in g} for g in json.load(open(os.path.expanduser("~/.claude/hooks/same-case-chats.json"), encoding="utf-8")) if isinstance(g, list)]
@@ -192,10 +190,10 @@ try:
                     why.append("«%s» — название другого чата; в этом чате чужое дело не называю (закон о тайне)" % _fc_part)
                     break
 except Exception:
-    pass  # замок не должен ломать отправку
+    pass  # this optional lock must not break sending (its inputs are optional files)
 
 if not why:
-    if _card_hits:   # личка/хозяин: уходит, но с маской
+    if _card_hits:   # private chat / owner: sent, with the card masked
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow",
                                                  "permissionDecisionReason": "номер карты заменён маской",
                                                  "updatedInput": dict(args, text=mask_cards(_body), **({"caption": mask_cards(_cap)} if _cap else {}))}}, ensure_ascii=False))
