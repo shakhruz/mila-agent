@@ -47,8 +47,11 @@ image and voice generation, payment links). Keys for those services are the main
    single-use consent for the hash of that exact payload (text, targets, attachment contents). A changed text or a swapped file
    needs a new yes. Unclear input, a silent proxy, a forged or foreign button — no action.
 4. **The send-guard** (`templates/home/.claude/hooks/send-guard.py`) — a safety net for the model's mistakes (a reply to a chat that
-   was not connected, a key in the text, another client's matters, server paths). It fails closed, but it is pattern matching and
-   not a boundary against a hostile sender.
+   was not connected, a key in the text or in an attached file, a file outside the home or one of the agent's own key and settings
+   files, another client's matters, server paths). It fails closed — with no owner id and an unreadable `access.json` nothing goes
+   out — but it is pattern matching and not a boundary against a hostile sender. It hangs on the plugin's `reply` and
+   `edit_message` only: a broadcast from the owner's bot (`bot-send`), a post or a mail through a service goes through other layers
+   (the permission policy for the command, the skill's own card, the consent proxy where it is set up).
 5. **Secrets out of the chat** — keys never pass through the conversation: the bot token is in `~/.claude/channels/telegram/.env`
    (600); service keys are entered by the owner through the safe page (`tools/seif`) straight into a 600 file; `mila export`
    refuses to pack anything its secret scanner finds. Out of the chat is not out of reach: under the same OS user the session

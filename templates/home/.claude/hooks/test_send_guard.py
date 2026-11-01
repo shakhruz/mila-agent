@@ -54,7 +54,10 @@ json.dump({"groups": {"-1001": {}}, "allowFrom": ["555"]}, open(os.path.join(hom
 chk("без OWNER_ID: чужой чат — стоп по access.json", {"tool_name": R, "tool_input": {"chat_id": "999", "text": "привет"}}, "deny")
 chk("без OWNER_ID: допущенный из allowFrom — уходит", {"tool_name": R, "tool_input": {"chat_id": "555", "text": "Готово."}}, "pass")
 os.remove(os.path.join(home, ".claude/channels/telegram/access.json"))
-chk("без OWNER_ID и без access.json — адресат не проверяется", {"tool_name": R, "tool_input": {"chat_id": "999", "text": "Готово."}}, "pass")
+chk("без OWNER_ID и без access.json — не знаю, кому можно: стоп", {"tool_name": R, "tool_input": {"chat_id": "999", "text": "Готово."}}, "deny")
+open(os.path.join(home, ".claude/channels/telegram/access.json"), "w").write("{битый")
+chk("без OWNER_ID и битый access.json — стоп, не пропуск", {"tool_name": R, "tool_input": {"chat_id": "555", "text": "Готово."}}, "deny")
+os.remove(os.path.join(home, ".claude/channels/telegram/access.json"))
 # номер карты собираем в коде (Луна), чтобы в репо не лежал «номер»
 import random
 def _pan(prefix="8600", L=16):
@@ -63,6 +66,19 @@ def _pan(prefix="8600", L=16):
     return "".join(map(str, d)) + str((10 - t % 10) % 10)
 env["OWNER_ID"] = "111"
 json.dump({"groups": {"-1001": {}}, "allowFrom": ["555"]}, open(os.path.join(home, ".claude/channels/telegram/access.json"), "w"))
+# files: only own files inside the home or temp, never keys or the agent's wiring, no key inside a text file
+_w = os.path.join(home, "work"); os.makedirs(os.path.join(_w, "secrets"), exist_ok=True)
+open(os.path.join(_w, "report.pdf"), "wb").write(b"%PDF-1.4 fake")
+open(os.path.join(_w, "notes.txt"), "w").write("ключ " + "sk" + "-" + "a1b2c3d4e5f6g7h8i9j0k1l2" + "\n")
+open(os.path.join(_w, "secrets", "x.env"), "w").write("A=1\n"); open(os.path.join(_w, ".env"), "w").write("A=1\n")
+chk("файл из дома — уходит", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "Отчёт", "files": [os.path.join(_w, "report.pdf")]}}, "pass")
+chk("файл .env — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "вот", "files": [os.path.join(_w, ".env")]}}, "deny")
+chk("файл из secrets/ — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "вот", "files": [os.path.join(_w, "secrets", "x.env")]}}, "deny")
+chk("access.json агента — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "вот", "files": [os.path.join(home, ".claude/channels/telegram/access.json")]}}, "deny")
+chk("файл вне дома (/etc/hosts) — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "вот", "files": ["/etc/hosts"]}}, "deny")
+chk("текстовый файл с ключом внутри — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "вот", "files": [os.path.join(_w, "notes.txt")]}}, "deny")
+os.symlink("/etc/hosts", os.path.join(_w, "link.txt"))
+chk("симлинк из дома наружу — стоп (по настоящему пути)", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "вот", "files": [os.path.join(_w, "link.txt")]}}, "deny")
 P19 = _pan("4", 19); P = _pan(); PS = " ".join(P[i:i + 4] for i in range(0, 16, 4)); PD = "-".join(P[i:i + 4] for i in range(0, 16, 4))
 chk("карта в группу (с пробелами) — стоп", {"tool_name": R, "tool_input": {"chat_id": "-1001", "text": "Новые за сутки: письмо — карта " + PS}}, "deny")
 chk("карта в группу (с дефисами, 19 цифр) — стоп", {"tool_name": R, "tool_input": {"chat_id": "-1001", "text": "карта " + "-".join(P19[i:i + 4] for i in range(0, 19, 4))}}, "deny")

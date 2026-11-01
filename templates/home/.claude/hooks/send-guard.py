@@ -40,19 +40,6 @@ why = []
 
 # besides the owner, allowed are the groups in access.json (the owner connects Mila there with a card)
 # and private chats of allowed people (allowFrom).
-_allowed = set()
-_card_allow = set()
-try:
-    _acc = json.load(open(os.path.expanduser("~/.claude/channels/telegram/access.json"), encoding="utf-8"))
-    _allowed = {str(k) for k in (_acc.get("groups") or {}).keys()} | {str(x) for x in (_acc.get("allowFrom") or [])}
-    _card_allow = {re.sub(r"\D", "", str(x)) for x in (_acc.get("cardAllow") or [])}   # the owner's own payment details (not masked)
-except Exception:
-    pass
-# no OWNER_ID — access.json (allowFrom + groups) is enough;
-# neither — no recipient check (Mila is not connected yet; the only place to write is the reply itself)
-if chat_id and (owner or _allowed) and chat_id != owner and chat_id not in _allowed:
-    why.append("адресат %s — не хозяин и не подключённый чат: говорю только там, куда меня подключили" % chat_id)
-
 SECRETS = [
     (r"\b(?:sk|pk)[-_][A-Za-z0-9\-_]{16,}", "ключ провайдера (sk-/sk_/pk_)"),
     (r"\b\d{6,12}:[A-Za-z0-9_-]{30,50}\b", "токен Telegram-бота"),
@@ -61,6 +48,52 @@ SECRETS = [
     (r"\bxox[baprs]-[A-Za-z0-9-]{10,}", "токен Slack"),
     (r"\bcmp_[A-Za-z0-9]{16,}\b", "токен API"),
 ]
+SECRETS_EARLY = SECRETS
+
+_allowed = set()
+_card_allow = set()
+_acc_ok = False
+try:
+    _acc = json.load(open(os.path.expanduser("~/.claude/channels/telegram/access.json"), encoding="utf-8"))
+    _allowed = {str(k) for k in (_acc.get("groups") or {}).keys()} | {str(x) for x in (_acc.get("allowFrom") or [])}
+    _card_allow = {re.sub(r"\D", "", str(x)) for x in (_acc.get("cardAllow") or [])}   # the owner's own payment details (not masked)
+    _acc_ok = True
+except Exception:
+    pass
+# no OWNER_ID — access.json (allowFrom + groups) is enough. Neither (no owner id, access.json missing or unreadable) — I do not
+# know who may get messages, so nothing goes out: before pairing there is nobody to write to, after it a broken file is a fault.
+if chat_id and not owner and not _acc_ok:
+    why.append("не знаю, кому можно писать: нет OWNER_ID и не читается access.json — проверь подключение (mila doctor)")
+elif chat_id and chat_id != owner and chat_id not in _allowed:
+    why.append("адресат %s — не хозяин и не подключённый чат: говорю только там, куда меня подключили" % chat_id)
+
+# files attached to a reply leave the machine too: only regular files inside the home or the temp folder, never keys or
+# the agent's own wiring, and a text file with a key inside is not sent.
+_HOME = os.path.realpath(os.path.expanduser("~"))
+_TMP = [os.path.realpath(x) for x in {"/tmp", os.environ.get("TMPDIR") or "/tmp"}]
+_SECRET_PATH = re.compile(r"(^|/)(\.env[^/]*|secrets?|\.ssh|\.gnupg|\.aws|\.config)(/|$)|\.credentials\.json$|(^|/)pd\.key$|\.(pem|key|p12|pfx)$|(^|/)(access|settings|permissions)\.json$", re.I)
+_files = args.get("files") or []
+if not isinstance(_files, list):
+    _files = [_files]
+for _f in _files[:20]:
+    _rp = os.path.realpath(os.path.expanduser(str(_f)))
+    _inside = os.path.commonpath([_rp, _HOME]) == _HOME or any(os.path.commonpath([_rp, t]) == t for t in _TMP)
+    _claude = os.path.commonpath([_rp, os.path.join(_HOME, ".claude")]) == os.path.join(_HOME, ".claude") and "/inbox/" not in _rp
+    if not _inside:
+        why.append("файл %s — вне дома: отправляю только свои файлы" % os.path.basename(_rp)); continue
+    if _SECRET_PATH.search(_rp) or _claude:
+        why.append("файл %s — ключи и обвязка агента наружу не уходят" % os.path.basename(_rp)); continue
+    try:
+        if os.path.isfile(_rp) and os.path.getsize(_rp) <= 2 * 1024 * 1024:
+            _head = open(_rp, "rb").read(2 * 1024 * 1024)
+            if b"\x00" not in _head[:4096]:
+                _ft = _head.decode("utf-8", "ignore")
+                for _rx, _nm in SECRETS_EARLY:
+                    if re.search(_rx, _ft):
+                        why.append("в файле %s %s — такой файл не отправляю" % (os.path.basename(_rp), _nm)); break
+    except OSError:
+        why.append("файл %s не читается — непроверенное не отправляю" % os.path.basename(_rp))
+
 for rx, name in SECRETS:
     if re.search(rx, text):
         why.append("в тексте %s — секреты в чат не пишем, хозяину: «перевыпустить»" % name)
