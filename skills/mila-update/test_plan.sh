@@ -19,8 +19,9 @@ chk "ничего не меняется → «Что изменится: нич�
 chk "«Что получите» — по-русски из «Для хозяина» нескольких версий новее v1.5.1 (≥ 4 строк из ≥ 2 версий), без v1.5.1" "python3 -c \"
 import json,sys,re; d=json.load(open('$T/p.json')); g=' '.join(d['get'])
 sys.exit(0 if len(d['get']) >= 4 and len(d['get_versions']) >= 2 and 'v1.5.1' not in d['get_versions'] and 'Сейф' not in g and not re.search(r'[A-Za-z]{4,}', g) else 1)\""
-chk "первая строка «Что получите» в тексте — из «Для хозяина» выпуска x.y.0 (v1.6.0, суть строки), а не из свежего патча" "python3 -c \"
-import re,sys; c=open('$T/rel/CHANGELOG.md').read(); sec=re.split(r'^## ', c, flags=re.M); v=[s for s in sec if re.match(r'v1\\.6\\.0 ', s)][0]
+chk "первая строка «Что получите» в тексте — из «Для хозяина» новейшего выпуска x.y.0 не новее релиза (суть строки), а не из свежего патча" "python3 -c \"
+import re,sys,json; c=open('$T/rel/CHANGELOG.md').read(); sec=re.split(r'^## ', c, flags=re.M); top=tuple(map(int, json.load(open('$T/rel/release.json'))['version'].split('.')))
+xy0=[s for s in sec if re.match(r'v\\d+\\.\\d+\\.0 ', s) and tuple(map(int, s[1:].split()[0].split('.'))) <= top]; v=max(xy0, key=lambda s: tuple(map(int, s[1:].split()[0].split('.'))))
 own=v.split('**Для хозяина**')[1].split('**')[0]; L=[l[2:].strip().replace('\\x60','') for l in own.splitlines() if l.startswith('- ')]
 first=open('$T/p.txt').read().split('Что получите:')[1].strip().splitlines()[0][2:].strip()
 f=first.rstrip('.…'); sys.exit(0 if L and any(x.startswith(f) for x in L) else 1)\""
