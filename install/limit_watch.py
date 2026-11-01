@@ -26,7 +26,7 @@ Claude Code, находит запись 429, берёт из неё время 
 Использование (одна машина = один вызов раз в минуту, состояние в limit.json):
   limit_watch.py --json                         # что видит датчик
   limit_watch.py --notify --outbox DIR --chat ID # Мила-администратор: через outbox sender-демона
-  limit_watch.py --notify --tg-token-env VAR --chat ID --switch-link URL --mode companion
+  limit_watch.py --notify --tg-token-env VAR --chat ID --mode companion
   limit_watch.py --dry-run                      # текст сообщения в stdout, состояние не трогает
   limit_watch.py --probe FILE.jsonl             # консерва: разбор одного файла, без состояния
   limit_watch.py --baseline                     # пометить текущий инцидент как уже объявленный
@@ -387,21 +387,9 @@ def message_hit(det, tz_name, mode="admin", switch_link="", account=None, now=No
     if account and account.get("email"):
         head += "\nАккаунт: %s%s." % (account["email"], " (%s)" % account["plan"] if account.get("plan") else "")
     parts.append(("text", head))
-    if mode == "admin":
-        parts.append(("text", "Переключить на другую подписку — командой в окне сессии Claude Code:"))
-        parts.append(("code", "/login"))
-        parts.append(("text", "Откроется страница входа Claude — войти другим аккаунтом, код вставить "
-                              "в то же окно. С телефона без терминала переключить нельзя — это граница "
-                              "штатного Claude Code на Маке."))
-    else:
-        if switch_link:
-            # ссылка обычным текстом: Telegram делает её кнопкой-переходом, в моноблоке тап не открыл бы
-            parts.append(("text", "Переключить на другую подписку — без терминала, две минуты с телефона:\n" + switch_link))
-            parts.append(("text", "Ссылка действует 15 минут и один раз. Или просто подождите — "
-                                  "лимит вернётся сам."))
-        else:
-            parts.append(("text", "Хотите переключить на другую подписку — напишите «сменить подписку», "
-                                  "пришлю ссылку."))
+    # switch_link оставлен в подписи для старых вызовов: чужим входом лимит не обходим
+    parts.append(("text", "Не ждать — можно поднять план или включить оплату сверх лимита в настройках "
+                          "вашего аккаунта Claude. Или просто подождите — лимит вернётся сам."))
     return parts
 
 
@@ -553,7 +541,7 @@ def run(args):
 
     if args.probe or args.json and not (args.notify or args.dry_run or args.baseline):
         if args.probe and det["hit"]:
-            det["message_preview"] = render_plain(message_hit(det, tz_name, args.mode, args.switch_link, None, now))
+            det["message_preview"] = render_plain(message_hit(det, tz_name, args.mode, "", None, now))
         print(json.dumps(det, ensure_ascii=False, indent=1, default=str))
         return 0
 
@@ -597,18 +585,8 @@ def run(args):
                   "text": h["text"], "account": acc, "notified_hit": None, "recovered_at": None,
                   "notified_recovered": None, "silent_since": st.get("silent_since")}
         if not st.get("notified_hit"):
-            link = args.switch_link
-            if not link and args.switch_link_cmd and not args.dry_run:
-                try:
-                    link = subprocess.run(args.switch_link_cmd, shell=True, capture_output=True,
-                                          text=True, timeout=90).stdout.strip().splitlines()[-1]
-                except Exception:                   # noqa: BLE001
-                    link = ""
-                if not link.startswith("http"):
-                    link = ""
-            if deliver(message_hit(det, tz_name, args.mode, link, st.get("account"), now), "лимит"):
+            if deliver(message_hit(det, tz_name, args.mode, "", st.get("account"), now), "лимит"):
                 st["notified_hit"] = now
-                st["switch_link_issued"] = bool(link)
     else:
         # инцидент был объявлен, а теперь есть удачный ход → одно «вернулся»
         if st.get("incident") and st.get("notified_hit") and not st.get("notified_recovered"):
@@ -645,8 +623,8 @@ def main(argv=None):
     ap.add_argument("--journal", default=os.path.join(TG_STATE, "inbound", "events.jsonl"))
     ap.add_argument("--tz", default=DEFAULT_TZ)
     ap.add_argument("--mode", choices=("admin", "companion"), default="admin")
-    ap.add_argument("--switch-link", default="")
-    ap.add_argument("--switch-link-cmd", help="команда, печатающая ссылку смены подписки (зовётся только при отправке)")
+    ap.add_argument("--switch-link", default="", help=argparse.SUPPRESS)      # устарело: принимается и не используется
+    ap.add_argument("--switch-link-cmd", help=argparse.SUPPRESS)              # устарело: принимается и не используется
     ap.add_argument("--det-json", help="готовый разбор detect() из файла вместо чтения транскриптов")
     ap.add_argument("--window-hours", type=float, default=WINDOW_H)
     ap.add_argument("--silent-min", type=int, default=SILENT_MIN)

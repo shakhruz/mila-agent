@@ -47,4 +47,9 @@ chk("после — курсор у m1: все 3 к подаче, состоян
 fresh(); chk("второй раз «пропущено» не подаю", F.limit_step(cur3, now=now + 40) == (cur3, False) and len(fed) == 1)
 open(TR, "w").write(ok_rec(now - 10)); fresh()
 chk("лимита нет — не держу и курсор не трогаю", F.limit_step(end, now=now) == (end, False))
+det = {"hit": {"kind": "seven_day", "first_at": now, "resets_at": resets, "tz": "UTC"}}
+for mode in ("admin", "companion"):
+    msg = LW.render_plain(LW.message_hit(det, "UTC", mode, "https://example.invalid/x", None, now))
+    chk("сообщение о лимите (%s): свой план или оплата сверх лимита; ни входа другим аккаунтом, ни ссылки смены" % mode,
+        "настройках" in msg and "другую подписку" not in msg and "другим аккаунтом" not in msg and "example.invalid" not in msg)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

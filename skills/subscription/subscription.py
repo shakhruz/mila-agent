@@ -5,14 +5,15 @@
 реализация своя. Только чтение: токен читается из файла входа, уходит одним заголовком
 на api.anthropic.com и никуда больше — ни в кэш, ни в лог, ни в вывод.
 
-Несколько подписок описываются в accounts.json рядом со скриптом:
+Без accounts.json ведётся одна подписка — та, на которой работает сам агент. Свои входы на
+нескольких машинах (тот же человек, его подписка) — записи в accounts.json рядом со скриптом:
 
     {"accounts": [
-       {"name": "владелец",  "credentials": "~/.claude/.credentials.json"},
-       {"name": "Вторая",  "credentials": "~/work/tools/accounts/vtoraya.json"}
+       {"name": "Main",   "credentials": "~/.claude/.credentials.json"},
+       {"name": "Laptop", "report": "~/state/subscription-laptop.json"}
     ]}
 
-Без этого файла ведётся одна подписка — та, на которой работает сам агент.
+Чужие входы сюда не кладутся: подписка Claude — для одного человека.
 
     subscription.py                # отчёт человеку
     subscription.py --telegram     # то же, готовое к отправке в Telegram
@@ -48,8 +49,8 @@ PROFILE_FRESH_SECONDS = 24 * 3600
 BACKOFF_START = 5 * 60
 BACKOFF_MAX = 60 * 60
 
-TZ_OFFSET_HOURS = int(os.environ.get("MILA_TZ_OFFSET", "5"))  # Asia/Tashkent
-TZ = timezone(timedelta(hours=TZ_OFFSET_HOURS))
+TZ = (timezone(timedelta(hours=int(os.environ["MILA_TZ_OFFSET"]))) if os.environ.get("MILA_TZ_OFFSET")
+      else datetime.now().astimezone().tzinfo)                         # пояс машины
 
 WINDOW_SECONDS = {"5 часов": 5 * 3600}
 WEEK_SECONDS = 7 * 24 * 3600

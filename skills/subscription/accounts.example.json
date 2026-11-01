@@ -1,8 +1,8 @@
 {
- "_": "Подписки, за которыми следит агент. name — как назвать в отчёте; credentials — файл входа Claude Code; env — имя переменной с токеном; report — готовый --json другого агента (чужой вход к нам не приезжает); agent — кто на этой подписке работает (для таблицы на картинке). card — общий PNG-дэшборд от администратора для контейнеров без Chrome.",
+ "_": "Your own Claude sign-ins this agent watches (only yours: one person, one subscription; this is not for sharing or rotating accounts). name — how to call it in the report; credentials — the Claude Code sign-in file; env — name of a variable with the token; report — a ready --json written by this same script on your other machine (your sign-in stays there, only percentages travel); agent — which of your agents runs on it (for the picture table). card — a shared PNG dashboard for containers without Chrome.",
  "accounts": [
-  {"name": "Owner", "credentials": "~/.claude/.credentials.json", "agent": "Companion"},
-  {"name": "Admin", "report": "/home/companion/state/subscription-admin.json", "agent": "Admin Mila"}
+  {"name": "Main", "credentials": "~/.claude/.credentials.json", "agent": "Companion"},
+  {"name": "Laptop", "report": "~/state/subscription-laptop.json", "agent": "Admin Mila"}
  ],
- "card": {"path": "/home/companion/state/subscription-card.png", "max_age_min": 75}
+ "card": {"path": "~/state/subscription-card.png", "max_age_min": 75}
 }

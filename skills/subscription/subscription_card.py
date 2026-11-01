@@ -79,10 +79,10 @@ def build_html(state):
         for w in a.get("windows") or []:
             if "Fable" in w["label"] or "Opus" in w["label"]: fbs.append((a.get("name"), 100 - float(w.get("percent") or 0)))
     if len(fbs) >= 2 and all(v < 15 for _, v in fbs): advice = "Совет: сильная модель пуста на всех подписках — тяжёлые задачи на Sonnet до сброса."
-    elif len(fbs) >= 2 and any(v < 15 for _, v in fbs):
-        low = [n for n, v in fbs if v < 15][0]; ok = [n for n, v in fbs if v >= 15][0]
-        advice = "Совет: задачи на сильной модели с «%s» переносить на «%s»." % (low, ok)
-    else: advice = "Совет: переключать никого не нужно."
+    elif any(v < 15 for _, v in fbs):
+        low = [n for n, v in fbs if v < 15][0]
+        advice = "Совет: на входе «%s» сильная модель почти пуста — тяжёлое там на Sonnet до сброса." % low
+    else: advice = "Совет: запаса до сброса хватает."
     html = open(os.path.join(HERE, "card.html"), encoding="utf-8").read()
     return (html.replace("@@CARDS@@", "".join(cards)).replace("@@TRS@@", "".join(rows)).replace("@@ADV@@", advice)
             .replace("@@TS@@", datetime.now(TZ).strftime("%d.%m %H:%M")).replace("@@N@@", str(len(accts))))
