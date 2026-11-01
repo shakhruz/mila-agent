@@ -41,3 +41,4 @@ else
 fi
 echo "Пуш не выполнен. Когда готовы:  git push origin <ветка> && git push origin v$V"
 echo "Затем выпуск с файлами (README ставит с releases/latest/download):  gh release create v$V --title \"Mila v$V\" --notes \"CHANGELOG.md — v$V\" install/get.sh SHA256SUMS"
+echo "И проверка, что команда установки из README жива:  python3 tools/check_install_link.py"

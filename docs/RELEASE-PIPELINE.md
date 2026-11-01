@@ -3,6 +3,8 @@
 Audit 21.10.2026: the core reached none of the running Milas — `mila-update` had never run and there was no «main → image» step. This is the target pipeline. Each step is reversible and leaves a trace.
 
 ## 1. Tag
+- The READMEs install from `releases/latest/download/get.sh`: push a README change together with the release that carries
+  `get.sh` and `SHA256SUMS`, then `python3 tools/check_install_link.py` must say ✓.
 - A release = a tag `vX.Y.Z` on `main`, `release.json` → same version and tag, CHANGELOG section `## vX.Y.Z`.
 - Before the tag: Quality accepts the bundle (history grep: secrets, our hosts, client and people names = 0; `tests/run_all.sh` ALL GREEN in a clean HOME; CI green).
 - Pre-releases: `vX.Y.Z-rcN` — never picked up by Milas or by `get.sh`.
@@ -34,6 +36,7 @@ Audit 21.10.2026: the core reached none of the running Milas — `mila-update` h
 ## Checks that exist today
 | Step | Check |
 |---|---|
+| the README install command works (releases/…/download links answer 200) — after `gh release create`, and before pushing a README that points at a release | `python3 tools/check_install_link.py` |
 | install on a clean home, rollback | `skills/mila-update/test_clean_home.sh` |
 | apply, diff, never-touch, journal | `skills/mila-update/test_update.sh` |
 | nightly | `skills/mila-update/test_nightly.sh` |
