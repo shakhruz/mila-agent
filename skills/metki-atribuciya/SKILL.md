@@ -17,7 +17,7 @@ metadata: {"nanobot":{"emoji":"🏷"}}
 - **N** — номер варианта; в A/B у вариантов один канал и тема, разный N.
 - Партнёр — своя метка `p_<партнёр>` (не смешиваем с рекламой).
 
-Собрать и проверить: `python3 scripts/metka.py --channel tgads --topic otvet3min --n 2 --bot mila_gpt_bot [--site https://milagpt.io/x]`.
+Собрать и проверить: `python3 scripts/metka.py --channel tgads --topic otvet3min --n 2 --bot my_business_bot [--site https://milagpt.io/x]`.
 
 ## Куда ставится
 - **Telegram-бот:** ссылка `https://t.me/<бот>?start=<метка>` — бот записывает метку при первом старте.

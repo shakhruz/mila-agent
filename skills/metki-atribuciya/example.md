@@ -1,6 +1,6 @@
 # Пример: два варианта объявления MILAGPT и сайт
-`metka.py --channel tgads --topic otvet3min --n 1 --bot mila_gpt_bot` → ad_tgads_otvet3min_1, https://t.me/mila_gpt_bot?start=ad_tgads_otvet3min_1
-`metka.py --channel tgads --topic otvet3min --n 2 --bot mila_gpt_bot` → ad_tgads_otvet3min_2 (второй вариант теста)
+`metka.py --channel tgads --topic otvet3min --n 1 --bot my_business_bot` → ad_tgads_otvet3min_1, https://t.me/my_business_bot?start=ad_tgads_otvet3min_1
+`metka.py --channel tgads --topic otvet3min --n 2 --bot my_business_bot` → ad_tgads_otvet3min_2 (второй вариант теста)
 `metka.py --channel post --topic katalog --n 1 --site https://milagpt.io/sily --medium post` → …?utm_source=post&utm_medium=post&utm_campaign=katalog&utm_content=ad_post_katalog_1
 
 Таблица меток (ведёт Мила рекламы):

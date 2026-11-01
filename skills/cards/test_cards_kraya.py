@@ -1,4 +1,4 @@
-"""cards.py — края (Мила Сила 26.10): старая кнопка, пустой ключ, одинаковые подписи, «до завтра» ночью. Usage: python3 -I test_cards_kraya.py [папка с cards.py]"""
+"""cards.py — края: старая кнопка, пустой ключ, одинаковые подписи, «до завтра» ночью. Usage: python3 -I test_cards_kraya.py [папка с cards.py]"""
 import json, os, subprocess, sys, tempfile, datetime as dt, importlib.util
 D = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__)); K = os.path.join(D, "cards.py")
 R = []

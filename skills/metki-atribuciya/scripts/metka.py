@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """metka.py — метка объявления и ссылки с ней (metki-atribuciya).
-  metka.py --channel tgads --topic otvet3min --n 2 [--bot mila_gpt_bot] [--site https://milagpt.io/page] [--medium cpc]
+  metka.py --channel tgads --topic otvet3min --n 2 [--bot my_business_bot] [--site https://milagpt.io/page] [--medium cpc]
 → метка ad_<канал>_<тема>_<N>, ссылка на бота ?start=<метка> (Telegram: до 64 знаков A-Za-z0-9_-),
   ссылка на сайт с utm_source/utm_medium/utm_campaign (обязательные по Google Analytics) + utm_content=<метка>.
   metka.py --check <метка>  — проверка готовой метки. Код 0 / 2 (не годится) / 1 (ввод).

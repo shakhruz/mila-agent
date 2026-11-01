@@ -1,4 +1,4 @@
-"""mila-export: сканер секретов — края (Мила Сила 25.10). Значения поддельные, генерируются в тесте. Usage: python3 -I mila-export-test_scan.py <папка с mila_export.py>"""
+"""mila-export: сканер секретов — края. Значения поддельные, генерируются в тесте. Usage: python3 -I mila-export-test_scan.py <папка с mila_export.py>"""
 import sys, random, string
 import os
 sys.path.insert(0, sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))); import mila_export as M   # без аргумента — рядом (run_all)

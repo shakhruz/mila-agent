@@ -35,7 +35,7 @@ def yt(u):
 
 
 a = sys.argv[1:] or ["list"]
-# у публичной Милы (Мила Ташкент, @mila_gpt_bot) экраны личные — user = Telegram id собеседника во ВСЕХ вызовах.
+# у публичной Милы (публичный бот) экраны личные — user = Telegram id собеседника во ВСЕХ вызовах.
 USER = ""
 if "--user" in a:
     i = a.index("--user"); USER = re.sub(r"\D", "", a[i + 1] if i + 1 < len(a) else ""); del a[i:i + 2]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""bot-send: края ввода (Мила Сила 25.10 + пауза по лимиту Telegram — Разработка). Без сети: api/now/sleep — подмены. Usage: python3 test_bot_send_kraya.py [папка с bot_send.py]"""
+"""bot-send: края ввода (пауза по лимиту Telegram — Разработка). Без сети: api/now/sleep — подмены. Usage: python3 test_bot_send_kraya.py [папка с bot_send.py]"""
 import sys, os, tempfile, json
 sys.path.insert(0, sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))); import bot_send as B   # папка с bot_send.py; без аргумента — рядом
 from datetime import datetime

@@ -1,4 +1,4 @@
-"""pd-vault — края (Мила Сила 25.10). Своё хранилище и ключ во временной папке. Usage: python3 -I test_pd_kraya.py <папка с pd_vault.py>"""
+"""pd-vault — края. Своё хранилище и ключ во временной папке. Usage: python3 -I test_pd_kraya.py <папка с pd_vault.py>"""
 import os, sys, tempfile, subprocess
 T = tempfile.mkdtemp(); os.environ["PD_KEY"] = T + "/k/pd.key"; os.environ["PD_VAULT"] = T + "/v/vault.enc"
 SRC = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, SRC); import pd_vault as P   # без аргумента — рядом (run_all)

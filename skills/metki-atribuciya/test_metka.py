@@ -7,8 +7,8 @@ def run(*a):
     r = subprocess.run([sys.executable, S, *a], capture_output=True, text=True); return r.returncode, json.loads(r.stdout or "{}")
 def chk(name, c, x=""):
     global ok, n; n += 1; ok += bool(c); print(("✅ " if c else "❌ ") + name + ("" if c else "  " + str(x)[:300]))
-c, o = run("--channel", "tgads", "--topic", "otvet3min", "--n", "2", "--bot", "mila_gpt_bot", "--site", "https://milagpt.io/x?lang=ru")
-chk("метка ad_tgads_otvet3min_2 и ссылка на бота ?start=", c == 0 and o["tag"] == "ad_tgads_otvet3min_2" and o["bot_link"] == "https://t.me/mila_gpt_bot?start=ad_tgads_otvet3min_2", o)
+c, o = run("--channel", "tgads", "--topic", "otvet3min", "--n", "2", "--bot", "my_business_bot", "--site", "https://milagpt.io/x?lang=ru")
+chk("метка ad_tgads_otvet3min_2 и ссылка на бота ?start=", c == 0 and o["tag"] == "ad_tgads_otvet3min_2" and o["bot_link"] == "https://t.me/my_business_bot?start=ad_tgads_otvet3min_2", o)
 chk("сайт: utm_source/medium/campaign + utm_content=метка, старый параметр сохранён", "lang=ru&utm_source=tgads&utm_medium=cpc&utm_campaign=otvet3min&utm_content=ad_tgads_otvet3min_2" in o.get("site_link", ""), o)
 c, o = run("--channel", "TG Ads", "--topic", "otvet_3min", "--n", "0")
 chk("пробел, _ в теме, N=0 — отказ со всеми тремя причинами", c == 2 and len(o["errors"]) == 3, o)
