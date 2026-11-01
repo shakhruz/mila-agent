@@ -20,3 +20,15 @@ jobs:
           if [ -z "$PRIVACY_LIST" ]; then echo "no PRIVACY_JSON secret (fork or PR) — skipped"; exit 0; fi
           umask 077; printf '%s' "$PRIVACY_LIST" > "$RUNNER_TEMP/privacy.json"
           PRIVACY_JSON="$RUNNER_TEMP/privacy.json" python3 tools/privacy_lint.py --all
+  run_all_macos:
+    runs-on: macos-latest   # Mila runs on owners' Macs too: the same tests on macOS (BSD sed/stat, /private/var, no GNU coreutils)
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: oven-sh/setup-bun@v2
+      - run: brew install ffmpeg && brew install --cask font-dejavu
+        timeout-minutes: 15
+      - run: pip install pyyaml pillow numpy telethon==1.45.0
+      - run: HOME=$(mktemp -d) bash tests/run_all.sh
