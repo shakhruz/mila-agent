@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # Mila — installs the assistant kit into an existing Claude Code setup.
 #
-# What it does, in order, and nothing else:
-#   1. copies the skills into ~/.claude/skills/
+# What it does, in order (README «What changes on your machine» lists the same):
+#   1. copies the skills into ~/.claude/skills/ (a changed skill is backed up first)
 #   2. installs the `mila` launcher into ~/.local/bin/
-#   3. installs the inbox hook and registers it in ~/.claude/settings.json
+#   3. installs the hooks and registers them in ~/.claude/settings.json (backup first)
+#   4. an hourly turns-collect job: launchd on macOS, a systemd user timer on Linux
+#   5. ~/.claude/channels/telegram/permissions.json from the example — only if there is none
+#   6. the personal-data vault key ~/.config/mila/pd.key (600) — only if there is none
 #
-# It does NOT install the Telegram plugin — that is a separate step you run
-# inside Claude Code (see README). It does not touch your bot token, your
-# access list, or anything under ~/.claude/channels/.
+# It does NOT install the Telegram plugin (get.sh or you, inside Claude Code) and does not touch
+# your bot token or your access list.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

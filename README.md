@@ -110,7 +110,14 @@ Source: [Claude Code — legal and compliance](https://code.claude.com/docs/en/l
 
 **You need:**
 - macOS or Linux. On Windows — inside [WSL](https://learn.microsoft.com/windows/wsl/install).
-- [Claude Code](https://code.claude.com/docs/en/setup), tested on 2.1.305 (`claude --version`), signed in with your own Claude plan (Pro, Max, Team or Enterprise) or your own Anthropic API key. On Team and Enterprise your organization admin must enable channels.
+- [Claude Code](https://code.claude.com/docs/en/setup), tested on 2.1.305 (`claude --version`), signed in with your own **paid** Claude plan
+  (Pro, Max, Team or Enterprise) or your own Anthropic API key — Mila works all day, so watch your usage
+  ([costs](https://code.claude.com/docs/en/costs)). On Team and Enterprise your organization admin must enable channels.
+- **Which login for which Mila.** Your own Mila that works for you, in your chats, can run on your own subscription. A Mila that
+  answers other people — your customers, guests of a public bot, a company's staff — should run on an Anthropic API key (Claude
+  Console or a cloud provider), billed to whoever owns the key: Anthropic's terms keep subscription logins for ordinary individual
+  use and do not allow serving other people through them. See
+  [Legal and compliance](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use).
 - [Bun](https://bun.sh) and git.
 - A Telegram bot token from `@BotFather`.
 - `~/.local/bin` on your `PATH` — the `mila` launcher goes there (the installer tells you if it is missing: `export PATH="$HOME/.local/bin:$PATH"`).
@@ -128,12 +135,25 @@ with the checksum of its release before running it:
 ```sh
 curl -fsSLO https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh
 curl -fsSLO https://github.com/shakhruz/mila-agent/releases/latest/download/SHA256SUMS
-sha256sum -c --ignore-missing SHA256SUMS && bash get.sh     # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
+sha256sum -c --ignore-missing SHA256SUMS && bash get.sh          # Linux
+shasum -a 256 -c --ignore-missing SHA256SUMS && bash get.sh      # macOS
 ```
 
 Release tags are signed when the maintainer's key is set (`git tag -v vX.Y.Z`); unsigned tags are said so in the release notes.
 
 It checks Claude Code, Bun and git, clones the kit to `~/mila`, runs `install/install.sh` and installs the Telegram plugin `mila-telegram` (existing files are backed up as `<file>.bak-YYYYMMDD-HHMMSS`). Prefer to look first? `curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh | MILA_INSTALL_ARGS=--dry-run bash` — or clone and run `./install/install.sh --dry-run`: it shows exactly what will be touched.
+
+**What changes on your machine** (`--dry-run` lists every item before anything is written):
+- `~/mila` — the kit itself (a git clone);
+- `~/.claude/skills/` — Mila's skills; a skill you changed is backed up first;
+- `~/.claude/hooks/` and hook entries in `~/.claude/settings.json` (the previous file is kept as a backup);
+- `~/.local/bin/mila` — the launcher;
+- `~/.claude/channels/telegram/permissions.json` — the permission rules, copied from `install/permissions.example.json` only if
+  you have none; read it before you trust it;
+- `~/.config/mila/pd.key` — the key of the personal-data vault (600);
+- an hourly job that sums up the cost of turns: launchd `com.milagpt.turns-collect` on macOS
+  (`~/Library/LaunchAgents/`), a systemd user timer `mila-turns-collect` on Linux;
+- the Telegram plugin `mila-telegram`, installed through `claude plugin install`.
 
 Then three steps, each checked before the next:
 
