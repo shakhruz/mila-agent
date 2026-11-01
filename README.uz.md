@@ -1,6 +1,6 @@
 # Mila Agent
 
-**Telegram uchun ochiq kodli biznes-agent. Sizning Claude obunangizda ishlaydi, biznesingizni eslab qoladi va xabarnomalar, pullik ish hamda yangi chatlarga xabardan oldin «ha»ingizni so‘raydi.**
+**Telegram uchun ochiq kodli biznes-agent. Sizning Claude obunangizda ishlaydi, biznesingizni eslab qoladi. Yuborish qo‘riqchisi tasodifiy sizib chiqishni to‘xtatadi; tashqariga harakatlar rozilik proksi orqali o‘tadi (hozircha — nashrlar).**
 
 *Iliqlik uchun yaratilgan.*
 
@@ -25,7 +25,7 @@ Manba: [Claude Code — legal and compliance](https://code.claude.com/docs/en/le
 
 - **Raqamli xodim, universal agent emas.** Mijoz suhbatlari, va’dalar va vazifalar, egasining «ha»si uchun kartochkalar, haftalik ritm, xarajat limitlari.
 - **Telegramda yashaydi.** Yangi ilova o‘rnatish shart emas.
-- **Bitta Mila, ikki hamyon.** O‘zingizning Claude obunangiz (yoki o‘z Anthropic API kalitingiz) — siz uchun, unga o‘zingiz kirasiz; mijozlar va mehmonlarga Mila API kalit orqali [OpenRouter](https://openrouter.ai) tokenlarida, sarflanganicha toʻlov bilan javob beradi: xarajat faqat mijozlar bilan birga oʻsadi (mehmonlarni yoʻnaltirish: bulutli versiyada hozir bor, ochiq yadroda — mila-telegram ning keyingi chiqishi bilan). Fayllaringiz o‘z uy papkangizda qoladi; suhbatlar faqat siz tanlagan model provayderlariga boradi; Mila 100% sizniki.
+- **Faqat Claude.** Bu repozitoriy faqat Claude’da ishlaydi: o‘zingizning Claude obunangiz (yoki o‘z Anthropic API kalitingiz) — siz uchun, unga o‘zingiz kirasiz; botingizga yozganlarga — egasi hisobidan Anthropic API kaliti. Boshqa modellardagi mehmon konturi faqat bulutli versiyada bor. Fayllaringiz o‘z uy papkangizda qoladi; suhbatlar faqat siz tanlagan model provayderlariga boradi; Mila 100% sizniki.
 - **Katta qadamlardan oldin so‘raydi.** Yuborish qo‘riqchisi bir suhbatni boshqasiga o‘tkazadigan va siz ulamagan chatga ketadigan xabarni to‘xtatadi; botingizdan xabarnoma va limitdan ortiq xarajat — sizning ✅ bilan. Ulangan chatlardagi oddiy javoblar tekshirilmaydi.
 - **Ochiq yadro, Apache-2.0.**
 

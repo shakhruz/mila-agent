@@ -7,7 +7,7 @@
 <p align="center"><b>Turn Claude Code into an employee that lives in Telegram.</b><br>
 Free, open source, Apache-2.0. Made with ❤️ in Uzbekistan.</p>
 
-<p align="center">She answers your customers on Telegram, remembers every promise — and asks your OK before broadcasts, paid work and anything sent to new chats. Ordinary replies in chats you connected go without asking.</p>
+<p align="center">She answers your customers on Telegram and remembers every promise. A send-guard stops accidental leaks; outward actions go through a consent proxy (publishing today). Ordinary replies in chats you connected go without asking.</p>
 
 <p align="center">
   <a href="#quick-start"><b>Install</b></a> ·
@@ -32,7 +32,7 @@ curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.s
 ```
 <p align="center">Installs the latest release tag, not <code>main</code>. Runs as a Claude Code development channel (research preview) — see <a href="SECURITY.md#the-development-channels-flag">why</a>.</p>
 <p align="center">≈ 5 minutes · macOS, Linux (Windows via WSL) · bring your own Claude plan or Anthropic API key<br>
-<a href="https://github.com/shakhruz/mila-agent/releases/latest">Latest release</a> · install command checked from scratch on Linux, Oct 30</p>
+<a href="https://github.com/shakhruz/mila-agent/releases/latest">Latest release</a> · the install link is checked daily by CI</p>
 
 <p align="center">Questions and ideas: <a href="https://github.com/shakhruz/mila-agent/discussions">GitHub Discussions</a>.</p>
 
@@ -75,8 +75,7 @@ OpenClaw, NanoClaw and Hermes Agent are excellent open agents — universal assi
 | Price | free, open source; setup help — [MilaGPT Studio](https://milagpt.io/akselerator/) | [free, self-host only](https://github.com/openclaw/openclaw) | [free; enterprise on request](https://github.com/nanocoai/nanoclaw) | [free; Nous Portal $0-200/month](https://portal.nousresearch.com) |
 
 **Mila's honest minuses.** Telegram only: no WhatsApp, Slack or Discord. It needs Claude Code, signed in with your own Claude plan
-or API key — Mila herself runs only on Claude (guests on other models through OpenRouter: in the hosted version today, open core — next
-release). She answers while your machine and the session run: a closed laptop means a silent Mila, so use an always-on
+or API key — this repository runs on Claude only (a guest circuit on other models exists only in the hosted version). She answers while your machine and the session run: a closed laptop means a silent Mila, so use an always-on
 computer or a server. macOS and Linux; Windows only through WSL. Channels in Claude Code are a research preview, so the launcher uses a development flag for now
 (see Quick start).
 
@@ -110,7 +109,7 @@ Source: [Claude Code — legal and compliance](https://code.claude.com/docs/en/l
 
 **You need:**
 - macOS or Linux. On Windows — inside [WSL](https://learn.microsoft.com/windows/wsl/install).
-- [Claude Code](https://code.claude.com/docs/en/setup), tested on 2.1.305 (`claude --version`), signed in with your own **paid** Claude plan
+- [Claude Code](https://code.claude.com/docs/en/setup), a recent release (`claude --version`; older than 2.1.295 installs without the send-guard's `onFailure` key), signed in with your own **paid** Claude plan
   (Pro, Max, Team or Enterprise) or your own Anthropic API key — Mila works all day, so watch your usage
   ([costs](https://code.claude.com/docs/en/costs)). On Team and Enterprise your organization admin must enable channels.
 - **Which login for which Mila.** Your own Mila that works for you, in your chats, can run on your own subscription. A Mila that
@@ -129,8 +128,10 @@ One command:
 curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh | bash
 ```
 
-**Check before running.** Every release carries `get.sh` and `SHA256SUMS` as assets (from v1.7.0), so you can compare the script
-with the checksum of its release before running it:
+**Check before running.** Every release carries `get.sh` and `SHA256SUMS` as assets. The checksum is integrity only: it proves
+the download is whole, not who made it — both files come from the same release. What does tie the install to the release: the
+release notes name the commit of the tag, and that `get.sh` refuses to install if the tag now points to another commit (releases after v1.7.1).
+Download, compare, read, then run:
 
 ```sh
 curl -fsSLO https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh
