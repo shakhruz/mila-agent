@@ -13,6 +13,11 @@ Python/shell tools around Claude Code and a Telegram channel.
   `python3 tools/check_frontmatter.py skills templates`.
 - JS/HTML: `python3 tools/check_comments.py <files>` (no code after `//` on one line).
 
+## Who writes the code
+Most commits here are written by AI agents — Claude Code sessions working as Milas — and marked `Co-Authored-By: Claude`.
+A person decides what to build, a separate reviewing agent checks each change against the tests and its own probes, and a
+maintainer reads it and pushes. Pull requests from people are reviewed the same way; say in yours whether an agent wrote it.
+
 ## Tests
 `bash tests/run_all.sh` runs every test in the repo (sandboxed `HOME`) plus the frontmatter check — all green before a
 pull request, also with `CI=true` and through `bash tests/run_ci_local.sh` (clean HOME, UTC, exactly the workflow's Python
@@ -34,6 +39,6 @@ By contributing you agree your work is licensed under Apache-2.0 (see LICENSE).
 - Channels: `stable` = tags `vX.Y.Z` (no `-rc`), `canary` = `main`. Milas update themselves from the channel they are set to (`~/.claude/mila-update.json`).
 - Before a release: bump the «Current release» line in all four README files, publish a GitHub Release for the tag.
 - Before a release: add `## vX.Y.Z` to `CHANGELOG.md` with a **For the owner** block (up to 3 plain lines: it becomes the "What is new" card) and a **For Milas** block.
-- `tools/release.sh X.Y.Z` runs the tests, bumps `release.json`, commits `release vX.Y.Z` and tags it (signed with `git tag -s` when `user.signingkey` is set, otherwise an unsigned annotated tag, which the script says). It never pushes.
+- `tools/release.sh X.Y.Z` runs the tests, bumps `release.json`, commits `release vX.Y.Z` and tags it (signed with `git tag -s` when `user.signingkey` is set, otherwise an unsigned annotated tag, which the script says). It never pushes. The release files go to `dist/vX.Y.Z/`: `get.sh` stamped with the tag and its commit SHA, and `SHA256SUMS`; the printed `gh release create` line puts that SHA into the release notes.
 - Withdraw a bad release: add its tag to `yanked.json` on `main` (list of tags or `{"yanked":[{"tag":"v1.2.0","reason":"..."}]}`). Milas never install a yanked tag; one that already has it gets a warning card.
 - Pre-release candidates: `vX.Y.Z-rc1` (not picked up by `stable`).
