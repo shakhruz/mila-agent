@@ -238,10 +238,14 @@ class Proxy:
 
 
 def serve(px, path, handler, mode):
-    if os.path.lexists(path):
-        os.unlink(path)
+    # bind under a temporary name, set the mode, listen — only then rename into place: a client never meets a socket that
+    # exists but does not accept yet (refused → «denied») or still has the umask's mode
+    tmp = "%s.tmp-%d" % (path, os.getpid())
+    if os.path.lexists(tmp):
+        os.unlink(tmp)
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.bind(path); os.chmod(path, mode); s.listen(16)
+    s.bind(tmp); os.chmod(tmp, mode); s.listen(16)
+    os.replace(tmp, path)
     def one(conn):
         with conn:
             try:
@@ -255,7 +259,10 @@ def serve(px, path, handler, mode):
                 res = handler(json.loads(raw.decode("utf-8")))
             except Exception as e:                       # fail closed: any error is a no
                 res = {"status": "denied", "why": type(e).__name__}
-            conn.sendall((json.dumps(res, ensure_ascii=False) + "\n").encode())
+            try:
+                conn.sendall((json.dumps(res, ensure_ascii=False) + "\n").encode())
+            except OSError:                                  # the client left before the answer: nothing to tell it
+                pass
     while True:
         c, _ = s.accept()
         threading.Thread(target=one, args=(c,), daemon=True).start()

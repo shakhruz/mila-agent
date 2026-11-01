@@ -126,4 +126,22 @@ check("io-сокет 600, сессионный 660", oct(os.stat(IO).st_mode & 0
 check("после «да» через сокет — done", cc.ask("publish_zernio", Q, SS)["status"] == "done")
 s = socket.socket(socket.AF_UNIX); s.connect(SS); s.sendall(b"not json\n"); bad = json.loads(s.recv(4096)); s.close()
 check("мусор в сокет — denied (fail closed)", bad["status"] == "denied")
+# socket appears only when it already accepts: a slow listen() must not leave a «refused» window (a refused ask = denied)
+import types
+class SlowSock(socket.socket):
+    def listen(self, *a):
+        time.sleep(0.3); return super().listen(*a)
+shim = types.SimpleNamespace(**{k: getattr(socket, k) for k in dir(socket) if not k.startswith("__")}); shim.socket = SlowSock
+real_sock, cp.socket = cp.socket, shim
+SL = os.path.join(T, "slow.sock")
+threading.Thread(target=cp.serve, args=(px, SL, cp.session_handler(px), 0o660), daemon=True).start()
+for _ in range(200):
+    if os.path.exists(SL): break
+    time.sleep(0.005)
+cp.socket = real_sock
+try:
+    s = socket.socket(socket.AF_UNIX); s.connect(SL); s.close(); refused = False
+except OSError:
+    refused = True
+check("сокет появляется уже слушающим и с нужными правами (медленный listen — без окна «refused»)", not refused and oct(os.stat(SL).st_mode & 0o777) == "0o660")
 shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
