@@ -1,0 +1,12 @@
+name: install-link
+# Once a day: does the install command in the READMEs answer 200? Not on push — GitHub or the network would turn every push red.
+on:
+  schedule: [{ cron: "17 6 * * *" }]
+  workflow_dispatch:
+permissions: { contents: read }
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/check_install_link.py
