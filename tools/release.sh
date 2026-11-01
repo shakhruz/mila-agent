@@ -2,8 +2,10 @@
 # release.sh X.Y.Z [--no-tag] — выпуск версии ядра. НИЧЕГО не пушит: в конце печатает команду пуша.
 #   1. дерево чистое, версия новее последней; в CHANGELOG.md есть раздел "## vX.Y.Z" с блоком «Для хозяина»/«For the owner»
 #   2. тесты mila-update, frontmatter, comments — зелёные
-#   3. release.json: version, tag, date; SHA256SUMS (get.sh, release.json — имена как у файлов выпуска) → коммит «release vX.Y.Z»
+#   3. release.json: version, tag, date → коммит «release vX.Y.Z»
 #   4. тег vX.Y.Z: подписанный (git tag -s), если задан user.signingkey; иначе аннотированный БЕЗ подписи (печатается отметка)
+#   5. dist/vX.Y.Z/: get.sh с вшитыми тегом и SHA его коммита (сдвинутый тег get.sh не поставит) и SHA256SUMS к нему —
+#      файлы выпуска; SHA коммита — и в заметках выпуска
 # Канал canary = main; канал stable = теги vX.Y.Z (без -rc). Отзыв релиза: добавить тег в yanked.json на main.
 set -eu
 cd "$(cd "$(dirname "$0")/.." && pwd)"
@@ -31,14 +33,24 @@ v = sys.argv[1]; p = "release.json"; m = json.load(open(p, encoding="utf-8"))
 m.update({"version": v, "tag": "v" + v, "date": time.strftime("%Y-%m-%d"), "notes": "CHANGELOG.md - section v" + v})
 json.dump(m, open(p, "w", encoding="utf-8"), ensure_ascii=False, indent=2); open(p, "a").write("\n")
 PY
-python3 -c 'import hashlib,os,sys;[print(hashlib.sha256(open(f,"rb").read()).hexdigest()+"  "+os.path.basename(f)) for f in sys.argv[1:]]' install/get.sh release.json > SHA256SUMS   # release assets get.sh + SHA256SUMS: README «Check before running» (sha256sum -c, file names as downloaded)
-git add release.json SHA256SUMS; git commit -qm "release v$V"
+git add release.json; git commit -qm "release v$V"
 if [ "$NOTAG" = "--no-tag" ]; then echo "коммит release v$V создан, тег не ставлю (--no-tag)"; exit 0; fi
 if [ -n "$(git config user.signingkey || true)" ]; then
   git tag -s "v$V" -m "Mila v$V"; echo "тег v$V подписан"
 else
   git tag -a "v$V" -m "Mila v$V"; echo "ВНИМАНИЕ: тег v$V БЕЗ подписи (нет user.signingkey; gpg --gen-key + git config user.signingkey <id>)"
 fi
+SHA="$(git rev-parse "v$V^{commit}")"; D="dist/v$V"; mkdir -p "$D"
+python3 - "v$V" "$SHA" "$D" <<'PY'
+import hashlib, os, sys
+tag, sha, d = sys.argv[1:]; s = open("install/get.sh", encoding="utf-8").read()
+assert s.count('\nPIN_REF=""\n') == 1 and s.count('\nPIN_SHA=""\n') == 1, "в install/get.sh нет пустых PIN_REF/PIN_SHA"
+s = s.replace('\nPIN_REF=""\n', '\nPIN_REF="%s"\n' % tag).replace('\nPIN_SHA=""\n', '\nPIN_SHA="%s"\n' % sha)
+open(os.path.join(d, "get.sh"), "w", encoding="utf-8").write(s)
+h = hashlib.sha256(s.encode("utf-8")).hexdigest()
+open(os.path.join(d, "SHA256SUMS"), "w").write(h + "  get.sh\n")   # имя как у файла выпуска: sha256sum -c --ignore-missing
+PY
+echo "Файлы выпуска: $D/get.sh (тег v$V, коммит $SHA) и $D/SHA256SUMS"
 echo "Пуш не выполнен. Когда готовы:  git push origin <ветка> && git push origin v$V"
-echo "Затем выпуск с файлами (README ставит с releases/latest/download):  gh release create v$V --title \"Mila v$V\" --notes \"CHANGELOG.md — v$V\" install/get.sh SHA256SUMS"
+echo "Затем выпуск с файлами (README ставит с releases/latest/download):  gh release create v$V --title \"Mila v$V\" --notes \"CHANGELOG.md — v$V. Tag v$V = commit $SHA\" $D/get.sh $D/SHA256SUMS"
 echo "И проверка, что команда установки из README жива:  python3 tools/check_install_link.py"

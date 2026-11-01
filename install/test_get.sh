@@ -28,4 +28,13 @@ HOME=$T5 PATH="$T5/bin:$PATH" MILA_SKIP_CHECKS=1 MILA_REPO="$SRC" MILA_REF="$B" 
 chk "плагин: marketplace add shakhruz/mila-telegram, затем install mila-telegram@mila" "grep -qx 'plugin marketplace add shakhruz/mila-telegram' $T5/calls && grep -q '^plugin install mila-telegram@mila' $T5/calls && grep -q 'mila-telegram@mila installed' $T/o7.txt"
 rm -f $T5/calls; HOME=$T5 PATH="$T5/bin:$PATH" MILA_SKIP_CHECKS=1 MILA_REPO="$SRC" MILA_REF="$B" MILA_INSTALL_ARGS=--dry-run bash "$H/install/get.sh" > $T/o8.txt 2>&1
 chk "--dry-run: плагин не ставится, только «would run»" "[ ! -e $T5/calls ] && grep -q 'would run' $T/o8.txt"; rm -rf $T5
+# get.sh выпуска: вшитые тег и SHA его коммита (как штампует tools/release.sh); тег сдвинули — не ставит
+pin(){ sed -e "s/^PIN_REF=\"\"$/PIN_REF=\"$B\"/" -e "s/^PIN_SHA=\"\"$/PIN_SHA=\"$1\"/" "$H/install/get.sh" > $T/get-pin.sh; }
+GOOD=$(git -C "$SRC" rev-parse HEAD); pin "$GOOD"
+HOME=$T MILA_SKIP_PLUGIN=1 MILA_SKIP_CHECKS=1 MILA_REPO="$SRC" MILA_DIR="$T/p1" bash $T/get-pin.sh > $T/o9.txt 2>&1; rc=$?
+chk "get.sh выпуска: свой тег, SHA совпал — ставит и печатает коммит" "[ $rc -eq 0 ] && grep -q 'this get.sh was released for it' $T/o9.txt && grep -q \"commit: $GOOD\" $T/o9.txt"
+pin deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+HOME=$T MILA_SKIP_PLUGIN=1 MILA_SKIP_CHECKS=1 MILA_REPO="$SRC" MILA_DIR="$T/p2" bash $T/get-pin.sh > $T/o10.txt 2>&1; rc=$?
+chk "get.sh выпуска: тег указывает на другой коммит — отказ, выход 1, install.sh не запускался" "[ $rc -eq 1 ] && grep -q 'nothing installed' $T/o10.txt && ! grep -q 'mila doctor' $T/o10.txt"
+chk "в репо PIN_REF и PIN_SHA пустые (штамп — только у файла выпуска)" "grep -qx 'PIN_REF=\"\"' $H/install/get.sh && grep -qx 'PIN_SHA=\"\"' $H/install/get.sh"
 echo "итог $ok/$n"; rm -rf $T; [ $ok -eq $n ]

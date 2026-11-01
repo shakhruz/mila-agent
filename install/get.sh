@@ -9,6 +9,9 @@ set -euo pipefail
 REPO="${MILA_REPO:-https://github.com/shakhruz/mila-agent}"
 DIR="${MILA_DIR:-}"
 if [ -z "$DIR" ]; then [ -d "$HOME/mila-companion/.git" ] && DIR="$HOME/mila-companion" || DIR="$HOME/mila"; fi   # старая установка обновляется на месте
+# Release asset only: tools/release.sh stamps the tag and the commit it points to; in the repo both stay empty.
+PIN_REF=""
+PIN_SHA=""
 REF="${MILA_REF:-}"   # пусто → последний стабильный тег vX.Y.Z (как в README: стабильная — Releases); main — только по MILA_REF=main
 miss=0
 need() { command -v "$1" >/dev/null 2>&1 || { printf '  ✗ %s — %s\n' "$1" "$2"; miss=1; }; }
@@ -19,6 +22,7 @@ if [[ "${MILA_SKIP_CHECKS:-0}" != "1" ]]; then
 fi
 need git "git: https://git-scm.com/downloads"
 [[ $miss -eq 0 ]] || { echo "Install the missing tools above and run the same command again."; exit 1; }
+if [[ -z "$REF" && -n "$PIN_REF" ]]; then REF="$PIN_REF"; echo "  version: $REF (this get.sh was released for it)"; fi
 if [[ -z "$REF" ]]; then
   REF=$(git ls-remote --tags --sort=-v:refname "$REPO" 'v*' 2>/dev/null | grep -v '\^{}' | sed 's#.*refs/tags/##' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
   REF="${REF:-main}"
@@ -37,6 +41,11 @@ if [[ -d "$DIR/.git" ]]; then
   echo "  updating $DIR"; git -C "$DIR" fetch -q --depth 1 origin "$REF" && git -C "$DIR" -c advice.detachedHead=false checkout -q FETCH_HEAD
 else
   echo "  cloning into $DIR"; git -c advice.detachedHead=false clone -q --depth 1 --branch "$REF" "$REPO" "$DIR"
+fi
+GOT="$(git -C "$DIR" rev-parse HEAD)"; echo "  commit: $GOT"
+if [[ -n "$PIN_SHA" && "$REF" == "$PIN_REF" && "$GOT" != "$PIN_SHA" ]]; then   # тег сдвинули после выпуска — не ставим
+  echo "  ✗ tag $REF now points to $GOT, but this get.sh was released for $PIN_SHA — stopping, nothing installed."
+  echo "    Compare with the release notes and tell the maintainer: https://github.com/shakhruz/mila-agent/security"; exit 1
 fi
 bash "$DIR/install/install.sh" ${MILA_INSTALL_ARGS:-}
 # Плагин Telegram — тем же запуском (комиссия 22.10): повторный запуск ничего не ломает, оба шага у claude идемпотентны
