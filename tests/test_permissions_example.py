@@ -26,6 +26,14 @@ CASES = [
  ("Bash", "git log --output=/tmp/x", "ask"), ("Bash", "git log --output=/home/a/.bashrc", "ask"), ("Bash", "git diff --ext-diff", "ask"), ("Bash", "git -c core.pager=sh log", "ask"),
  ("Bash", "git show HEAD:secrets/x.env", "deny"), ("Bash", "git branch -D main", "ask"), ("Bash", "git remote add x https://example.com/r.git", "ask"),
  ("Bash", "git remote set-url origin https://example.com/r.git", "ask"), ("Bash", "git log --exec=sh", "ask"), ("Bash", "git diff --textconv", "ask"),
+ # Quality's 29 lines (01.11 12:47): only three of them are routine
+] + [("Bash", c, "noallow") for c in (
+ "git log --output=/tmp/x", "git diff --ext-diff", "grep -r token /home/a/.ssh", "cat /home/a/.claude/.credentials.json", "cat ~/.config/github.env",
+ "git show HEAD:secrets/x.env", "ls -la ~/.ssh", "rg -l sk- /", "jq . ~/work/secrets/a.env", "grep -r OPENROUTER /etc/mila", "cat /proc/self/environ",
+ "git branch -D main", "git remote add x https://e.vil/x", "cat ~/.ssh/id_ed25519", "grep -r -e . /home/a/work", "grep -rn KEY ~/work",
+ "grep --include=*.env -R KEY ~/work", "cat ~/work/../.ssh/id_rsa", "cat /home/a/work/secrets/x.env", "rg KEY ~/work/secrets", "find ~/work -name *.env",
+ "git log -p", "git grep KEY", "head -c 400 /proc/1/environ", "cat ~/work/.env.bak", "ls -R ~/work", "rg TODO README.md")] + [
+ ("Bash", "rg KEY ~/work/secrets", "deny"), ("Bash", "ls ~/work/secrets", "deny"), ("Bash", "cat ~/work/.env.bak", "deny"),
  # still allowed — the routine
  ("Bash", "git branch", "allow"), ("Bash", "git branch -a", "allow"), ("Bash", "git remote -v", "allow"), ("Bash", "git log --oneline -5", "allow"),
  ("Bash", "cat /home/a/work/NOW.md", "allow"), ("Bash", "cat ~/work/NOW.md", "allow"), ("Bash", "grep -n TODO README.md", "allow"), ("Bash", "wc -l *.md", "allow"), ("Write", json.dumps({"file_path": "/home/a/work/permissions.json"}), "ask"),
@@ -38,5 +46,5 @@ r = subprocess.run(["bun", "-e", js], input=json.dumps([[t, p] for t, p, _ in CA
 got = json.loads(r.stdout.strip().splitlines()[-1]) if r.returncode == 0 else []
 check("файл читается движком без ошибки", r.returncode == 0, r.stdout + r.stderr)
 for (t, p, want), g in zip(CASES, got):
-    check("%s %s → %s" % (t, p[:60], want), g == want, g)
+    check("%s %s → %s" % (t, p[:60], want), (g != "allow") if want == "noallow" else g == want, g)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
