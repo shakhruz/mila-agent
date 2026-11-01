@@ -52,7 +52,21 @@ except Exception:                                   # noqa: BLE001
 
 CLAUDE_DIR = os.environ.get("CLAUDE_CONFIG_DIR", os.path.expanduser("~/.claude"))
 TG_STATE = os.environ.get("TELEGRAM_STATE_DIR", os.path.join(CLAUDE_DIR, "channels", "telegram"))
-DEFAULT_TZ = os.environ.get("MILA_TZ", os.environ.get("TZ") or "Asia/Tashkent")
+def system_tz():
+    """Пояс машины: MILA_TZ → TZ → /etc/localtime → UTC."""
+    tz = os.environ.get("MILA_TZ") or os.environ.get("TZ")
+    if tz:
+        return tz.lstrip(":")
+    try:
+        link = os.path.realpath("/etc/localtime")
+        if "/zoneinfo/" in link:
+            return link.split("/zoneinfo/", 1)[1]
+    except OSError:
+        pass
+    return "UTC"
+
+
+DEFAULT_TZ = system_tz()
 TAIL_BYTES = 3 * 1024 * 1024
 WINDOW_H = 24                      # инциденты старше окна не считаем живыми
 SILENT_MIN = 15

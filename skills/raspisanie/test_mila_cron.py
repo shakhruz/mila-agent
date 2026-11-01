@@ -8,6 +8,7 @@ def chk(name, cond):
     global ok, n
     n += 1; ok += bool(cond); print(("✅ " if cond else "❌ ") + name)
 W = tempfile.mkdtemp(prefix="cron-"); EV = os.path.join(W, "events.jsonl")
+open(os.path.join(W, "USER.md"), "w", encoding="utf-8").write("Часовой пояс — Asia/Tashkent\n")   # пояс владельца из USER.md; без него — пояс машины
 env = dict(os.environ, MILA_WORK=W, MILA_EVENTS=EV, MILA_CRON_NOW="2026-10-26T10:00:00+05:00")
 def k(*a):
     p = subprocess.run([sys.executable, K, *a], env=env, capture_output=True, text=True, timeout=30); return p.returncode, p.stdout

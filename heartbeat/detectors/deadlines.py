@@ -4,8 +4,8 @@
   deadlines.py --file <items.json|items.jsonl> [--hours 2]
 Items: a JSON list or JSON lines with {"id", "text", "due": "YYYY-MM-DD HH:MM" (or ISO), "done": bool}. Prints one JSON line per
 open item due within --hours (or already overdue): {"key": "<id>:<due>", "text": "…"}. Times without a zone are in
---tz (default Asia/Tashkent). The heartbeat remembers keys, so each item is raised once per due time."""
-import argparse, datetime as dt, json, sys
+--tz (default: the machine's zone, else UTC). The heartbeat remembers keys, so each item is raised once per due time."""
+import argparse, datetime as dt, json, os, sys
 from zoneinfo import ZoneInfo
 
 
@@ -24,11 +24,19 @@ def items(path):
         return out
 
 
+def _system_tz():
+    """Пояс машины: TZ → /etc/localtime → UTC."""
+    tz = (os.environ.get("TZ") or "").lstrip(":")
+    if not tz and "/zoneinfo/" in os.path.realpath("/etc/localtime"):
+        tz = os.path.realpath("/etc/localtime").split("/zoneinfo/", 1)[1]
+    return tz or "UTC"
+
+
 def main(argv=None, now=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--file", required=True)
     ap.add_argument("--hours", type=float, default=2)
-    ap.add_argument("--tz", default="Asia/Tashkent")
+    ap.add_argument("--tz", default=_system_tz())
     a = ap.parse_args(argv)
     tz = ZoneInfo(a.tz)
     now = now or dt.datetime.now(tz)

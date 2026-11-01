@@ -23,9 +23,9 @@ import urllib.request
 
 try:
     from zoneinfo import ZoneInfo
-    TZ = ZoneInfo("Asia/Tashkent")
+    TZ = ZoneInfo(os.environ["OWNER_TZ"]) if os.environ.get("OWNER_TZ") else dt.datetime.now().astimezone().tzinfo
 except Exception:  # pragma: no cover
-    TZ = dt.timezone(dt.timedelta(hours=5))
+    TZ = dt.datetime.now().astimezone().tzinfo
 
 # ---------- пути (переопределяются env для тестов) ----------
 HOME = os.path.expanduser("~")

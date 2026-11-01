@@ -208,9 +208,17 @@ def expired(job, now_t):
     return now_t > u
 
 
+def _system_tz():
+    """Пояс машины: TZ → /etc/localtime → UTC."""
+    tz = (os.environ.get("TZ") or "").lstrip(":")
+    if not tz and "/zoneinfo/" in os.path.realpath("/etc/localtime"):
+        tz = os.path.realpath("/etc/localtime").split("/zoneinfo/", 1)[1]
+    return tz or "UTC"
+
+
 def tick(cfg, now=None, dry=False):
     now = now or time.time()
-    tz = ZoneInfo(str(cfg.get("timezone") or "Asia/Tashkent"))
+    tz = ZoneInfo(str(cfg.get("timezone") or _system_tz()))
     now_t = dt.datetime.fromtimestamp(now, tz).replace(second=0, microsecond=0)
     st = load_state() if not dry else {}
     last_all = st.get("last") or {}

@@ -15,15 +15,15 @@
   cards.py answer ID --yes | --no | --edit «…» | --move slug                                    (задача)
                     [--via chat|voice|miniapp] [--by owner|mila] [--home DIR]
   cards.py button «[кнопка] ⭐ Да, выкладывай»     → нажатие на последней показанной карточке (next запоминает её) → тот же answer
-Время — ISO с поясом владельца (OWNER_TZ, по умолчанию Asia/Tashkent). --home — чужой дом (администратор читает команду).
+Время — ISO с поясом владельца (OWNER_TZ, по умолчанию пояс машины). --home — чужой дом (администратор читает команду).
 """
 import argparse, datetime as dt, json, os, random, re, string, sys
 
 try:
     from zoneinfo import ZoneInfo
-    TZ = ZoneInfo(os.environ.get("OWNER_TZ", "Asia/Tashkent"))
+    TZ = ZoneInfo(os.environ["OWNER_TZ"]) if os.environ.get("OWNER_TZ") else dt.datetime.now().astimezone().tzinfo
 except Exception:  # pragma: no cover
-    TZ = dt.timezone(dt.timedelta(hours=5))
+    TZ = dt.datetime.now().astimezone().tzinfo
 
 FILES = {"inbox": "inbox.jsonl", "proposals": "proposals.jsonl"}
 OPEN = {"inbox": ("open", "snoozed"), "proposals": ("open",)}

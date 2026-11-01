@@ -1,5 +1,5 @@
 # Heartbeat (RU: «Пульс Милы») — copy to ~/work/heartbeat.yaml. No keys or tokens here: only names of env variables.
-timezone: Asia/Tashkent
+timezone: UTC                   # your IANA zone, e.g. Europe/Berlin; empty = the machine's zone
 quiet_hours: "22-08"            # think jobs are skipped at night; beats too if they say quiet: true
 chat_id_env: MILA_OWNER_CHAT    # whose chat the queued messages belong to (the session answers there)
 watchdog:

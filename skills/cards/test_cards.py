@@ -28,7 +28,7 @@ n, _ = k("next", "inbox")
 check("6 дальше — со сроком раньше, чем без срока", n["card"]["id"] == r3["id"], n["card"]["q"])
 s, _ = k("button", "[кнопка] ⏸ До завтра")
 until = dt.datetime.fromisoformat(s["card"]["until"])
-check("7 «До завтра» → snoozed до 09:00 завтра", s["card"]["status"] == "snoozed" and until.hour == 9 and until.date() > dt.datetime.now(until.tzinfo).date())
+check("7 «До завтра» → snoozed до 09:00 завтра", s["card"]["status"] == "snoozed" and until.hour == 9 and until > dt.datetime.now(until.tzinfo))   # ночью до 06:00 «завтра» — 09:00 этого утра
 n, _ = k("next", "inbox")
 check("8 отложенная ушла из колоды", n["card"]["id"] == r1["id"] and n["left"] == 1)
 e, _ = k("button", "[кнопка] 💬 Поясни")

@@ -120,9 +120,10 @@ json.dump([{"id": "d1", "text": "Сдать отчёт", "due": (now + dt.timede
            {"id": "d2", "text": "Далеко", "due": (now + dt.timedelta(hours=30)).strftime("%Y-%m-%d %H:%M")},
            {"id": "d3", "text": "Просрочено", "due": (now - dt.timedelta(hours=3)).strftime("%Y-%m-%d %H:%M")},
            {"id": "d4", "text": "Сделано", "due": now.strftime("%Y-%m-%d %H:%M"), "done": True}], open(D, "w"), ensure_ascii=False)
-r = subprocess.run([sys.executable, os.path.join(H, "detectors", "deadlines.py"), "--file", D, "--hours", "2"], capture_output=True, text=True)
+r = subprocess.run([sys.executable, os.path.join(H, "detectors", "deadlines.py"), "--file", D, "--hours", "2", "--tz", "Asia/Tashkent"], capture_output=True, text=True)
 got = [json.loads(l) for l in r.stdout.splitlines()]
 check("deadlines: ближе 2 ч и просроченное — да; далёкое и сделанное — нет", sorted(g["key"].split(":")[0] for g in got) == ["d1", "d3"] and any("overdue" in g["text"] for g in got), got)
+check("пояс по умолчанию — машины (TZ), не зашитый город", subprocess.run([sys.executable, "-c", "import sys; sys.path.insert(0, %r); import deadlines, heartbeat; print(deadlines._system_tz(), heartbeat._system_tz())" % os.path.join(H, "detectors") + "", ], capture_output=True, text=True, env=dict(os.environ, TZ="Europe/Berlin", PYTHONPATH=H)).stdout.split() == ["Europe/Berlin", "Europe/Berlin"])
 M = os.path.join(T, "map.json")
 json.dump([{"id": -100123, "title": "Program A · Анонсы", "unread": 2, "last": "x"}, {"id": -100456, "title": "Другой", "unread": 9}], open(M, "w"), ensure_ascii=False)
 run = lambda: subprocess.run([sys.executable, os.path.join(H, "detectors", "tg_unread.py"), "--chat", "program a", "--map", M], capture_output=True, text=True, env=os.environ).stdout
