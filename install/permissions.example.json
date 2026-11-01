@@ -26,15 +26,15 @@
   },
   {
    "tool": "Bash",
-   "match": "re:\\b(cat|head|tail|less|more|grep|rg|jq|strings|xxd|od|hexdump|base64|cp|scp|rsync|source|printenv|env)\\b[^;&|]*(\\.env\\b|/secrets?/|channels/[^/\\s\\\"]+/\\.env|\\.credentials\\.json|pd\\.key)",
+   "match": "re:(/proc/[^/\\s\\\"]*/environ|\\b(cat|head|tail|less|more|grep|rg|jq|strings|xxd|od|hexdump|base64|cp|scp|rsync|source|printenv|env|git)\\b[^;&|]*(\\.env\\b|/secrets?/|secrets?/[^\\s\\\"]*\\.env|channels/[^/\\s\\\"]+/\\.env|\\.credentials\\.json|pd\\.key|/proc/[^/\\s\\\"]*/environ))",
    "decision": "deny",
-   "why": "ключи и .env оболочкой не читаю и не копирую (cat, grep, cp, source…): ключ берёт сам скрипт навыка — его запуск спрашивается отдельно, а значение не попадает в разговор"
+   "why": "ключи, .env и окружение процесса (/proc/*/environ) оболочкой не читаю и не копирую, в том числе через git show: ключ берёт сам скрипт навыка, значение не попадает в разговор"
   },
   {
    "tool": "Bash",
-   "match": "re:^\\s*(?:\\{\\s*\\\"command\\\"\\s*:\\s*\\\")?\\s*(?:git\\s+(?:status|log|diff|show|branch|remote|blame)|ls|pwd|date|whoami|uname|df|du|wc|head|tail|cat|grep|rg|jq|echo)(?![^\\\"]*\\b(python[\\d.]*|node|bun|deno|bash|zsh|sh|curl|wget|rm|mv|cp|chmod|chown|dd|eval|exec|sudo|ssh|scp|nc|perl|ruby|php|tee|xargs|find|sed|awk|git)\\b)\\b[^;&|<>`$\\n\\r\\\"\\\\]*(?:\\\"(?:\\s*,\\s*\\\"(?:description|timeout)\\\"\\s*:\\s*(?:\\\"[^\\\"\\\\]*\\\"|\\d+))*\\s*\\})?\\s*$",
+   "match": "re:^\\s*(?:\\{\\s*\\\"command\\\"\\s*:\\s*\\\")?\\s*(?![^\\\"]*\\s-[a-zA-Z]*[rR])(?![^\\\"]*--(?:recursive|output|ext-diff|exec|textconv|git-dir|work-tree|upload-pack|config))(?![^\\\"]*\\s-[oc]\\b)(?![^\\\"]*\\.\\.)(?![^\\\"]*(?:^|[\\s\\\"=:])/(?![^\\s\\\"]*/work(?:[/\\s\\\"]|$)))(?![^\\\"]*~(?!/work\\b))(?![^\\\"]*\\b(python[\\d.]*|node|bun|deno|bash|zsh|sh|curl|wget|rm|mv|cp|chmod|chown|dd|eval|exec|sudo|ssh|scp|nc|perl|ruby|php|tee|xargs|find|sed|awk)\\b)(?:git\\s+(?:status|log|diff|show|blame)\\b|git\\s+branch(?:\\s+(?:-a|-v|-vv|-r|--list|--show-current))*\\s*(?=\\\"|$)|git\\s+remote(?:\\s+-v)?\\s*(?=\\\"|$)|(?:ls|pwd|date|whoami|uname|df|du|wc|head|tail|cat|grep|rg|jq|echo)\\b)[^;&|<>`$\\n\\r\\\"\\\\]*(?:\\\"(?:\\s*,\\s*\\\"(?:description|timeout)\\\"\\s*:\\s*(?:\\\"[^\\\"\\\\]*\\\"|\\d+))*\\s*\\})?\\s*$",
    "decision": "allow",
-   "why": "смотреть и считать — рутина. Только целиком такая команда: без ; & | > < $( ` и без вызова другой программы в аргументах. Подсказка Claude Code сворачивает перевод строки в пробел — поэтому имена исполняемых в аргументах тоже не пропускаю"
+   "why": "смотреть и считать — рутина, но только узко: команда целиком (без ; & | > < $ ` и перевода строки), git — только status/log/diff/show/blame и чтение branch/remote, без --output/-o/-c/--ext-diff/--exec; без рекурсии (-r/-R); пути — только внутри work (не /, /proc, /etc, ~/.ssh, ~/.config, ~/.claude, без ..); без имён других программ в аргументах (подсказка Claude Code сворачивает перевод строки в пробел). Остальное — спросить"
   },
   {
    "tool": "Bash",
@@ -49,7 +49,7 @@
   },
   {
    "tool": "Read",
-   "match": "re:(\\.env\\b|/secrets?/|channels/[^/\\s\\\"]+/\\.env|\\.credentials\\.json|pd\\.key)",
+   "match": "re:(\\.env\\b|/secrets?/|secrets?/[^\\s\\\"]*\\.env|channels/[^/\\s\\\"]+/\\.env|\\.credentials\\.json|pd\\.key|/proc/[^/\\s\\\"]*/environ)",
    "decision": "deny",
    "why": "файлы ключей не открываю: их значения не должны попасть в разговор"
   },

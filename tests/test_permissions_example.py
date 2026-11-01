@@ -18,7 +18,17 @@ CASES = [
  ("Read", json.dumps({"file_path": "/home/a/work/NOW.md"}), "allow"),
  ("Edit", json.dumps({"file_path": "/home/a/.claude/settings.json"}), "ask"), ("Edit", json.dumps({"file_path": "/home/a/.claude/hooks/send-guard.py"}), "ask"),
  ("MultiEdit", json.dumps({"file_path": "/home/a/.claude/channels/telegram/access.json"}), "ask"),
- ("Edit", json.dumps({"file_path": "/home/a/work/NOW.md"}), "allow"), ("Write", json.dumps({"file_path": "/home/a/work/permissions.json"}), "ask"),
+ ("Edit", json.dumps({"file_path": "/home/a/work/NOW.md"}), "allow"),
+ # Quality's escapes (01.11): must not be a silent allow
+ ("Bash", "cat /proc/self/environ", "deny"), ("Bash", J("cat /proc/1/environ"), "deny"), ("Bash", "grep -r -e . /home/a/work", "ask"),
+ ("Bash", "grep -R KEY .", "ask"), ("Bash", "rg -l sk- /", "ask"), ("Bash", "grep -r OPENROUTER /etc/mila", "ask"), ("Bash", "cat /etc/passwd", "ask"),
+ ("Bash", "cat ~/.ssh/id_ed25519", "ask"), ("Bash", "ls ~/.config/mila", "ask"), ("Bash", "cat ~/.claude/settings.json", "ask"), ("Bash", "cat ../../.ssh/config", "ask"),
+ ("Bash", "git log --output=/tmp/x", "ask"), ("Bash", "git log --output=/home/a/.bashrc", "ask"), ("Bash", "git diff --ext-diff", "ask"), ("Bash", "git -c core.pager=sh log", "ask"),
+ ("Bash", "git show HEAD:secrets/x.env", "deny"), ("Bash", "git branch -D main", "ask"), ("Bash", "git remote add x https://example.com/r.git", "ask"),
+ ("Bash", "git remote set-url origin https://example.com/r.git", "ask"), ("Bash", "git log --exec=sh", "ask"), ("Bash", "git diff --textconv", "ask"),
+ # still allowed — the routine
+ ("Bash", "git branch", "allow"), ("Bash", "git branch -a", "allow"), ("Bash", "git remote -v", "allow"), ("Bash", "git log --oneline -5", "allow"),
+ ("Bash", "cat /home/a/work/NOW.md", "allow"), ("Bash", "cat ~/work/NOW.md", "allow"), ("Bash", "grep -n TODO README.md", "allow"), ("Bash", "wc -l *.md", "allow"), ("Write", json.dumps({"file_path": "/home/a/work/permissions.json"}), "ask"),
 ]
 js = """import { loadPolicy, decide } from '%s'
 const { policy, error } = loadPolicy('%s'); if (error) { console.log('ERR ' + error); process.exit(1) }
