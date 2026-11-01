@@ -1,19 +1,19 @@
 # CHANGELOG · Mila
 
-## v1.7.1 · 01.11 — stricter permissions and send checks, the whole text on a consent card, moving from OpenClaw or Hermes
+## v1.7.1 · 01.11 — stricter permissions and send checks, the whole text on the consent card, moving from OpenClaw or Hermes
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
 **Для хозяина**
-- Строже защита: файлы, которые я прикладываю к ответу, проверяются так же, как текст, — ключи и служебные файлы наружу не уйдут.
-- На карточке «Публикуем?» вы видите весь текст поста, а не начало и конец: одобряете ровно то, что уйдёт.
+- Файлы, которые я прикладываю к ответу, проверяются так же, как текст: ключ или служебный файл сторож отправки остановит.
+- Где согласие на публикацию идёт через карточку «Публикуем?» (в облаке), на ней теперь весь текст поста, а не начало и конец.
 - Переезд с OpenClaw или Hermes: память, навыки и «кто я» вашего прежнего агента переносятся в одну папку, разбираем вместе по одному куску.
 
 </details>
 
 **For the owner**
-- Stricter protection: files I attach to a reply are checked like the text — keys and service files do not leave.
-- The «Publish?» card shows the whole text of the post, not its start and end: you approve exactly what goes out.
+- Files I attach to a reply are checked like the text: the send-guard stops a key or a service file.
+- Where a post goes out through the «Publish?» consent card (in the cloud), the card now shows the whole text, not its start and end.
 - Moving from OpenClaw or Hermes: your previous agent's memory, skills and persona move into one folder, and we go through it together, piece by piece.
 
 **For Milas**
