@@ -26,9 +26,15 @@
   },
   {
    "tool": "Bash",
-   "match": "re:^\\s*(git\\s+(status|log|diff|show|branch|remote|blame)|ls|pwd|date|whoami|uname|df|du|wc|head|tail|cat|grep|rg|jq|echo)\\b",
+   "match": "re:\\b(cat|head|tail|less|more|grep|rg|jq|strings|xxd|od|hexdump|base64|cp|scp|rsync|source|printenv|env)\\b[^;&|]*(\\.env\\b|/secrets?/|channels/[^/\\s\\\"]+/\\.env|\\.credentials\\.json|pd\\.key)",
+   "decision": "deny",
+   "why": "ключи и .env оболочкой не читаю и не копирую (cat, grep, cp, source…): ключ берёт сам скрипт навыка — его запуск спрашивается отдельно, а значение не попадает в разговор"
+  },
+  {
+   "tool": "Bash",
+   "match": "re:^\\s*(?:\\{\\s*\\\"command\\\"\\s*:\\s*\\\")?\\s*(?:git\\s+(?:status|log|diff|show|branch|remote|blame)|ls|pwd|date|whoami|uname|df|du|wc|head|tail|cat|grep|rg|jq|echo)(?![^\\\"]*\\b(python[\\d.]*|node|bun|deno|bash|zsh|sh|curl|wget|rm|mv|cp|chmod|chown|dd|eval|exec|sudo|ssh|scp|nc|perl|ruby|php|tee|xargs|find|sed|awk|git)\\b)\\b[^;&|<>`$\\n\\r\\\"\\\\]*(?:\\\"(?:\\s*,\\s*\\\"(?:description|timeout)\\\"\\s*:\\s*(?:\\\"[^\\\"\\\\]*\\\"|\\d+))*\\s*\\})?\\s*$",
    "decision": "allow",
-   "why": "смотреть и считать — рутина, за которой незачем будить человека"
+   "why": "смотреть и считать — рутина. Только целиком такая команда: без ; & | > < $( ` и без вызова другой программы в аргументах. Подсказка Claude Code сворачивает перевод строки в пробел — поэтому имена исполняемых в аргументах тоже не пропускаю"
   },
   {
    "tool": "Bash",
@@ -40,6 +46,12 @@
    "tool": "Bash",
    "decision": "ask",
    "why": "остальная оболочка спрашивает. Это дороже в тапах и дешевле в последствиях: разрешать оболочку целиком значит разрешить всё, что через неё делается"
+  },
+  {
+   "tool": "Read",
+   "match": "re:(\\.env\\b|/secrets?/|channels/[^/\\s\\\"]+/\\.env|\\.credentials\\.json|pd\\.key)",
+   "decision": "deny",
+   "why": "файлы ключей не открываю: их значения не должны попасть в разговор"
   },
   {
    "tool": "Read",
@@ -63,8 +75,25 @@
   },
   {
    "tool": "Edit",
+   "match": "re:(\\.claude/(channels|hooks|settings)|permissions\\.json|access\\.json|\\.env)",
+   "decision": "ask",
+   "why": "правка собственной обвязки (хуки, настройки, доступ, ключи) — только с человеком: так агент мог бы переписать правила, по которым его же спрашивают"
+  },
+  {
+   "tool": "MultiEdit",
+   "match": "re:(\\.claude/(channels|hooks|settings)|permissions\\.json|access\\.json|\\.env)",
+   "decision": "ask",
+   "why": "то же для нескольких правок сразу"
+  },
+  {
+   "tool": "Edit",
    "decision": "allow",
-   "why": "правка файлов — основная работа"
+   "why": "правка остальных файлов — основная работа"
+  },
+  {
+   "tool": "MultiEdit",
+   "decision": "allow",
+   "why": "правка остальных файлов — основная работа"
   },
   {
    "tool": "Write",
