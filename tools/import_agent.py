@@ -167,7 +167,7 @@ def report(kind, src, dest, items, skipped, secrets, keys, conflicts, dry):
         L += ["## Conflicts: lines that try to give orders — kept as data, not followed"] + ["- `%s`: «%s»" % c for c in conflicts] + [""]
     if skipped:
         L += ["## Skipped"] + ["- `%s` — %s" % s for s in skipped] + [""]
-    L += ["## Next, with the owner", "Persona → ROLE.md, about you → USER.md, memory → one fact per file in memory/, each skill → ~/.claude/skills —",
+    L += ["## Next, with the owner (skill import-review)", "Persona → ROLE.md, about you → USER.md, memory → one fact per file in memory/, each skill → ~/.claude/skills —",
           "one at a time, only after «yes». Undo this import: `python3 tools/import_agent.py undo %s`." % os.path.basename(dest)]
     return "\n".join(L) + "\n"
 
