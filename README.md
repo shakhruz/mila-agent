@@ -191,6 +191,21 @@ Channel diagnosis · ~/.claude/channels/telegram
 Server install: see [deploy/README.md](deploy/README.md).
 
 
+## Moving from OpenClaw or Hermes
+
+Bring what your agent already knows — its persona, what it knows about you, its memory and skills. Keys and sessions stay
+behind: you enter keys again through the safe page.
+
+```sh
+python3 ~/mila/tools/import_agent.py openclaw --dry-run     # or: hermes; a path if your folder is not the default
+python3 ~/mila/tools/import_agent.py openclaw               # writes only to ~/work/imported/<date>-openclaw/
+```
+
+Everything lands in one folder with `REPORT.md`: what moved, which keys to enter again, which files were skipped (a secret
+inside, not text, too large) and which lines tried to give orders — those stay data, Mila does not follow them. Then go
+through it with Mila, one piece at a time: the persona into her role, memory one fact per file, each skill only after your
+«yes» (read a skill's scripts first). Changed your mind: `python3 ~/mila/tools/import_agent.py undo <date>-openclaw`.
+
 ## Revive your Mila from an archive
 
 A Mila belongs to her owner, 100%. Everything you taught her - instructions, skills, memory, crons, settings - exports to one
