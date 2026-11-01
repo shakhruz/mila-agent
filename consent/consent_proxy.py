@@ -24,6 +24,11 @@ BUF = 64 * 1024
 INVISIBLE = re.compile("[​-‏‪-‮⁠-⁤⁦-⁩﻿]")
 
 
+FIELDS = ("text", "targets", "when", "attachments")   # what a card shows; a category may narrow it with "fields"
+CARD_TEXT = 3000                                       # longer text goes in parts before the card (Telegram: 4096 per message)
+PART = 3500
+
+
 class Proxy:
     def __init__(self, cfg, send=None, run=None, now=time.time):
         self.cfg, self.now = cfg, now
@@ -96,20 +101,24 @@ class Proxy:
         return hashlib.sha256(material.encode("utf-8")).hexdigest(), atts
 
     def preview(self, category, payload, atts):
+        """→ list of messages: the owner sees the WHOLE text (long text — in parts before the card), the card with buttons is last."""
         clean = lambda s: INVISIBLE.sub("", unicodedata.normalize("NFC", str(s or "")))
         text = clean(payload.get("text"))
         where = ", ".join(clean(x) for x in (payload.get("targets") or [])) or "—"
         lines = ["Публикуем? · %s" % clean((self.cfg["categories"].get(category) or {}).get("title") or category),
                  "Куда: %s" % where, "Текст: %d знаков" % len(text)]
-        if len(text) <= 500:
+        parts = []
+        if len(text) <= CARD_TEXT:
             lines.append(text)
         else:
-            lines += [text[:350], "…", text[-120:]]
+            parts = [text[i:i + PART] for i in range(0, len(text), PART)]
+            parts = ["Текст целиком, часть %d из %d:\n%s" % (k + 1, len(parts), t) for k, t in enumerate(parts)]
+            lines.append("Текст целиком — в %d сообщениях выше; «Да, это» одобряет ровно его." % len(parts))
         if payload.get("when"):
             lines.append("Когда: %s" % clean(payload["when"]))
         for a in atts:
             lines.append("Вложение: %s, %d КБ" % (clean(a["name"]), max(1, a["size"] // 1024)))
-        return "\n".join(lines)
+        return parts + ["\n".join(lines)]
 
     def sig(self, cid, h):
         return hmac.new(self.key, ("%s:%s" % (cid, h)).encode(), hashlib.sha256).hexdigest()[:20]
@@ -118,6 +127,11 @@ class Proxy:
     def request(self, category, payload):
         if not isinstance(payload, dict) or category not in (self.cfg.get("categories") or {}):
             return {"status": "denied", "why": "unknown category"}
+        fields = set((self.cfg["categories"][category] or {}).get("fields") or FIELDS)
+        extra = sorted(set(payload) - fields)
+        if extra:                                            # the owner's card shows only known fields — anything else would pass unseen
+            self.journal({"ev": "denied", "category": category, "why": "unknown fields"})
+            return {"status": "denied", "why": "unknown fields: %s" % ", ".join(str(x)[:40] for x in extra[:5])}
         if not self.cats.get(category):
             self.journal({"ev": "denied", "category": category, "why": "category off"})
             return {"status": "denied", "why": "the owner turned this category off"}
@@ -143,9 +157,10 @@ class Proxy:
                 cid = secrets.token_hex(4)
                 cons[cid] = {"hash": h, "category": category, "asked": now}
                 self._save("consents.json", cons)
-                card = self.preview(category, payload, atts)
-                ok = self.send(card, [[{"text": "Да, это", "callback_data": "%s%s.%s.y" % (PREFIX, cid, self.sig(cid, h))},
-                                       {"text": "Нет", "callback_data": "%s%s.%s.n" % (PREFIX, cid, self.sig(cid, h))}]])
+                msgs = self.preview(category, payload, atts)
+                ok = all(self.send(m, []) for m in msgs[:-1]) and self.send(msgs[-1], [[
+                    {"text": "Да, это", "callback_data": "%s%s.%s.y" % (PREFIX, cid, self.sig(cid, h))},
+                    {"text": "Нет", "callback_data": "%s%s.%s.n" % (PREFIX, cid, self.sig(cid, h))}]])   # a part not shown → no card, no yes
                 self.journal({"ev": "asked", "id": cid, "category": category, "hash": h[:16], "card_sent": bool(ok)})
                 return {"status": "asked", "id": cid} if ok else {"status": "denied", "why": "could not show the card to the owner"}
         return self.execute(category, payload, atts, cid)

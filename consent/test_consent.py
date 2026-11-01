@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Consent proxy on temp dirs, fake Telegram and a fake executor (no network): without a yes nothing runs; the owner's yes runs
 exactly this payload once; a changed payload or a replaced file asks again; forged, foreign, late buttons are ignored; the card
-shows targets, length, head and tail, attachments; invisible and bidi characters are stripped; attachments only from inside the
+shows targets, length, the whole text (a long one in parts before the card), attachments; unknown payload fields are refused; invisible and bidi characters are stripped; attachments only from inside the
 home (symlink to the proxy key, outside path, FIFO, too big — refused); categories on/off only by the owner; fail closed.
 Run: python3 test_consent.py"""
 import json, os, re, shutil, socket, subprocess, sys, tempfile, threading, time
@@ -63,6 +63,14 @@ card = CARDS[-1][0]
 check("карточка: куда целиком, длина, начало и конец, когда, вложение с размером",
       "Куда: acc-demo-ig" in card and "Текст: %d знаков" % len(long) in card and "Начало поста" in card and "Конец поста и ссылка." in card
       and "Когда: 2026-11-02 10:00" in card and "Вложение: cover.png, 2 КБ" in card, card)
+k1 = len(CARDS); huge = "".join("слово%04d " % i for i in range(800))   # ~8000 знаков
+px.request("publish_zernio", {"text": huge, "targets": ["acc-demo-ig"]})
+sent = CARDS[k1:]; joined = "".join(t.split("\n", 1)[1] if t.startswith("Текст целиком") else "" for t, _ in sent[:-1])
+check("длинный текст: владелец видит ВЕСЬ текст частями до карточки, кнопки — только у последней", len(sent) >= 3 and joined == huge
+      and all(kb == [] for _, kb in sent[:-1]) and sent[-1][1] and "сообщениях выше" in sent[-1][0], [(t[:40], bool(kb)) for t, kb in sent])
+pxf = cp.Proxy(CFG, send=lambda text, kb: not text.startswith("Текст целиком, часть 2"), run=lambda *a: {"ok": True}, now=lambda: NOW[0])
+check("часть текста не дошла до владельца — карточки нет, denied", pxf.request("publish_zernio", {"text": huge + "x", "targets": ["a"]})["status"] == "denied")
+check("поле вне белого списка (его нет в карточке) — denied", px.request("publish_zernio", {"text": "x", "targets": ["a"], "link_preview_url": "https://example.com"})["status"] == "denied")
 px.request("publish_zernio", {"text": "Цена ‮001‬ сум​ и⁦скрыто⁩", "targets": ["a"]})
 check("невидимые и bidi-символы сняты из превью", not re.search("[​-‏‪-‮⁦-⁩]", CARDS[-1][0]), repr(CARDS[-1][0]))
 # attachments: only inside the home, never through a link

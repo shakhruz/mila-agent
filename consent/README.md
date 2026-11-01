@@ -12,7 +12,7 @@ Telegram на ЭТО действие. У облачных Мил термина
 при свежем одноразовом согласии на hash именно этого payload.
 
 ## Flow · Как идёт
-1. `consent_client.py publish_zernio < payload.json` → `asked`: the owner gets a card (targets in full, text length, head and tail,
+1. `consent_client.py publish_zernio < payload.json` → `asked`: the owner gets a card (targets in full, text length, the whole text — a long one in parts right before the card,
    time, attachments with size; invisible and bidi characters stripped). / владельцу ушла карточка.
 2. The owner taps «Да, это» → the Telegram receiver (as `mila-io`) forwards `consent:<id>.<sig>.y` to the io socket → `granted`.
 3. The session sends the SAME payload again → `done`. A changed text or a replaced attachment is another hash → a new card.
@@ -22,6 +22,8 @@ Telegram на ЭТО действие. У облачных Мил термина
 - Only the owner, only in a private chat, only a button the proxy signed (HMAC, key 600 at `mila-io`); the session cannot draw it.
 - Attachments: only files inside the Mila's home — no symlink on the path, regular file, size limit; the executor gets checked copies.
 - Fail closed: no proxy, no answer, garbage — denied; nothing is published.
+- A payload may carry only what the card shows: `text`, `targets`, `when`, `attachments` (a category can narrow it with
+  `"fields"`); anything else is refused, so nothing reaches the executor unseen.
 - Categories (`publish_zernio`, …) are switched by the owner only (io socket), every switch is journalled.
 - Journal `consents.jsonl`: asked · granted · declined · used · executed · denied · category — no post text.
 
