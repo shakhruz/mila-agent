@@ -8,7 +8,7 @@
 
 [English](README.md) · [中文](README.zh-CN.md) · [Русский](README.ru.md) · **Oʻzbekcha**
 
-**Joriy chiqish: [v1.6.6](https://github.com/shakhruz/mila-agent/releases/latest)** · [nima yangi](CHANGELOG.md)
+**[Joriy chiqish](https://github.com/shakhruz/mila-agent/releases/latest)** · [nima yangi](CHANGELOG.md)
 
 Mila — kattaroq narsaning bir qismi. Manifestimizni o‘qing (rus va ingliz tillarida): [milagpt.io/manifest](https://milagpt.io/manifest/) · [English](https://milagpt.io/en/manifest/)
 

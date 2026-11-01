@@ -32,7 +32,7 @@ curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.s
 ```
 <p align="center">Installs the latest release tag, not <code>main</code>. Runs as a Claude Code development channel (research preview) — see <a href="SECURITY.md#the-development-channels-flag">why</a>.</p>
 <p align="center">≈ 5 minutes · macOS, Linux (Windows via WSL) · bring your own Claude plan or Anthropic API key<br>
-Latest: <a href="https://github.com/shakhruz/mila-agent/releases/latest">v1.6.6</a> · install command checked from scratch on Linux, Oct 30</p>
+<a href="https://github.com/shakhruz/mila-agent/releases/latest">Latest release</a> · install command checked from scratch on Linux, Oct 30</p>
 
 <p align="center">Questions and ideas: <a href="https://github.com/shakhruz/mila-agent/discussions">GitHub Discussions</a>.</p>
 

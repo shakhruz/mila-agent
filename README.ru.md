@@ -13,7 +13,7 @@
 ![Mila](docs/preview.png)
 
 
-**Текущий выпуск: [v1.6.6](https://github.com/shakhruz/mila-agent/releases/latest)** · [что нового](CHANGELOG.md)
+**[Текущий выпуск](https://github.com/shakhruz/mila-agent/releases/latest)** · [что нового](CHANGELOG.md)
 
 **Какую версию брать:** стабильная — [Releases](https://github.com/shakhruz/mila-agent/releases) (теги `vX.Y.Z`); canary — ветка `main` (новее, может ломаться).
 
