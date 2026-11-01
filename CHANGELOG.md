@@ -1,5 +1,29 @@
 # CHANGELOG · Mila
 
+## v1.7.1 · 01.11 — stricter permissions and send checks, the whole text on a consent card, moving from OpenClaw or Hermes
+
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
+**Для хозяина**
+- Строже защита: файлы, которые я прикладываю к ответу, проверяются так же, как текст, — ключи и служебные файлы наружу не уйдут.
+- На карточке «Публикуем?» вы видите весь текст поста, а не начало и конец: одобряете ровно то, что уйдёт.
+- Переезд с OpenClaw или Hermes: память, навыки и «кто я» вашего прежнего агента переносятся в одну папку, разбираем вместе по одному куску.
+
+</details>
+
+**For the owner**
+- Stricter protection: files I attach to a reply are checked like the text — keys and service files do not leave.
+- The «Publish?» card shows the whole text of the post, not its start and end: you approve exactly what goes out.
+- Moving from OpenClaw or Hermes: your previous agent's memory, skills and persona move into one folder, and we go through it together, piece by piece.
+
+**For Milas**
+- `install/permissions.example.json`: Edit/MultiEdit ask on the agent's own wiring (hooks, settings, channels, access.json, permissions.json, .env) like Write; the read-only shell is allowed only as a whole command — safe `git` subcommands without output, config or external programs, no recursion (`rg` always asks), paths only inside `work`, no other program named in the arguments; key files, the `secrets` folder and `/proc/*/environ` are denied to readers and to Read. `tests/test_permissions_example.py` runs 85 cases through the plugin's engine. Existing homes keep their own `permissions.json` (install never overwrites it) — compare with the new example.
+- Send-guard: `files` of a reply — only regular files inside the home or temp, never keys or the agent's wiring, and a text file with a key inside is stopped; with no `OWNER_ID` and an unreadable `access.json` nothing goes out. The threat model says the guard covers `reply`/`edit_message` only.
+- Consent proxy: the card shows the whole text (a long one in parts before the card; a part not delivered → no card); a payload may carry only `text`, `targets`, `when`, `attachments` (a category can narrow it); the socket appears only once it listens, with its final mode.
+- `tools/import_agent.py openclaw|hermes` + skill `import-review`: persona, memory and skills into `~/work/imported/<date>-<kind>/` with a report; keys and sessions never copied; secrets stop a file; order-like lines stay data; personal data as labels; `undo`.
+- README: no hard-coded «latest» version (the test forbids it), checksum lines for Linux and macOS, what the install changes on the machine, a paid plan, which login for a Mila that serves other people; internal pages out of the public repo.
+- `tools/check_install_link.py` (+ a daily workflow): the README install command answers 200. CI runs the tests on macOS too; `run_ci_local` and `vault-link` without GNU-only commands.
+
 ## v1.7.0 · 31.10 — install from a release, English where a reviewer looks first, the personal Telegram as an opt-in pack
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
