@@ -124,6 +124,17 @@ check("id хозяина из .env (TELEGRAM_ALLOWED_USERS) — только и�
 bad = os.path.join(T, "hermes3"); w(os.path.join(bad, "cron", "jobs.json"), "{не json")
 r = ia.do_import("hermes", bad, os.path.join(T, "work3"), today=today)
 check("битый jobs.json — пропуск со строкой «nothing scheduled», не падаю", r["ok"] and "nothing scheduled" in open(os.path.join(r["dest"], "REPORT.md")).read(), r)
+# --- ключ незнакомого вида внутри SOUL.md: строку не переносим; «KEY idea: …» — обычный текст ---
+h4 = os.path.join(T, "hermes4")
+w(os.path.join(h4, "SOUL.md"), "Ты — помощник.\nOPENROUTER_API_KEY = %s\nKEY idea: клиенту важнее скорость, чем цена\nmy_token: короткий\n" % KEY2)
+r = ia.do_import("hermes", h4, os.path.join(T, "work4"), today=today); d4 = r.get("dest", "")
+soul = open(os.path.join(d4, "persona/SOUL.md")).read() if d4 else ""; rep4 = open(os.path.join(d4, "REPORT.md")).read() if d4 else ""
+check("ключ незнакомого вида в SOUL.md: строки нет в persona и в отчёте, в отчёте — файл и номер строки", KEY2 not in soul and KEY2 not in rep4 and "OPENROUTER_API_KEY" not in soul and "`SOUL.md`, line 2" in rep4, (soul, rep4))
+w(os.path.join(h4, "skills", "tool", "run.py"), "API_TOKEN = '%s'\nprint(1)\n" % KEY2)
+r = ia.do_import("hermes", h4, os.path.join(T, "work5"), today=today); d5 = r.get("dest", "")
+f5 = set(json.load(open(os.path.join(d5, "MANIFEST.json")))["files"]) if d5 else set(); rep5 = open(os.path.join(d5, "REPORT.md")).read() if d5 else ""
+check("ключ незнакомого вида в скрипте навыка — файл не переносится целиком (код не режу), вид в отчёте", "skills/tool/run.py" not in f5 and "looks like a key" in rep5 and KEY2 not in rep5, (sorted(f5), rep5))
+check("контроль: «KEY idea: …» и короткое «my_token: …» остались (не ключ)", "KEY idea: клиенту важнее скорость" in soul and "my_token: короткий" in soul, soul)
 # --- undo ---
 keep = os.path.join(dest, "my-note.md"); w(keep, "владелец дописал сам\n")
 r = ia.undo(os.path.basename(dest), work)
