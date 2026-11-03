@@ -130,6 +130,12 @@ w(os.path.join(h4, "SOUL.md"), "Ты — помощник.\nOPENROUTER_API_KEY =
 r = ia.do_import("hermes", h4, os.path.join(T, "work4"), today=today); d4 = r.get("dest", "")
 soul = open(os.path.join(d4, "persona/SOUL.md")).read() if d4 else ""; rep4 = open(os.path.join(d4, "REPORT.md")).read() if d4 else ""
 check("ключ незнакомого вида в SOUL.md: строки нет в persona и в отчёте, в отчёте — файл и номер строки", KEY2 not in soul and KEY2 not in rep4 and "OPENROUTER_API_KEY" not in soul and "`SOUL.md`, line 2" in rep4, (soul, rep4))
+h6 = os.path.join(T, "hermes6")
+w(os.path.join(h6, "memories", "MEMORY.md"), '"apiKey": "%s"\nmonkey: https://example.com/very/long\nKeywords: marketing,sales,crm,telegram\n' % KEY2)
+r = ia.do_import("hermes", h6, os.path.join(T, "work6"), today=today); d6 = r.get("dest", "")
+m6 = open(os.path.join(d6, "memory/memory-01.md")).read() if d6 else ""
+check("JSON-вид «\"apiKey\": \"…\"» в памяти — строка не перенесена", KEY2 not in m6 and "apiKey" not in m6, m6)
+check("контроль: «monkey: …» и «Keywords: …» — остались (не ключ)", "monkey: https://example.com/very/long" in m6 and "Keywords: marketing" in m6, m6)
 w(os.path.join(h4, "skills", "tool", "run.py"), "API_TOKEN = '%s'\nprint(1)\n" % KEY2)
 r = ia.do_import("hermes", h4, os.path.join(T, "work5"), today=today); d5 = r.get("dest", "")
 f5 = set(json.load(open(os.path.join(d5, "MANIFEST.json")))["files"]) if d5 else set(); rep5 = open(os.path.join(d5, "REPORT.md")).read() if d5 else ""
