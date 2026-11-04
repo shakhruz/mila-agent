@@ -20,8 +20,18 @@ KEY="${GROQ_API_KEY:-}"
 [ -n "$DG$KEY" ] || { echo "[нет ключа распознавания: ни Deepgram, ни Groq — ни в env, ни в сейфе]" >&2; exit 1; }
 DG_TEXT=""
 if [ -n "$DG" ]; then
-  DG_OUT=$(curl -s --max-time 90 -X POST "${DEEPGRAM_API:-https://api.deepgram.com}/v1/listen?model=nova-3&language=multi&smart_format=true" \
-    -H "Authorization: Token $DG" -H "Content-Type: audio/ogg" --data-binary "@$SRC" | python3 -c '
+  DG_RAW=$(curl -s --max-time 90 -w '\n%{http_code}' -X POST "${DEEPGRAM_API:-https://api.deepgram.com}/v1/listen?model=nova-3&language=multi&smart_format=true" \
+    -H "Authorization: Token $DG" -H "Content-Type: audio/ogg" --data-binary "@$SRC")
+  DG_CODE="${DG_RAW##*$'\n'}"; DG_BODY="${DG_RAW%$'\n'*}"
+  case "$DG_CODE" in   # the reason goes to stderr (the receiver's log), never the key
+    401|403) echo "[Deepgram: ключ не принят (HTTP $DG_CODE) — нужен новый ключ]" >&2 ;;
+    402) echo "[Deepgram: на счёте кончился кредит (HTTP 402)]" >&2 ;;
+    429) echo "[Deepgram: лимит запросов (HTTP 429), позже]" >&2 ;;
+    200) ;;
+    *) echo "[Deepgram: ответ HTTP ${DG_CODE:-нет}]" >&2 ;;
+  esac
+  if [ "$DG_CODE" != 200 ] && [ -z "$KEY" ]; then exit 1; fi   # no Groq to fall back on: the receiver says «transcription failed»
+  DG_OUT=$(printf '%s' "$DG_BODY" | python3 -c '
 import json, sys
 try:
     a = json.load(sys.stdin)["results"]["channels"][0]["alternatives"][0]

@@ -8,7 +8,8 @@ cat > "$T/bin/curl" <<'C'
 #!/bin/bash
 for a in "$@"; do case "$a" in Authorization:*) printf '%s\n' "$a" >> "$CURL_LOG";; esac; done
 case "$*" in
-  *listen*) echo "{\"results\":{\"channels\":[{\"alternatives\":[{\"transcript\":\"$DG_SAYS\",\"confidence\":$DG_CONF}]}]}}";;
+  *listen*) if [ "${DG_CODE:-200}" = 200 ]; then echo "{\"results\":{\"channels\":[{\"alternatives\":[{\"transcript\":\"$DG_SAYS\",\"confidence\":$DG_CONF}]}]}}"; else echo '{"err_code":"INVALID_AUTH"}'; fi
+            case "$*" in *http_code*) echo "${DG_CODE:-200}";; esac;;
   *transcriptions*) echo '{"language":"uzbek","text":"salom dunyo"}';;
 esac
 C
@@ -22,6 +23,12 @@ o=$(DG_SAYS="salom" DG_CONF=0.31 run); chk "только Deepgram, не увер
 printf "GROQ_API_KEY='%s'\n" "$GK" > "$T/sec/groq.env"; : > "$T/auth.log"
 o=$(DG_SAYS="salom" DG_CONF=0.31 run); chk "Deepgram не уверен и есть Groq — текст Groq (uz)" '[ "$o" = "salom dunyo" ] && grep -q "Bearer $GK" "$T/auth.log"' 'echo "$o"'
 : > "$T/auth.log"; o=$(DG_SAYS="привет мир" DG_CONF=0.93 run); chk "Deepgram уверен — Groq не зовём, даже если его ключ есть" '[ "$o" = "привет мир" ] && ! grep -q Bearer "$T/auth.log"' 'echo "$o"'
+rm "$T/sec/groq.env"
+o=$(DG_CODE=401 run); rc=$?; chk "Deepgram 401 (неверный ключ), Groq нет — код ≠ 0 (приёмник скажет «не расшифровано»), причина в журнал" 'echo "$o" | grep -q "ключ не принят (HTTP 401)" && ! echo "$o" | grep -q "$DK"' 'echo "$o"'
+o=$(DG_CODE=402 run); chk "Deepgram 402 — «кончился кредит»" 'echo "$o" | grep -q "кончился кредит"' 'echo "$o"'
+o=$(DG_CODE=429 run); chk "Deepgram 429 — «лимит запросов»" 'echo "$o" | grep -q "лимит запросов"' 'echo "$o"'
+printf "GROQ_API_KEY='%s'\n" "$GK" > "$T/sec/groq.env"
+o=$(DG_CODE=401 run); chk "Deepgram 401, есть Groq — ответ Groq" 'echo "$o" | tail -1 | grep -q "salom dunyo"' 'echo "$o"'
 rm "$T/sec/deepgram.env"; o=$(run); chk "только Groq (как во флоте) — путь прежний" '[ "$o" = "salom dunyo" ]' 'echo "$o"'
 rm "$T/sec/groq.env"; o=$(run); chk "ни одного ключа — понятная строка и код 1" 'echo "$o" | grep -q "нет ключа распознавания"' 'echo "$o"'
 o=$(DEEPGRAM_API_KEY="dg_env_1" DG_SAYS="ok" DG_CONF=0.9 bash "$H/install/transcribe-voice.sh" "$T/a.ogg" 2>&1); chk "ключ Deepgram из env" '[ "$o" = "ok" ]' 'echo "$o"'

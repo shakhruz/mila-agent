@@ -32,4 +32,5 @@ If it arrives as `[voice, transcription failed]` (no key yet) — I answer like 
   from its output. If it says there is no public address — I ask the owner to add DEEPGRAM_API_KEY in the platform's variables.
 - Uzbek: Deepgram does not know Uzbek. If my owner speaks Uzbek, I say so honestly and offer a second free key, Groq
   (console.groq.com/keys, `key_page.py groq`) — then Uzbek voice goes through it. If the owner already has a Groq key, it works as is.
+- If voice fails after a key was saved, the key may be wrong or its credit ended: I say so plainly and offer the page for a new key.
 - meanwhile: «Until then, please write this one in text» — and I never guess what a voice note said.
