@@ -34,7 +34,9 @@ GONE = {"en": "This link no longer works. Ask Mila for a new one.", "ru": "Сс�
 BTN = {"en": "Save", "ru": "Сохранить", "uz": "Saqlash"}
 
 
-def lang(h):
+def lang(h, q=""):
+    """The conversation's language (?l= on Mila's link) first, then the browser's, English by default."""
+    if q[:2] in OK: return q[:2]
     for part in (h or "").split(","):
         c = part.split(";")[0].strip().lower()[:2]
         if c in OK: return c
@@ -86,19 +88,22 @@ def serve(kind, port, token):
             return not st["saved"] and st["tries"] < TRIES and time.time() - st["start"] < TTL
 
         def form(self, lg, err=""):
-            return page("<h2>%s</h2><p>%s</p><form method=post autocomplete=off><input name=k type=text required autofocus autocomplete=off "
+            return page("<h2>%s</h2><p>%s</p><form method=post autocomplete=off action='?l=%s'><input name=k type=text required autofocus autocomplete=off "
                         "spellcheck=false data-1p-ignore data-lpignore=true>%s<button type=submit>%s</button></form>"
-                        % (html.escape(k["title"][lg]), html.escape(k["intro"][lg]), ("<p class=e>%s</p>" % html.escape(err)) if err else "",
+                        % (html.escape(k["title"][lg]), html.escape(k["intro"][lg]), lg, ("<p class=e>%s</p>" % html.escape(err)) if err else "",
                            BTN[lg]), lg)
 
+        def lg_(self):
+            return lang(self.headers.get("Accept-Language"), (urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("l") or [""])[0])
+
         def do_GET(self):
-            lg = lang(self.headers.get("Accept-Language"))
+            lg = self.lg_()
             if self.path.split("?")[0] != path: return self.send(404, page("", lg))
             if not self.live(): return self.send(410, page("<p>%s</p>" % GONE[lg], lg))
             self.send(200, self.form(lg))
 
         def do_POST(self):
-            lg = lang(self.headers.get("Accept-Language"))
+            lg = self.lg_()
             if self.path.split("?")[0] != path: return self.send(404, page("", lg))
             if not self.live(): return self.send(410, page("<p>%s</p>" % GONE[lg], lg))
             n = min(int(self.headers.get("Content-Length") or 0), 2048)
@@ -120,6 +125,7 @@ def serve(kind, port, token):
 
 def main(argv):
     kind = argv[1] if len(argv) > 1 else ""
+    lq = argv[argv.index("--lang") + 1][:2].lower() if "--lang" in argv and argv.index("--lang") + 1 < len(argv) else ""
     if kind not in KINDS: print("usage: key_page.py " + "|".join(KINDS)); return 2
     base = (os.environ.get("MILA_PUBLIC_URL") or ("https://" + os.environ["RAILWAY_PUBLIC_DOMAIN"] if os.environ.get("RAILWAY_PUBLIC_DOMAIN") else "")).rstrip("/")
     port = os.environ.get("PORT")
@@ -127,7 +133,7 @@ def main(argv):
         print("key-page: no public address here — put %s into the platform's variables (key from %s)" % (KINDS[kind]["field"], KINDS[kind]["where"]), flush=True)
         return 2
     token = secrets.token_urlsafe(24)
-    print("%s/k/%s" % (base, token), flush=True)   # the one line for Mila to send to the owner; not logged anywhere else
+    print("%s/k/%s%s" % (base, token, ("?l=" + lq) if lq in OK else ""), flush=True)   # the one line for Mila to send to the owner; not logged anywhere else
     if os.fork():   # the page lives in the background, Mila's command returns at once
         return 0
     os.setsid()

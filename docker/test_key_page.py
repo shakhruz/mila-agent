@@ -71,4 +71,9 @@ c, b = req(url, {"k": DGK}); f2 = os.path.join(SEC, "deepgram.env")
 check("deepgram: ключ проверен заголовком Token и сохранён в deepgram.env 600", c == 200 and os.path.exists(f2) and open(f2).read().strip() == "DEEPGRAM_API_KEY='%s'" % DGK
       and oct(os.stat(f2).st_mode & 0o777) == "0o600")
 dg.shutdown()
+# the conversation's language: --lang ru → ?l=ru → the page in Russian even for an English browser
+port = free(); r = subprocess.run([sys.executable, os.path.join(H, "key_page.py"), "groq", "--lang", "ru"], env=env(port), capture_output=True, text=True, timeout=20)
+u3 = r.stdout.strip(); wait_port(port)
+c, b = req(u3); check("--lang ru → ссылка с ?l=ru, страница по-русски", u3.endswith("?l=ru") and "Чтобы я слышала" in b, (u3, b[:200]))
+c, b = req(u3, {"k": "x"}); check("…и ответ на неверный ключ тоже по-русски", "Сервис не принял" in b)
 api.shutdown(); shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
