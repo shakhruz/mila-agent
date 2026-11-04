@@ -2,7 +2,9 @@
 """Сейф Милы (задача №1 владельца 20.10, «Да, делаем сейф»): одноразовая ссылка, по которой ВЛАДЕЛЕЦ БИЗНЕСА сам вводит
 пароли, ключи и карты для своей Милы. Значения идут прямо в закрытый файл её дома — мимо чата, почты и Милы Админ.
   seif.py link <slug> <ПОЛЕ>[,<ПОЛЕ>…] [--name acme] [--to <tg_id>] [--ttl 30]   → ссылка (одна на раз, живёт 30 мин)
-  seif.py serve [--port 7692]                                                       → страница сейфа на 127.0.0.1 (Caddy: /v/<token>/)
+  seif.py serve [--port 7693]                                                       → страница сейфа на 127.0.0.1 (Caddy: /v/<token>/)
+  seif.py own <ПОЛЕ>[,<ПОЛЕ>…] [--name keys] [--ttl 10]                               → «свой Сейф» Милы на машине владельца (127.0.0.1, одна ссылка)
+  seif.py forget <slug> <файл> <ПОЛЕ>[,<ПОЛЕ>…]                                       → стереть поля, когда дело закончено (журнал без значений)
 Запись: $SEIF_HOMES/<slug>/home/work/secrets/<name>.env (папка 700, файл 600, хозяин SEIF_UID), прежние ключи файла сохраняются.
 Настройка — только окружением: SEIF_BASE (адрес ссылок, обязателен), SEIF_HOMES (папка домов Мил, обязательна), SEIF_DIR, SEIF_UID.
 Журнал SEIF_DIR/journal.jsonl: кто (tg из --to), когда, slug, файл, какие поля — БЕЗ значений. Компаньону — записка в его
@@ -18,6 +20,7 @@ import mila_i18n
 
 SEIF_DIR = os.path.expanduser(os.environ.get("SEIF_DIR", "~/.local/share/mila-seif"))
 HOMES = os.environ.get("SEIF_HOMES", "")
+SELF_HOME = os.environ.get("SEIF_HOME", "")   # «свой Сейф»: один дом (Мила владельца на его машине), slug — self
 BASE = os.environ.get("SEIF_BASE", "")
 UID = int(os.environ.get("SEIF_UID", str(os.getuid())))
 LOC = mila_i18n.load(os.environ.get("SEIF_LOCALES") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "locales"))
@@ -132,26 +135,31 @@ def read_env(path):
     return out
 
 
+def home_of(slug):
+    """Дом Милы: во флоте — SEIF_HOMES/<slug>/home; у Милы владельца (SEIF_HOME) — её дом под slug «self»."""
+    return SELF_HOME if SELF_HOME and slug == "self" else os.path.join(HOMES, slug, "home")
+
+
 def need_env():
-    miss = [k for k, v in (("SEIF_BASE", BASE), ("SEIF_HOMES", HOMES)) if not v]
+    miss = [k for k, v in (("SEIF_BASE", BASE), ("SEIF_HOMES или SEIF_HOME", HOMES or SELF_HOME)) if not v]
     if miss:
         sys.exit("ERROR: задайте окружение " + ", ".join(miss) + " (адрес ссылок и папку домов Мил)")
 
 
 def owner_lang(slug):
     """"lang" из work/owner.json дома Милы — только внутри дома, без симлинков, до 4 КБ, код из словарей (mila_i18n.owner_lang)."""
-    return mila_i18n.owner_lang(LOC, os.path.join(HOMES, slug, "home"))
+    return mila_i18n.owner_lang(LOC, home_of(slug))
 
 
 def cmd_link(a):
     need_env()
     slug, fields = a[0], [f.strip() for f in a[1].split(",") if f.strip()]
     opt = lambda k, d=None: a[a.index(k) + 1] if k in a else d
-    name, to, ttl, lang = opt("--name", slug), opt("--to", ""), int(opt("--ttl", "30")), opt("--lang")
+    name, to, ttl, lang = opt("--name", slug), opt("--to", ""), float(opt("--ttl", "30")), opt("--lang")
     if not SLUG_RE.match(slug) or not NAME_RE.match(name) or not fields or not all(FIELD_RE.match(f) for f in fields):
         sys.exit("ERROR: slug a-z0-9_- ; поля — ЗАГЛАВНЫЕ_С_ПОДЧЁРКИВАНИЕМ; name a-z0-9_-")
-    if not os.path.isdir(os.path.join(HOMES, slug, "home")):
-        sys.exit("ERROR: нет дома %s/%s/home" % (HOMES, slug))
+    if not os.path.isdir(home_of(slug)):
+        sys.exit("ERROR: нет дома %s" % slug)
     if lang is not None and not mila_i18n.norm(LOC, lang):
         sys.exit("ERROR: --lang — один из: %s" % ", ".join(sorted(LOC)))
     lang = mila_i18n.norm(LOC, lang) if lang else owner_lang(slug)
@@ -161,7 +169,56 @@ def cmd_link(a):
         rec["lang"] = lang
     wfile(tok_path(tok), json.dumps(rec, ensure_ascii=False))
     journal({"ev": "link", "slug": slug, "name": name, "fields": fields, "to": str(to), "ttl_min": ttl, "lang": lang or ""})
-    print(json.dumps({"ok": True, "url": BASE + tok + "/" + ("?lang=" + lang if lang else ""), "expires_min": ttl, "fields": fields, "lang": lang or mila_i18n.FALLBACK}, ensure_ascii=False))
+    out = {"ok": True, "url": BASE + tok + "/" + ("?lang=" + lang if lang else ""), "expires_min": ttl, "fields": fields, "lang": lang or mila_i18n.FALLBACK}
+    print(json.dumps(out, ensure_ascii=False), flush=True); return out, tok
+
+
+def cmd_own(a, ready=None):
+    """«Свой Сейф» (С1): Мила владельца на его машине, без службы и без администратора. Страница на 127.0.0.1 на случайном порту
+    ровно на одну ссылку: сохранили — страница закрывается; не сохранили за --ttl минут (10) — тоже. Ключ — в ~/work/secrets/<имя>.env.
+    Ссылка открывается только на этой же машине (127.0.0.1) — с телефона нельзя; так и задумано: наружу ничего не открываем.
+      seif.py own <ПОЛЕ>[,<ПОЛЕ>…] [--name keys] [--ttl 10] [--lang ru]"""
+    global BASE, SELF_HOME
+    SELF_HOME = SELF_HOME or os.path.expanduser("~")
+    opt = lambda k, d=None: a[a.index(k) + 1] if k in a else d
+    ttl = min(float(opt("--ttl", "10")), 30)
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    BASE = "http://127.0.0.1:%d/v/" % srv.server_address[1]
+    args = ["self", a[0], "--name", opt("--name", "keys"), "--ttl", str(ttl)] + (["--lang", opt("--lang")] if opt("--lang") else [])
+    out, tok = cmd_link(args)
+    if ready: ready(out)
+    import threading
+    t = threading.Thread(target=srv.serve_forever, daemon=True); t.start()
+    end = time.time() + ttl * 60
+    while time.time() < end and os.path.exists(tok_path(tok)): time.sleep(0.5)
+    srv.shutdown(); srv.server_close()
+    saved = not os.path.exists(tok_path(tok))
+    if not saved:
+        try: os.remove(tok_path(tok))
+        except OSError: pass
+    journal({"ev": "own-closed", "saved": saved})
+    print(json.dumps({"ok": saved, "closed": True, "why": "" if saved else "срок вышел — ничего не сохранено"}, ensure_ascii=False))
+    return saved
+
+
+def cmd_forget(a):
+    """Дело закончено — поля из файла сейфа убираются. Путь — те же проверки, что у записи (без симлинков, хозяин дома); в журнал —
+    что стёрли и когда, без значений. Файла или поля нет — так и говорю, ничего не создаю."""
+    need_env()
+    slug, name, fields = a[0], a[1], [x for x in a[2].split(",") if x]
+    if not SLUG_RE.match(slug) or not NAME_RE.match(name) or not fields or not all(FIELD_RE.match(f) for f in fields):
+        sys.exit("seif forget: slug, имя файла или поля в неверном виде")
+    home = home_of(slug)
+    try:
+        sdir = mkdir_owned(home, "work", "secrets"); envp = os.path.join(sdir, name + ".env"); cur = read_env(envp)
+    except OSError:
+        journal({"ev": "refused", "slug": slug, "why": "path"}); sys.exit("seif forget: путь не прошёл проверку — ничего не трогаю")
+    gone = sorted(f for f in fields if f in cur)
+    if gone:
+        for f in gone: cur.pop(f)
+        wfile(envp, "".join("%s=%s\n" % (k, env_quote(v)) for k, v in cur.items())); chown(envp)
+    journal({"ev": "forget", "slug": slug, "file": "work/secrets/%s.env" % name, "fields": gone, "missing": sorted(set(fields) - set(gone))})
+    print(json.dumps({"ok": True, "forgot": gone, "missing": sorted(set(fields) - set(gone))}, ensure_ascii=False))
 
 
 def load_tok(tok):
@@ -213,7 +270,7 @@ def form(rec, lang, errs=None):
         im = " inputmode=numeric" if f in ("CARD_NUMBER", "CARD_EXPIRY") else ""
         e = ("<div class=e>%s</div>" % T(lang, errs[f])) if f in errs else ""
         rows.append("<label for=%s>%s</label><input id=%s name=%s type=%s autocomplete=off%s required>%s" % (f, lab, f, f, typ, im, e))
-    return page("<h1>%s</h1><p>%s</p><form method=post action='?lang=%s'>%s<button type=submit>%s</button></form><p style='font-size:12px'>%s</p>"
+    return page("<h1>%s</h1><p>%s</p><form method=post autocomplete=off action='?lang=%s'>%s<button type=submit>%s</button></form><p style='font-size:12px'>%s</p>"
                 % (T(lang, "seif.h1"), T(lang, "seif.intro"), lang, "".join(rows), T(lang, "seif.save"), T(lang, "seif.once", min=int(rec.get("ttl", 30)))), lang)
 
 
@@ -265,7 +322,7 @@ class H(BaseHTTPRequestHandler):
                 vals[f] = v
         if errs:
             return self.send(200, form(rec, lang, errs))   # ссылка не тратится, введённое назад не выводится
-        home = os.path.join(HOMES, rec["slug"], "home")
+        home = home_of(rec["slug"])
         try:   # путь проверяем до траты ссылки: подлог в доме — ничего не пишем, ссылка цела
             sdir = mkdir_owned(home, "work", "secrets"); envp = os.path.join(sdir, rec["name"] + ".env")
             cur = read_env(envp)
@@ -298,9 +355,13 @@ def main():
         sys.exit(__doc__)
     if a[0] == "link" and len(a) >= 3:
         return cmd_link(a[1:])
+    if a[0] == "own" and len(a) >= 2:
+        return cmd_own(a[1:])
+    if a[0] == "forget" and len(a) >= 4:
+        return cmd_forget(a[1:])
     if a[0] == "serve":
         need_env()
-        port = int(a[a.index("--port") + 1]) if "--port" in a else 7692
+        port = int(a[a.index("--port") + 1]) if "--port" in a else 7693   # как в seif.service и Caddyfile.snippet
         ThreadingHTTPServer(("127.0.0.1", port), H).serve_forever()
     sys.exit(__doc__)
 

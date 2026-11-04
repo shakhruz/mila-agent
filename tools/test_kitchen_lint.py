@@ -34,4 +34,18 @@ chk("--log: чистое сообщение коммита → 0, код 0", r.r
 g("commit", "-q", "--allow-empty", "-m", "Fix guard (" + "Quality" + " 11:21)")
 r = subprocess.run([sys.executable, os.path.join(H, "kitchen_lint.py"), "--log", "HEAD~1..HEAD"], capture_output=True, text=True, cwd=G)
 chk("--log: ссылка на приёмку «(Quality 11:21)» в сообщении → находка, код 1", r.returncode == 1 and "сообщениях коммитов: 1" in r.stdout, r.stdout)
+import os as _os, tempfile as _tf
+_d = _tf.mkdtemp(); _sp = "/" + "srv/mila/state/x"
+for _c in (["git", "init", "-q"], ["git", "config", "user.email", "t@example.com"], ["git", "config", "user.name", "t"]): subprocess.run(_c, cwd=_d)
+open(_os.path.join(_d, "a.py"), "w").write('STATE = "%s"\n' % _sp); subprocess.run(["git", "add", "a.py"], cwd=_d)
+_r = subprocess.run([sys.executable, _os.path.abspath(K.__file__)], cwd=_d, capture_output=True, text=True)
+chk("путь нашего сервера в коде → находка, код 1", _r.returncode == 1 and "путь нашего сервера" in _r.stdout, _r.stdout)
+_r = subprocess.run([sys.executable, _os.path.abspath(K.__file__), "--fix"], cwd=_d, capture_output=True, text=True)
+chk("--fix путь сервера НЕ трогает (иначе пустая строка в коде) и падает", _r.returncode == 1 and _sp in open(_os.path.join(_d, "a.py")).read(), _r.stdout)
+open(_os.path.join(_d, "a.py"), "w").write('K = "%s" + "x" * 30\n' % ("sk-" + "ant-")); subprocess.run(["git", "add", "a.py"], cwd=_d)
+_r = subprocess.run([sys.executable, _os.path.abspath(K.__file__)], cwd=_d, capture_output=True, text=True)
+chk("префикс ключа одним куском → находка, код 1", _r.returncode == 1 and "префикс ключа" in _r.stdout, _r.stdout)
+open(_os.path.join(_d, "a.py"), "w").write('K = "sk-" + "ant-" + "x" * 30\n')
+_r = subprocess.run([sys.executable, _os.path.abspath(K.__file__)], cwd=_d, capture_output=True, text=True)
+chk("склейкой — чисто", _r.returncode == 0, _r.stdout)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

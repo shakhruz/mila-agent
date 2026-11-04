@@ -174,6 +174,8 @@ def check_card(kind, c):
         if any(not re.fullmatch(r"[a-z0-9]{1,8}", str(k or "")) for k in keys): err.append("ключ варианта — 1–8 латинских букв/цифр (пустой ключ ломает ответ)")
         labels = [str(o.get("label") or "").strip() for o in c.get("options") or []]
         if any(not x for x in labels): err.append("пустая подпись варианта")
+        long = [x for x in labels if len(x) > 40]
+        if long: err.append("подпись варианта длиннее 40 знаков (%d) — на кнопке обрежется; короче, подробности — в последствии варианта" % len(long[0]))
         if len(set(x[:40] for x in labels)) != len(labels): err.append("подписи вариантов совпадают (в первых 40 знаках) — нажатие не различить")
         if c.get("rec") and c["rec"] not in keys: err.append("рекомендация не из вариантов")
         # вопрос хозяину — с решением: рекомендация и последствие у каждого варианта

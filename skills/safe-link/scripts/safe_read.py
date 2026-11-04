@@ -21,12 +21,14 @@ def read_safe(name):
     if os.stat(p).st_mode & 0o077:
         raise SafeError("сейф «%s» открыт для других (права не 600) — не читаю, сказать администратору" % name)
     out = {}
-    for ln in open(p, encoding="utf-8"):
-        m = re.match(r"^([A-Z][A-Z0-9_]*)=(.*)$", ln.rstrip("\n"))
+    for ln in open(p, encoding="utf-8"):   # файл пишет seif.py или человек руками: CRLF, пробелы, export, "…" — понимаем все
+        m = re.match(r"^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=\s*(.*?)\s*$", ln.rstrip("\r\n"))
         if m:
             v = m.group(2)
             if len(v) >= 2 and v[0] == v[-1] == "'":
                 v = v[1:-1].replace("'\\''", "'")
+            elif len(v) >= 2 and v[0] == v[-1] == '"':
+                v = v[1:-1]
             out[m.group(1)] = v
     return out
 

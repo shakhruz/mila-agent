@@ -99,6 +99,14 @@ image and voice generation, payment links). Keys for those services are the main
   `--dangerously-load-development-channels plugin:mila-telegram@…` — see [SECURITY.md](../SECURITY.md#the-development-channels-flag).
 - **Updates.** `mila update` checks the release manifest and accepts only an explicit ok, but releases are not signed yet.
 
+## The one-container setup
+
+`docker-compose.yml` runs Mila in one container (Claude Code, the kit, the plugin). There the session runs with
+`--dangerously-skip-permissions`: layer 2 (permission prompts) is off, and the boundary is the container. The bot token,
+the Claude token (`CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`) and any optional key are environment variables the session
+can read. What still holds: pairing / allowlist (layer 1), the send-guard (layer 4), no open ports. Mount nothing into the
+container you would not hand to the session.
+
 ## Reporting
 
 See [SECURITY.md](../SECURITY.md) — private channel, answer within 5 business days.

@@ -31,6 +31,7 @@ def post(u, d):
     except urllib.error.HTTPError as e: return e.code, e.read().decode()
 s, b, hd = get(U); s2, _, _ = get(U)
 check("страница: 4 поля с подписями, пароль скрыт, no-store; GET не тратит ссылку", s == 200 and s2 == 200 and "Логин сайта" in b and 'name=SITE_PASSWORD type=password' in b and hd.get("Cache-Control") == "no-store")
+check("форма целиком autocomplete=off — браузер не сохраняет введённое в черновик", "<form method=post autocomplete=off" in get(U)[1])
 bad = P[:-1] + str((int(P[-1]) + 1) % 10)
 s, b = post(U, {"SITE_LOGIN": "998901112233", "SITE_PASSWORD": PW, "CARD_NUMBER": bad, "CARD_EXPIRY": "08/28"})
 check("ошибка в карте: подсказка, введённое назад не выводится, ссылка жива", s == 200 and "проверьте номер карты" in b and PW not in b and bad not in b and get(U)[0] == 200)
@@ -60,4 +61,13 @@ t3 = json.loads(r.stdout)["url"].split("?")[0].rstrip("/").split("/")[-1]
 s3, b3 = post("http://127.0.0.1:%d/v/%s/" % (srv.server_port, t3), {"API_KEY": "k-" + os.urandom(4).hex()})
 os.chown = _orig
 check("новый дом: work, work/secrets, work/inbox, .env и senior.jsonl — chown хозяину", s3 == 200 and {"work", "work/secrets", "work/inbox", "work/secrets/fresh.env", "work/inbox/senior.jsonl"} <= set(chowned), chowned)
+# стереть поля, когда дело закончено (С3): журнал без значений, safe_read поля больше не видит
+r = subprocess.run([sys.executable, os.path.join(H, "seif.py"), "forget", "acme", "acme", "CARD_NUMBER,CARD_EXPIRY,NO_SUCH"], capture_output=True, text=True, env=os.environ)
+fo = json.loads(r.stdout or "{}"); env2 = seif.read_env(envp)
+check("forget: карта стёрта, логин и прежний ключ на месте, файл 600", fo.get("forgot") == ["CARD_EXPIRY", "CARD_NUMBER"] and fo.get("missing") == ["NO_SUCH"] and "CARD_NUMBER" not in env2 and env2.get("SITE_PASSWORD") == PW and env2.get("OLD_KEY") == "keep" and oct(os.stat(envp).st_mode & 0o777) == "0o600", (r.stdout, r.stderr))
+jl = open(os.path.join(T, "seif", "journal.jsonl")).read()
+check("forget: в журнале что и когда, без значений", '"ev": "forget"' in jl and P not in jl and PW not in jl)
+sr = subprocess.run([sys.executable, os.path.join(H, "..", "..", "skills", "safe-link", "scripts", "safe_read.py"), "acme", "--check", "CARD_NUMBER"], capture_output=True, text=True, env=dict(os.environ, SAFE_DIR=os.path.join(home, "work", "secrets")))
+sj = json.loads(sr.stdout or "{}")
+check("после forget safe_read поля не видит", sj.get("нет") == ["CARD_NUMBER"], (sr.returncode, sr.stdout, sr.stderr))
 import shutil; srv.shutdown(); shutil.rmtree(T, ignore_errors=True); print(f"итог {ok}/{n}"); sys.exit(0 if ok == n else 1)

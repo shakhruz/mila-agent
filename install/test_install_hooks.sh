@@ -23,9 +23,10 @@ chk "PostToolUse: pd-mask.py установлен" "[ -x $T/home/.claude/hooks/p
 chk "ключ хранилища ПДн создан, 600" "python3 -c \"import os,sys; sys.exit(0 if os.stat(sys.argv[1]).st_mode & 0o777 == 0o600 else 1)\" $T/home/.config/mila/pd.key"
 S="$T/home/.claude/settings.json"
 chk "PreToolUse send-guard зарегистрирован и лежит файлом" "grep -q 'send-guard.py' $S && [ -x $T/home/.claude/hooks/send-guard.py ]"
+chk "done-guard: PreToolUse и PostToolUseFailure зарегистрированы, файл лежит" "python3 -c \"import json;h=json.load(open('$S'))['hooks'];assert any('done-guard.py' in json.dumps(e) for e in h['PreToolUse']) and any('done-guard.py' in json.dumps(e) for e in h['PostToolUseFailure'])\" && [ -x $T/home/.claude/hooks/done-guard.py ]"
 chk "task-sent (PostToolUse reply) и task-open (SessionStart) зарегистрированы" "grep -q 'task-sent.py' $S && grep -q 'task-open.py' $S"
 chk "OWNER_ID из MILA_OWNER_ID — в env settings.json" "python3 -c \"import json;assert json.load(open('$S'))['env']['OWNER_ID']=='$OID'\""
-chk "повторная установка не дублирует хуки" "HOME=$T/home CLAUDE_CONFIG_DIR=$T/home/.claude MILA_OWNER_ID=$OID PATH=/usr/bin:/bin:/usr/local/bin bash $REPO/install/install.sh >/dev/null 2>&1; [ \$(grep -c 'send-guard.py' $S) -eq 1 ]"
+chk "повторная установка не дублирует хуки" "HOME=$T/home CLAUDE_CONFIG_DIR=$T/home/.claude MILA_OWNER_ID=$OID PATH=/usr/bin:/bin:/usr/local/bin bash $REPO/install/install.sh >/dev/null 2>&1; [ \$(grep -c 'send-guard.py' $S) -eq 1 ] && [ \$(grep -c 'done-guard.py' $S) -eq 2 ]"
 # сторож отправки — с "onFailure": "block" и при установке, и у старой записи без ключа
 sgok() { python3 -c "import json,sys; d=json.load(open(sys.argv[1])); h=[h for e in d['hooks']['PreToolUse'] for h in e['hooks'] if 'send-guard.py' in h['command']]; sys.exit(0 if h and all(x.get('onFailure')=='block' for x in h) else 1)" "$S"; }
 chk "SG-ONFAIL: установка пишет send-guard с onFailure: block" "sgok"
@@ -34,7 +35,7 @@ HOME=$T/home CLAUDE_CONFIG_DIR=$T/home/.claude MILA_OWNER_ID=$OID PATH=/usr/bin:
 chk "SG-ONFAIL: повторная установка дописывает ключ старой записи (без дубля хука)" "sgok && [ \$(grep -c 'send-guard.py' $S) -eq 1 ]"
 T2="$(mktemp -d)"; mkdir -p "$T2/home/.claude"
 MILA_CC_VERSION=2.1.200 HOME="$T2/home" CLAUDE_CONFIG_DIR="$T2/home/.claude" PATH=/usr/bin:/bin:/usr/local/bin bash "$REPO/install/install.sh" > "$T2/out" 2>&1
-chk "SG-ONFAIL: старая CC (2.1.200) — хук сторожа есть, ключа нет, строка «пропущен»" "grep -q 'send-guard.py' $T2/home/.claude/settings.json && ! grep -q onFailure $T2/home/.claude/settings.json && grep -q 'onFailure пропущен' $T2/out"
+chk "SG-ONFAIL: старая CC (2.1.200) — хук сторожа есть, ключа нет, строка «пропущен»" "grep -q 'send-guard.py' $T2/home/.claude/settings.json && ! grep -q onFailure $T2/home/.claude/settings.json && ! grep -q PostToolUseFailure $T2/home/.claude/settings.json && grep -q 'onFailure пропущен' $T2/out"
 rm -rf "$T2"
 chk "шаблон settings.json без зашитого /home/companion" "! grep -q '/home/companion' $REPO/templates/home/.claude/settings.json"
 [ -n "$miss" ] && echo "нет файлов: $miss"

@@ -513,10 +513,22 @@ def detect_auth(claude_dir=CLAUDE_DIR, files=None, window_h=WINDOW_H, now=None):
     return {"down": True, "since": after_ok[0]["at"], "last_at": after_ok[-1]["at"], "count": len(after_ok), "last_ok": last_ok}
 
 
+def _mtime(p):
+    try:
+        return os.stat(p).st_mtime
+    except (OSError, TypeError):
+        return None
+
+
+def creds_mtime(claude_dir=CLAUDE_DIR):
+    """Время последней смены входа Claude Code (.credentials.json); нет файла — None."""
+    return _mtime(os.path.join(claude_dir, ".credentials.json"))
+
+
 def hold(claude_dir=CLAUDE_DIR, pid_file=None, _cache={}):
     """Для кормильца Компаньона: (держать ли входящие, до когда, почему).
-    Держим только когда время сброса ИЗВЕСТНО и не прошло; сессия перезапущена
-    (другой pid — после смены подписки) → отпускаем сразу. Кэш 5 с, чтобы не
+    Держим только когда время сброса ИЗВЕСТНО и не прошло; вход сменился (.credentials.json)
+    или сессия стартовала (pid-файл) позже последнего 429 → отпускаем; другой pid в памяти — тоже. Кэш 5 с, чтобы не
     перечитывать транскрипт на каждое сообщение."""
     now = time.time()
     if _cache.get("at", 0) > now - 5:
@@ -525,6 +537,21 @@ def hold(claude_dir=CLAUDE_DIR, pid_file=None, _cache={}):
     pid = _read_pid(pid_file) if pid_file else 0
     v = (False, None, det["why"])
     if det["limited"] and det["hit"].get("resets_at"):
+        # вход сменили ПОСЛЕ последнего 429 (новая подписка, /login) — отпускаю: кэш pid живёт в памяти кормильца,
+        # перезапуск кормильца его обнуляет, и «сессия перезапущена» без этой проверки не срабатывает
+        last = det["hit"].get("at") or 0
+        cred = creds_mtime(claude_dir)
+        if cred and cred > last:
+            v = (False, None, "вход сменился после лимита (%s) — отпускаю" % fmt_hm(cred, det["hit"].get("tz") or DEFAULT_TZ))
+            _cache["at"], _cache["v"] = now, v
+            return v
+        # сессия стартовала позже последнего 429 (pid-файл новее) — не из памяти, переживает перезапуск кормильца.
+        # Новая сессия на том же лимите даст новый 429 позже старта — и снова держим.
+        started = _mtime(pid_file) if pid_file else None
+        if started and started > last:
+            v = (False, None, "сессия перезапущена после лимита — отпускаю")
+            _cache["at"], _cache["v"] = now, v
+            return v
         hit_pid = _cache.get("hit_pid")
         if hit_pid is None or _cache.get("incident") != det["hit"]["incident"]:
             _cache["hit_pid"], _cache["incident"] = pid, det["hit"]["incident"]

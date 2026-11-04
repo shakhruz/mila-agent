@@ -15,7 +15,7 @@
  "seif.save": "保存",
  "seif.once": "链接仅可使用一次，有效期 {min} 分钟。",
  "seif.gone.h1": "链接已失效",
- "seif.gone.p": "链接仅可使用一次，有效期 30 分钟。请向 Mila 索取新链接。",
+ "seif.gone.p": "链接仅可使用一次，且有效期很短。请向 Mila 索取新链接。",
  "seif.toobig": "数据过多",
  "seif.saved.h1": "已保存",
  "seif.saved.p": "可以关闭此页面。Mila 已经知道资料已就位。",

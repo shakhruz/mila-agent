@@ -11,7 +11,7 @@
 - Тихие часы 22:00–08:00 по Ташкенту: рассылка встаёт в очередь на 08:00 (личное сообщение с прямого согласия владельца уходит сразу).
 - Каждое отправленное — в журнал (кому, когда, message_id) и в диалог человека как исходящее (record_outgoing), чтобы dialogs видел «наш ход закрыт».
 """
-import json, os, re, time, urllib.request, urllib.error, uuid
+import json, os, re, sys, time, urllib.request, urllib.error, uuid
 from datetime import datetime, timedelta, timezone
 
 TZ = timezone(timedelta(hours=5))
@@ -56,6 +56,19 @@ def mask_cards(text, allow=None):
     return _PAN.sub(rep, str(text or ""))
 
 
+
+def _delivery():
+    """Журнал доставки ядра (tg_delivery.py рядом с хуками): нет — работаем как раньше."""
+    for d in (os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "install"), os.path.expanduser("~/.claude/hooks")):
+        if os.path.isfile(os.path.join(d, "tg_delivery.py")):
+            if d not in sys.path: sys.path.insert(0, d)
+            try:
+                import tg_delivery
+                return tg_delivery
+            except Exception:
+                return None
+    return None
+
 class BotSend:
     def __init__(self, token, state_dir, known, record_outgoing=lambda uid, text, mid: None, api=None, now=lambda: datetime.now(TZ), sleep=time.sleep):
         """known(uid) -> bool: человек писал боту; record_outgoing — запись исходящего в диалог (движок); api(method, payload) -> dict — для тестов."""
@@ -71,10 +84,15 @@ class BotSend:
     # ── Telegram ──
     def _api(self, method, payload):
         r = urllib.request.Request(f"https://api.telegram.org/bot{self.token}/{method}", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
-        try: return json.load(urllib.request.urlopen(r, timeout=20))
+        try: res = json.load(urllib.request.urlopen(r, timeout=20))
         except urllib.error.HTTPError as e:
-            try: return json.loads(e.read())
-            except Exception: return {"ok": False, "error_code": e.code, "description": str(e)}
+            try: res = json.loads(e.read())
+            except Exception: res = {"ok": False, "error_code": e.code, "description": str(e)}
+        except Exception as e: res = {"ok": False, "error_code": None, "description": type(e).__name__}
+        if (method.startswith(("send", "copy", "forward"))) and "chat_id" in (payload or {}):
+            D = _delivery()   # рассылка и личные сообщения бота — в общий журнал доставки
+            if D: D.record(method, payload["chat_id"], bool(res.get("ok")), res.get("error_code"), res.get("description"), via="bot_send")
+        return res
 
     # ── файлы ──
     def _rj(self, p, d):

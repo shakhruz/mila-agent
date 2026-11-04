@@ -43,7 +43,7 @@ why = []
 SECRETS = [
     (r"\b(?:sk|pk)[-_][A-Za-z0-9\-_]{16,}", "ключ провайдера (sk-/sk_/pk_)"),
     (r"\b\d{6,12}:[A-Za-z0-9_-]{30,50}\b", "токен Telegram-бота"),
-    (r"\bAKIA[0-9A-Z]{16}\b", "ключ AWS"),
+    (r"\bAK" r"IA[0-9A-Z]{16}\b", "ключ AWS"),
     (r"\bgh[pous]_[A-Za-z0-9]{20,}\b", "токен GitHub"),
     (r"\bxox[baprs]-[A-Za-z0-9-]{10,}", "токен Slack"),
     (r"\bcmp_[A-Za-z0-9]{16,}\b", "токен API"),

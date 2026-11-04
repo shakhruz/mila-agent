@@ -116,7 +116,7 @@ for f in reply-required.py pd-mask.py; do
   say "hook → $HOOK_DIR/$f"
 done
 # сторож отправки и журнал обещаний — у self-host тоже из коробки
-for f in send-guard.py; do
+for f in send-guard.py done-guard.py; do
   install_file "$ROOT/templates/home/.claude/hooks/$f" "$HOOK_DIR/$f" "$f"
   run chmod 755 "$HOOK_DIR/$f"
   say "hook → $HOOK_DIR/$f"
@@ -130,7 +130,7 @@ echo
 # like "nothing is due".
 echo "Tools"
 for f in usage_collect.py turns_collect.py records.py tasks.py chats_index.py \
-         chat_note.py chat_locale.py doctor.py onboard.py backup.py design_check.py mila_i18n.py; do
+         chat_note.py chat_locale.py doctor.py onboard.py backup.py design_check.py mila_i18n.py tg_delivery.py; do
   if [[ -f "$HERE/$f" ]]; then
     install_file "$HERE/$f" "$HOOK_DIR/$f" "$f"
     run chmod 755 "$HOOK_DIR/$f"
@@ -261,7 +261,7 @@ fi
 if [[ $DRY -eq 1 ]]; then
   say "would check $CLAUDE_DIR/settings.json — register hooks (backup first if it changes):"
   say "  UserPromptSubmit: telegram-inbox-feed.py · SessionStart + PostToolUse(CronCreate|CronDelete): crons-keeper.py · Stop: reply-required.py · PostToolUse(Write|Edit): pd-mask.py"
-  say "  PreToolUse(reply|edit_message): send-guard.py · PostToolUse(reply): task-sent.py · SessionStart: task-open.py · env OWNER_ID (MILA_OWNER_ID)"
+  say "  PreToolUse(reply|edit_message): send-guard.py, done-guard.py · PostToolUseFailure: done-guard.py · PostToolUse(reply): task-sent.py · SessionStart: task-open.py · env OWNER_ID (MILA_OWNER_ID)"
   say "would create the personal data vault key ~/.config/mila/pd.key (600) if missing"
 else
   SETTINGS_OUT="$(python3 - "$CLAUDE_DIR" << 'PY'
@@ -310,6 +310,13 @@ if not ONFAIL_OK: print('  send-guard: onFailure пропущен — стара
 sg = 'python3 ' + os.path.join(cfg_dir, 'hooks', 'send-guard.py')
 if not any('send-guard.py' in json.dumps(x) for x in hooks.get('PreToolUse', [])):
     ck_missing.append(('PreToolUse', {'matcher': SEND_RE, 'hooks': [dict({'type': 'command', 'command': sg}, **({'onFailure': 'block'} if ONFAIL_OK else {}))]}))
+# done-guard: «сделала» не уходит в одном ходу с командой без результата; упала команда после ушедшего «сделала» — просьба о поправке.
+# Отдельной записью и без onFailure (сам пропускает при сбое). PostToolUseFailure — только на CC, где есть onFailure (проверено на 2.1.310)
+dg = 'python3 ' + os.path.join(cfg_dir, 'hooks', 'done-guard.py')
+if not any('done-guard.py' in json.dumps(x) for x in hooks.get('PreToolUse', [])):
+    ck_missing.append(('PreToolUse', {'matcher': SEND_RE, 'hooks': [{'type': 'command', 'command': dg}]}))
+if ONFAIL_OK and not any('done-guard.py' in json.dumps(x) for x in hooks.get('PostToolUseFailure', [])):
+    ck_missing.append(('PostToolUseFailure', {'hooks': [{'type': 'command', 'command': dg}]}))
 # сторож упал/завис → сообщение НЕ уходит. Уже записанный хук без onFailure — дописываем ключ
 for e in hooks.get('PreToolUse', []):
     for hk in (e.get('hooks') or []) if isinstance(e, dict) else []:

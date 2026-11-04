@@ -1,12 +1,18 @@
 #!/bin/bash
 # transcribe-voice.sh <audiofile> — расшифровка голосового в контейнере Компаньона (14.09.2026).
 # Groq whisper-large-v3 с автоопределением языка и вторым проходом на узбекском —
-# та же схема, что у администратора на Маке и у агентов. Ключ — GROQ_API_KEY из env контейнера.
+# та же схема, что у администратора на Маке и у агентов. Ключ — GROQ_API_KEY из env, иначе из сейфа work/secrets/groq.env (600).
 # Никогда не печатает ключ. Пусто → "[empty]" (приёмник покажет «расшифровка пустая»).
 set -euo pipefail
 [ -n "${1:-}" ] || { echo "usage: transcribe-voice.sh <audiofile>" >&2; exit 1; }
+# Ключ из сейфа work/secrets/<имя>.env, если в env пусто (env важнее файла — как vault.py). Файл открыт группе/другим — не читаю.
+safe_key() { _f="${SAFE_DIR:-$HOME/work/secrets}/$1.env"; [ -f "$_f" ] || return 1
+  _m=$(stat -c %a "$_f" 2>/dev/null || stat -f %Lp "$_f"); case "$_m" in *00) ;; *) echo "[сейф $1 открыт другим ($_m) — не читаю]" >&2; return 1;; esac
+  tr -d '\r' < "$_f" | sed -n -E "s/^[[:space:]]*(export[[:space:]]+)?$2[[:space:]]*=[[:space:]]*//p" | tail -n 1 |   # последняя строка — как dotenv и read_safe
+    sed -E "s/[[:space:]]+\$//; s/^'(.*)'\$/\1/; s/^\"(.*)\"\$/\1/"; }   # руками пишут по-разному: CRLF, пробелы, export, "…"
 KEY="${GROQ_API_KEY:-}"
-[ -n "$KEY" ] || { echo "[нет ключа Groq в env]" >&2; exit 1; }
+[ -n "$KEY" ] || KEY=$(safe_key groq GROQ_API_KEY || true)
+[ -n "$KEY" ] || { echo "[нет ключа Groq: ни в env, ни в сейфе groq.env]" >&2; exit 1; }
 API="https://api.groq.com/openai/v1/audio/transcriptions"
 SRC="$1"
 case "$SRC" in

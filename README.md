@@ -22,7 +22,7 @@ Free, open source, Apache-2.0. Made with ❤️ in Uzbekistan.</p>
   <a href="https://github.com/shakhruz/mila-agent/releases/latest"><img src="https://img.shields.io/github/v/release/shakhruz/mila-agent?sort=semver&label=release" alt="Latest release"></a>
   <a href="https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml"><img src="https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0"></a>
-  <img src="https://img.shields.io/badge/built%20on-Claude%20Code-d97757" alt="Built on Claude Code">
+  <img src="https://img.shields.io/badge/built%20on-Claude%20Code-555" alt="Built on Claude Code">
 </p>
 
 <p align="center"><b>English</b> · <a href="README.zh-CN.md">中文</a> · <a href="README.ru.md">Русский</a> · <a href="README.uz.md">Oʻzbekcha</a></p>
@@ -47,7 +47,7 @@ Mila is built the other way round — **a colleague with a job.**
 
 - **Answers your customers on Telegram** — day and night, in the language they write in.
 - **Remembers your business** — every client, conversation and promise; one short summary for you every morning.
-- **Asks before the big steps** — a send-guard stops leaks between chats; broadcasts, paid work above your limit and messages to new chats wait for your ✅.
+- **Asks before the big steps** — a send-guard stops leaks between chats; broadcasts and paid work above your limit wait for your ✅; messages to a chat you have not connected are stopped.
 - **Yours, 100%** — your files stay in your home folder; `mila export` / `mila restore` moves her to any machine.
 
 ```
@@ -69,10 +69,7 @@ OpenClaw, NanoClaw and Hermes Agent are excellent open agents — universal assi
 | Channels | Telegram: DMs, groups, your public bot ([mila-telegram](https://github.com/shakhruz/mila-telegram)) | [20+ (WhatsApp, Telegram, Slack...)](https://docs.openclaw.ai/channels) | [many, each added by a skill](https://github.com/nanocoai/nanoclaw) | [Telegram, Discord, Slack, WhatsApp...](https://hermes-agent.nousresearch.com/docs) |
 | Business skills out of the box | [CRM of dialogs](skills/crm-dialogs/SKILL.md), [promises and tasks](skills/tasks-discipline/SKILL.md), [owner cards](skills/cards/SKILL.md), [weekly rhythm](canon/WEEK-RHYTHM.md), [mailings](skills/bot-send/SKILL.md) | [general skills (ClawHub)](https://clawhub.ai) | [general skills](https://github.com/nanocoai/nanoclaw) | [self-written skills](https://hermes-agent.nousresearch.com/docs) |
 | What waits for the owner's yes | partly: [send-guard](templates/home/.claude/hooks/send-guard.py) stops messages to chats the owner didn't connect, keys and internals; broadcasts from your bot and paid work above the limit wait for the owner's ✅ ([`bot-send`](skills/bot-send/SKILL.md), [`spend`](skills/spend/SKILL.md)); ordinary replies in connected chats are not gated | [exec approvals, Team preset](https://docs.openclaw.ai/tools/exec-approvals) | [approval for credential use, self-modification and new chats; ordinary messages are not gated](https://docs.nanoclaw.dev/concepts/security) | [approval for dangerous shell commands (fail-closed); no approval step for sending messages](https://hermes-agent.nousresearch.com/docs/user-guide/security) |
-| Spending limits | yes ([`spend`](skills/spend/SKILL.md): forecast, approval above the limit) | no data | no data | [usage limits per plan (Nous Portal)](https://portal.nousresearch.com) |
-| Your Mila moves with you | [`mila export` / `mila restore`](skills/mila-export/SKILL.md) | [Markdown memory files](https://github.com/openclaw/openclaw) | [per-group folders](https://github.com/nanocoai/nanoclaw) | [own memory store](https://hermes-agent.nousresearch.com/docs) |
 | License | [Apache-2.0](LICENSE) | [MIT](https://github.com/openclaw/openclaw/blob/main/LICENSE) | [MIT](https://github.com/nanocoai/nanoclaw/blob/main/LICENSE) | [MIT](https://github.com/NousResearch/hermes-agent/blob/main/LICENSE) |
-| Price | free, open source; setup help — [MilaGPT Studio](https://milagpt.io/akselerator/) | [free, self-host only](https://github.com/openclaw/openclaw) | [free; enterprise on request](https://github.com/nanocoai/nanoclaw) | [free; Nous Portal $0-200/month](https://portal.nousresearch.com) |
 
 **Mila's honest minuses.** Telegram only: no WhatsApp, Slack or Discord. It needs Claude Code, signed in with your own Claude plan
 or API key — this repository runs on Claude only (a guest circuit on other models exists only in the hosted version). She answers while your machine and the session run: a closed laptop means a silent Mila, so use an always-on
@@ -90,7 +87,9 @@ Something wrong or out of date? Open an issue - we fix it the same day.
 Every Mila reads one short constitution first: a person's secret stays theirs, «done» only with evidence, nothing goes out on
 someone's behalf without their «yes» for this step, money and the irreversible only with the owner's consent, no apologies —
 fact, conclusion, next step. The approved text is in Russian ([CONSTITUTION.md](CONSTITUTION.md)), with an English translation
-next to it ([CONSTITUTION.en.md](CONSTITUTION.en.md)).
+next to it ([CONSTITUTION.en.md](CONSTITUTION.en.md)). How she works day to day is a list of qualities, each a rule and a check by deed
+([canon/QUALITIES.md](canon/QUALITIES.md), in Russian) — for example, «I raise the spirit»: words that add confidence and strength, every
+fact true, a risk named together with the step through it.
 
 ## Claude — by Anthropic's rules
 
@@ -191,11 +190,13 @@ Channel diagnosis · ~/.claude/channels/telegram
 ```
 Server install: see [deploy/README.md](deploy/README.md).
 
+One container instead (Docker, no open ports): fill the variables of [docker-compose.yml](docker-compose.yml) and run `docker compose up -d`. You paste the bot token from @BotFather; the pairing code from the container log and the Claude sign-in go through the chat. A paid Claude plan of your own is still needed.
+
 
 ## Moving from OpenClaw or Hermes
 
 Bring what your agent already knows — its persona, what it knows about you, its memory and skills. Keys and sessions stay
-behind: you enter keys again through the safe page.
+behind: you enter keys again through the safe page ([how the safe works](docs/SAFE.md)).
 
 ```sh
 python3 ~/mila/tools/import_agent.py openclaw --dry-run     # or: hermes; a path if your folder is not the default

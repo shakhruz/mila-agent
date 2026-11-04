@@ -132,6 +132,7 @@ import glob as _glob
 PROJECTS = os.path.expanduser(os.environ.get("COMPANION_PROJECTS", "~/.claude/projects"))
 DELIVERY_WAIT = int(os.environ.get("FEEDER_DELIVERY_WAIT", "90"))
 MAX_PENDING_AGE = int(os.environ.get("FEEDER_MAX_PENDING_AGE", "900"))     # ~15 минут суммарно
+QUEUED_MAX_AGE = int(os.environ.get("FEEDER_QUEUED_MAX_AGE", "3600"))      # в очереди живой сессии ждём до часа (долгий вызов)
 RETRY_CAP = int(os.environ.get("FEEDER_RETRY_CAP", "300"))                 # потолок одного интервала
 PENDING_FILE = os.environ.get("COMPANION_FEEDER_PENDING",
                                os.path.join(os.path.dirname(LOG) or ".", "feeder-pending.json"))
@@ -199,6 +200,8 @@ def _deep_has(obj, needle):
 
 
 def _in_transcript(mid, since):
+    """→ "done" (сессия взяла: запись user или вложение queued_command), "queued" (Claude Code принял в очередь —
+    queue-operation enqueue, — но ход ещё идёт: один долгий Bash держит очередь до конца вызова) или None."""
     # needle_raw — как подстрока message_id выглядит в СЫРЫХ байтах файла (JSON экранирует
     # кавычки внутри строки \"…\"), нужна только для быстрого grep по файлу целиком;
     # needle_plain — та же подстрока ПОСЛЕ json.loads (обычные кавычки), ею проверяем
@@ -216,6 +219,7 @@ def _in_transcript(mid, since):
             continue
         if needle_raw not in tail:
             continue
+        queued = False
         for raw in tail.split(b"\n"):
             if needle_raw not in raw:
                 continue
@@ -230,13 +234,28 @@ def _in_transcript(mid, since):
                 att = rec.get("attachment") or {}
                 if isinstance(att, dict) and att.get("type") == "queued_command" and \
                         _deep_has(att, needle_plain):
-                    return True
+                    return "done"
+                continue
+            # очередь Claude Code: принято со stdin, ход занят. Повтор отсюда даёт дубль: при выходе из вызова
+            # все копии из очереди уходят в ход разом (рендер 8 мин — два enqueue одного события)
+            if rec.get("type") == "queue-operation" and rec.get("operation") == "enqueue" and \
+                    needle_plain in str(rec.get("content") or ""):
+                queued = True
                 continue
             if rec.get("type") != "user":
                 continue
             if _user_text_has(rec.get("message") or {}, needle_plain):
-                return True
-    return False
+                return "done"
+        if queued:
+            return "queued"
+    return None
+
+
+def session_pid():
+    try:
+        return int(open(SESSION_PID).read().strip() or 0)
+    except (OSError, ValueError):
+        return 0
 
 
 def check_delivery():
@@ -244,11 +263,25 @@ def check_delivery():
     changed = False
     for key, rec in list(_pending.items()):
         mid, chat = rec.get("mid"), rec.get("chat")
-        if _in_transcript(mid, rec.get("first_ts", now)):
+        seen = _in_transcript(mid, rec.get("first_ts", now))
+        if seen == "done":
             _pending.pop(key, None)
             changed = True
             continue
         elapsed = now - rec.get("first_ts", now)
+        if seen == "queued":
+            if session_pid() == rec.get("pid", session_pid()):   # запись старого кормильца без pid — считаем той же сессией
+                # в очереди той же сессии: ждём конца хода, не подаём повторно; LOST — только за QUEUED_MAX_AGE
+                if elapsed >= QUEUED_MAX_AGE:
+                    _pending.pop(key, None)
+                    changed = True
+                    log("LOST chat=%s msg=%s — в очереди сессии %d с, ход не взял" % (chat, mid, QUEUED_MAX_AGE))
+                continue
+            # сессию перезапустили, пока событие стояло в очереди: очередь умерла с ней — подаём в новую сразу,
+            # и срок доставки считаем заново (иначе событие после долгой очереди ушло бы в LOST, а не в новую сессию)
+            rec["backoff"] = 0
+            rec["first_ts"] = now
+            elapsed = 0
         if elapsed >= MAX_PENDING_AGE:
             _pending.pop(key, None)
             changed = True
@@ -261,7 +294,8 @@ def check_delivery():
             feed(rec["text"])
             rec["tries"] = rec.get("tries", 1) + 1
             rec["last_ts"] = now
-            rec["backoff"] = min(backoff * 2, RETRY_CAP)
+            rec["pid"] = session_pid()
+            rec["backoff"] = min(max(backoff, DELIVERY_WAIT) * 2, RETRY_CAP)
             _pending[key] = rec
             changed = True
             log("refed chat=%s msg=%s (в транскрипте не найдено за %d с, попытка %d)" % (chat, mid, backoff, rec["tries"]))
@@ -343,11 +377,60 @@ def gate_message(p, m, own=None, ours=None):
 # Пока вход потерян («Not logged in»), каждый поданный ход съеден, а проверка доставки считает его доставленным
 # (текст человека в транскрипте есть). Поэтому: 1) при первом обнаружении — курсор назад, к входящим за время простоя;
 # 2) держу входящие, раз в PROBE_S подаю пробу — удачный ответ на неё = вход вернулся; 3) после — строка «пропущено за
-# простой: N» и всё по порядку; 4) один раз на простой — 🔴 строка администратору (MILA_SENIOR_INBOX).
+# простой: N» и всё по порядку; 4) один раз на простой — 🔴 строка: во флоте администратору (MILA_SENIOR_INBOX),
+# вне флота (ноутбук, контейнер) — хозяину в Telegram. Флот — только явным признаком: задан MILA_SENIOR_INBOX или
+# MILA_FLEET=1. Папка ~/work/inbox не признак: её создаёт и Сейф при первом ключе.
 LOGIN_STATE = os.path.join(COMPANION_STATE, "login-state.json")
 PROBE_S = int(os.environ.get("FEEDER_LOGIN_PROBE_S", "600"))
 REWIND_SLACK = 180
 SENIOR_INBOX = os.environ.get("MILA_SENIOR_INBOX", os.path.expanduser("~/work/inbox/to-admin.jsonl"))
+
+
+def in_fleet():
+    return bool(os.environ.get("MILA_SENIOR_INBOX")) or os.environ.get("MILA_FLEET") == "1"
+
+
+def owner_chat():
+    """chat_id хозяина: первый из owners, иначе первый из allowFrom (access.json плагина). Нет — None."""
+    try:
+        a = json.load(open(os.path.join(STATE, "access.json"), encoding="utf-8"))
+    except Exception:
+        return None
+    for k in ("owners", "allowFrom"):
+        v = a.get(k) or []
+        if isinstance(v, list) and v:
+            return str(v[0])
+    return None
+
+
+def bot_token():
+    """Токен бота: окружение важнее файла — так же, как его читает плагин."""
+    tok = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if tok:
+        return tok.strip()
+    try:
+        for line in open(os.path.join(STATE, ".env"), encoding="utf-8"):
+            if line.startswith("TELEGRAM_BOT_TOKEN="):
+                return line.split("=", 1)[1].strip().strip("\"'") or None
+    except OSError:
+        pass
+    return None
+
+
+def alert_owner(since, waiting):
+    """Вне флота: одна строка хозяину в Telegram. Сессия без входа сама не напишет — шлёт кормилец напрямую."""
+    tok, chat = bot_token(), owner_chat()
+    if not (tok and chat and _lw and hasattr(_lw, "send_telegram")):
+        log("login: строку хозяину не отправить (нет токена, хозяина в access.json или limit_watch)")
+        return False
+    text = ("🔴 Вход в Claude потерян с %s — я не отвечаю. Ждут %d сообщений, держу их и отвечу после входа. "
+            "Нужен вход: в терминале, где работает Мила, наберите claude, затем /login." % (since, waiting))
+    try:
+        ok = bool(_lw.send_telegram(tok, chat, [("text", text)]))
+    except Exception:
+        ok = False
+    log("login: строка хозяину %s" % ("ушла" if ok else "не ушла"))
+    return ok
 PROBE_TEXT = "[система] Проверка входа после «Not logged in»: ответь одним словом SKIP. В Telegram не пиши."
 
 
@@ -426,10 +509,13 @@ def channel_events_after(cursor):
 
 
 def alert_senior(au, waiting):
-    """Одна 🔴 строка администратору на простой: вход потерян, сколько входящих ждёт. Нет её ящика — только журнал кормильца."""
+    """Одна 🔴 строка на простой: вход потерян, сколько входящих ждёт. Флот — администратору (нет её ящика — только
+    журнал кормильца); вне флота — хозяину в Telegram."""
     since = _lw.fmt_hm(au["since"], _lw.DEFAULT_TZ) if _lw else "?"
     text = ("🔴 Вход потерян с %s (ответ сессии «Not logged in»): ждут %d входящих, держу их и подам после входа. Нужен /login." % (since, waiting))
     log("login: " + text)
+    if not in_fleet():
+        return alert_owner(since, waiting)
     d = os.path.dirname(SENIOR_INBOX)
     if not os.path.isdir(d):
         return False
@@ -624,7 +710,8 @@ def main():
                             _now = time.time()
                             _pending["%s:%s" % (m.get("chat_id"), m.get("message_id"))] = {
                                 "text": _txt, "first_ts": _now, "last_ts": _now, "tries": 1,
-                                "backoff": DELIVERY_WAIT, "chat": m.get("chat_id"), "mid": m.get("message_id")}
+                                "backoff": DELIVERY_WAIT, "chat": m.get("chat_id"), "mid": m.get("message_id"),
+                                "pid": session_pid()}
                             _save_pending()
                     except Exception as ex:
                         log_once("feed-failed", "сессия не принимает (%s) — жду, курсор на месте"

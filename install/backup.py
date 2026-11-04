@@ -78,7 +78,7 @@ SECRET_PATTERNS = [
     (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}", re.I), "github-token"),
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}", re.I), "slack-token"),
     (re.compile(r"\bSG\.[\w-]{16,}\.[\w-]{16,}"), "sendgrid"),
-    (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "aws-key-id"),
+    (re.compile(r"\bAK" r"IA[0-9A-Z]{16}\b"), "aws-key-id"),
     (re.compile(r"\beyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]+"), "jwt"),
     (re.compile(r"\b\d{8,10}:[A-Za-z0-9_-]{35}\b"), "telegram-token"),
     (re.compile(r"-----BEGIN [A-Z ]*PRIV" r"ATE KEY-----[\s\S]*?"

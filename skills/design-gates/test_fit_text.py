@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""fit_text: перенос, кегль, высота, совет — на шрифте DejaVu из системы (нет шрифта — пропуск, не провал)."""
+"""fit_text: перенос, кегль, высота, совет — на системном шрифте с кириллицей: DejaVu (Linux) или Arial (macOS).
+Нет шрифта — пропуск (в CI пропуск считается провалом)."""
 import os, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
-FONTS = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf"]
+FONTS = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+         "/System/Library/Fonts/Supplemental/Arial Bold.ttf", "/Library/Fonts/Arial Bold.ttf"]   # macOS: Arial Bold есть в системе
 F = next((f for f in FONTS if os.path.isfile(f)), None)
 try:
     import PIL  # noqa
 except ImportError:
     F = None
 if not F:
-    print("итог 0/0 (нет DejaVu или Pillow — пропуск)"); sys.exit(0)
+    print("итог 0/0 (нет шрифта с кириллицей или Pillow — пропуск)"); sys.exit(0)
 from fit_text import fit, advise
 ok = n = 0
 def chk(name, c, got=""):

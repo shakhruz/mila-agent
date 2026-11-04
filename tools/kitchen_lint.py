@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """kitchen_lint.py — следы «кухни» не в публичном ядре: внутренние коды задач (вида АБВ-ДДММ латиницей), ссылки на номера
 чьих-то сообщений («владелец NNNNN», «личка NNNNN», «msg NNN», «dev NNNN»), время приёмок («Качество ЧЧ:ММ»), номера раскаток
-(ROLL…OUT с номером), датированные ссылки на чьё-то решение, личные пути одного дома. Смысл правила остаётся — уходит только «кто,
+(ROLL…OUT с номером), датированные ссылки на чьё-то решение, личные пути одного дома, пути нашего сервера (их только показывает, не правит). Смысл правила остаётся — уходит только «кто,
 когда, какой номер».
   kitchen_lint.py            — проверка (файлы git, кроме CHANGELOG.md и legacy/), код 1 при находках
   kitchen_lint.py --fix      — убрать метки на месте (только метки и пустые скобки/знаки, оставшиеся от них)
@@ -19,6 +19,10 @@ TOKENS = [
     r"\b(?:старш\w{1,3}|Качество|Качества|Вебмастер|Админ)(?: \d{1,2}\.\d{1,2})(?: \d\d:\d\d)?(?: 🟡\d?| 🔴| 🟢)?",
 ]
 RX = re.compile("|".join("(?:%s)" % t for t in TOKENS))
+# Path on our own server — reported, never auto-fixed: --fix would empty a string and silently change what the code does.
+SERVER = re.compile(r"/" + r"srv/mila\b")
+# Key prefix written in one piece (glued here too): a copied sample looks like a real key to an eye and slips past scanners — glue it in the source.
+KEYP = re.compile("|".join(re.escape(x) for x in ("sk-" + "ant-", "sk-" + "or-v1-", "xo" + "xb-", "gh" + "p_", "AK" + "IA", "github" + "_pat_")))
 EXCLUDE = re.compile(r"^(CHANGELOG\.md|legacy/|tools/kitchen_lint\.py|tools/test_kitchen_lint\.py)")
 
 
@@ -72,7 +76,7 @@ def main():
     if "--log" in sys.argv:
         sys.exit(check_log(sys.argv[sys.argv.index("--log") + 1]))
     fix = "--fix" in sys.argv
-    found = 0
+    found = server = 0
     for f in files():
         try:
             lines = open(f, encoding="utf-8").readlines()
@@ -80,6 +84,10 @@ def main():
             continue
         new = []
         for i, l in enumerate(lines, 1):
+            if KEYP.search(l):
+                found += 1; server += 1; print("%s:%d: префикс ключа одним куском — соберите склейкой: %s" % (f, i, l.strip()[:120]))
+            if SERVER.search(l):
+                found += 1; server += 1; print("%s:%d: путь нашего сервера — задайте через переменную окружения: %s" % (f, i, l.strip()[:120]))
             if RX.search(l):
                 found += 1
                 if not fix:
@@ -89,7 +97,7 @@ def main():
         if fix and new != lines:
             open(f, "w", encoding="utf-8").writelines(new)
     print(("убрано меток в строках: %d" if fix else "следов кухни: %d") % found)
-    sys.exit(0 if fix or not found else 1)
+    sys.exit(0 if not found or (fix and not server) else 1)
 
 
 if __name__ == "__main__":

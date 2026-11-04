@@ -9,7 +9,13 @@ CL="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 if [ -z "${ANTHROPIC_BASE_URL:-}" ] && grep -q claudeAiOauth "$CL/.credentials.json" 2>/dev/null; then
   echo "FUEL sub (подписка хозяина подключена: строку ⛽ не пишу, о запасе не говорю)"; exit 0
 fi
-[ -n "${OPENROUTER_API_KEY:-}" ] || { echo "FUEL unknown (нет ключа в окружении)"; exit 0; }
+# Ключ из сейфа work/secrets/<имя>.env, если в env пусто (env важнее файла — как vault.py). Файл открыт группе/другим — не читаю.
+safe_key() { _f="${SAFE_DIR:-$HOME/work/secrets}/$1.env"; [ -f "$_f" ] || return 1
+  _m=$(stat -c %a "$_f" 2>/dev/null || stat -f %Lp "$_f"); case "$_m" in *00) ;; *) echo "[сейф $1 открыт другим ($_m) — не читаю]" >&2; return 1;; esac
+  tr -d '\r' < "$_f" | sed -n -E "s/^[[:space:]]*(export[[:space:]]+)?$2[[:space:]]*=[[:space:]]*//p" | tail -n 1 |   # последняя строка — как dotenv и read_safe
+    sed -E "s/[[:space:]]+\$//; s/^'(.*)'\$/\1/; s/^\"(.*)\"\$/\1/"; }   # руками пишут по-разному: CRLF, пробелы, export, "…"
+[ -n "${OPENROUTER_API_KEY:-}" ] || OPENROUTER_API_KEY=$(safe_key openrouter OPENROUTER_API_KEY || true)
+[ -n "${OPENROUTER_API_KEY:-}" ] || { echo "FUEL unknown (нет ключа ни в окружении, ни в сейфе)"; exit 0; }
 curl -s -m 15 https://openrouter.ai/api/v1/key -H "Authorization: Bearer $OPENROUTER_API_KEY" | python3 -c '
 import sys, json, glob, os
 cl = sys.argv[1]

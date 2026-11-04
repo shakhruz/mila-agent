@@ -4,7 +4,7 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 T="$(mktemp -d)"; trap 'chmod -R u+w "$T" 2>/dev/null; rm -rf "$T"' EXIT; export HOME="$T/home" CLAUDE_CONFIG_DIR="$T/home/.claude" MILA_WORK="$T/home/work"
 mkdir -p "$CLAUDE_CONFIG_DIR" "$MILA_WORK"; echo "знакомство: пройдено" > "$MILA_WORK/USER.md"
-cp -R "$REPO" "$T/rel"; rm -rf "$T/rel/.git"
+mkdir -p "$T/rel"; git -C "$REPO" archive HEAD | tar -x -C "$T/rel"   # the committed revision, not the working tree: uncommitted edits must not turn the test red (or green)
 U="python3 $HERE/update.py"; ok=0; n=0
 chk() { n=$((n+1)); if eval "$2"; then ok=$((ok+1)); echo "✅ $1"; else echo "❌ $1"; echo "   $(head -c 400 $T/p.txt 2>/dev/null)"; fi; }
 $U plan --src "$T/rel" > "$T/p0.txt"

@@ -65,4 +65,23 @@ chk("нет ящика администратору — 🔴 только в ж�
 sn = now - 600; open(EV, "w").write(ev(sn - 100, "a1") + ev(sn + 10, "a2")); first = len(ev(sn - 100, "a1").encode())
 chk("откат: входящее до последнего удачного хода (в запасе 3 мин) не подаю повторно, после — подаю", F.rewind_to(os.path.getsize(EV), sn, last_ok=sn - 50) == first)
 chk("без удачного хода рядом — запас 3 мин берёт и его", F.rewind_to(os.path.getsize(EV), sn, last_ok=sn - 3600) == 0)
+# 5) вне флота — хозяину в Telegram; флот — только явным признаком (папку inbox создаёт и Сейф)
+sent = []; F._lw.send_telegram = lambda tok, chat, parts: sent.append((tok, chat, parts)) or True
+tok = "".join(["12345", ":", "FAKE"]); open(os.path.join(ST, ".env"), "w").write("TELEGRAM_BOT_TOKEN=" + tok + "\n")
+json.dump({"owners": [str(FP.USER_ID)], "allowFrom": ["1"]}, open(os.path.join(ST, "access.json"), "w"))
+def offline(inbox_dir):
+    os.environ.pop("MILA_SENIOR_INBOX", None); os.environ.pop("MILA_FLEET", None)
+    F.SENIOR_INBOX = os.path.join(T, inbox_dir, "to-admin.jsonl"); sent.clear(); F._save_login({})
+    open(TR, "a").write(rec(type="assistant", timestamp=iso(time.time() - 5), error="authentication_failed", isApiErrorMessage=True, message={"role": "assistant", "content": [{"type": "text", "text": "Not logged in · Please run /login"}]}))
+    c, h = F.login_step(end, now=time.time()); F.login_step(c, now=time.time() + 30)
+    return h
+held = offline("нет-папки")
+chk("вне флота, папки inbox нет → строка хозяину один раз за простой, токен и owners из файлов плагина", held and len(sent) == 1 and sent[0][0] == tok and sent[0][1] == str(FP.USER_ID) and "/login" in sent[0][2][0][1])
+os.makedirs(os.path.join(T, "seif-inbox"), exist_ok=True)
+held = offline("seif-inbox")
+chk("вне флота, папку inbox создал Сейф → всё равно хозяину, в to-admin.jsonl ни строки", held and len(sent) == 1 and not os.path.exists(F.SENIOR_INBOX))
+os.environ["MILA_FLEET"] = "1"; sent.clear(); F._save_login({}); c, h = F.login_step(end, now=time.time())
+chk("флот (MILA_FLEET=1) → только администратору, хозяину ни строки", h and sent == [] and len(open(F.SENIOR_INBOX).readlines()) == 1)
+os.environ.pop("MILA_FLEET", None); os.remove(os.path.join(ST, "access.json")); sent.clear()
+chk("вне флота без хозяина в access.json → False, не падаю, в Telegram не шлю", F.alert_owner("10:00", 1) is False and sent == [])
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

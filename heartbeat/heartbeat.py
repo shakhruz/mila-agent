@@ -338,10 +338,27 @@ def watchdog(cfg, now=None, dry=False, send=None):
     return text
 
 
+
+def _delivery():
+    """Журнал доставки ядра (install/tg_delivery.py → ~/.claude/hooks): нет модуля — шлём как раньше, без журнала."""
+    for d in (os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "install"), os.path.expanduser("~/.claude/hooks")):
+        if os.path.isfile(os.path.join(d, "tg_delivery.py")):
+            if d not in sys.path:
+                sys.path.insert(0, d)
+            try:
+                import tg_delivery
+                return tg_delivery
+            except Exception:
+                return None
+    return None
+
 def _tg_send(token, chat, text):
     req = urllib.request.Request("https://api.telegram.org/bot%s/sendMessage" % token, data=urllib.parse.urlencode({"chat_id": chat, "text": text}).encode())
-    with urllib.request.urlopen(req, timeout=20) as r:
-        return bool(json.loads(r.read().decode()).get("ok"))
+    do = lambda: json.loads(urllib.request.urlopen(req, timeout=20).read().decode())
+    D = _delivery()
+    if D:   # дошло ли — в общий журнал доставки, как у плагина
+        return D.call(do, "sendMessage", chat, via="heartbeat")[0]
+    return bool(do().get("ok"))
 
 
 def main(argv=None):

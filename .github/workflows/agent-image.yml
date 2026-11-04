@@ -1,0 +1,36 @@
+name: agent-image
+# Mila Agent image: built on every push that touches the image, published to GHCR only on a release tag v*.
+# One image for every one-click host (Hostinger, Railway, Render, Koyeb, PikaPods, Elestio).
+on:
+  push:
+    tags: ["v*"]
+    branches: [main]
+    paths: ["docker/**", "docker-compose.yml", "install/**", ".github/workflows/agent-image.yml"]
+  pull_request:
+    paths: ["docker/**", "docker-compose.yml", "install/**", ".github/workflows/agent-image.yml"]
+permissions: { contents: read, packages: write }
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: docker build -f docker/Dockerfile -t mila-agent:ci .
+      - name: smoke — without variables the container waits with a clear line (no crash loop)
+        run: |
+          docker run -d --name smoke mila-agent:ci
+          sleep 8
+          docker logs smoke 2>&1 | tee smoke.log
+          grep -q "BotFather" smoke.log
+          test "$(docker inspect -f '{{.State.Running}}' smoke)" = "true"
+          docker rm -f smoke
+      - name: smoke — tools inside the image
+        run: docker run --rm --entrypoint bash mila-agent:ci -c 'claude --version && bun --version && python3 --version && test -f /opt/mila/plugin/mila-telegram/receiver.ts && test -f /opt/mila/kit/install/companion-feeder.py'
+      - name: publish to GHCR (release tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          IMG=ghcr.io/${{ github.repository_owner }}/mila-agent
+          docker tag mila-agent:ci "$IMG:${GITHUB_REF_NAME}"; docker tag mila-agent:ci "$IMG:latest"
+          docker push "$IMG:${GITHUB_REF_NAME}"; docker push "$IMG:latest"

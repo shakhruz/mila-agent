@@ -21,10 +21,10 @@ INSTALL_SH = r"""#!/usr/bin/env bash
 # Install this ready-made Mila on top of Mila Agent. Nothing is overwritten: existing files get a .bak-<time> copy first.
 #   bash install.sh [--dry-run]
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+command -v python3 >/dev/null 2>&1 || { echo "python3 is needed (it comes with Mila Agent's requirements)"; exit 4; }   # first: without PATH even dirname is missing
+case "$0" in */*) HERE="$(cd "${0%/*}" && pwd)" ;; *) HERE="$(pwd)" ;; esac
 DRY=0; [[ "${1:-}" == "--dry-run" ]] && DRY=1
 CLAUDE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"; WORK="${MILA_WORK:-$HOME/work}"
-command -v python3 >/dev/null 2>&1 || { echo "python3 is needed (it comes with Mila Agent's requirements)"; exit 4; }
 say() { printf '%s\n' "$*"; }
 run() { if [[ $DRY -eq 1 ]]; then say "would: $*"; else "$@"; fi; }
 if [[ ! -d "$CLAUDE/skills/mila-update" ]]; then

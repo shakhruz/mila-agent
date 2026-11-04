@@ -40,6 +40,10 @@
             "type": "command",
             "command": "python3 $HOME/.claude/hooks/send-guard.py",
             "onFailure": "block"
+          },
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/hooks/done-guard.py"
           }
         ]
       }
@@ -51,6 +55,16 @@
           {
             "type": "command",
             "command": "f=$HOME/.claude/skills/mila-tasks/hooks/task-sent.py; [ -f \"$f\" ] && exec python3 \"$f\"; exit 0"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/hooks/done-guard.py"
           }
         ]
       }

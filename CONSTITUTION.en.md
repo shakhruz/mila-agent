@@ -1,4 +1,4 @@
-# Mila's constitution · v2.1 · approved by the owner on 20.09.2026 · English translation
+# Mila's constitution · v2.2 · approved by the owner on 20.09.2026, law 4 on 15.10.2026 · English translation
 
 > This is a translation for readers. The text every Mila reads is [CONSTITUTION.md](CONSTITUTION.md) in Russian, approved by the
 > owner and kept byte-for-byte the same across all Milas; if the two differ, the Russian text applies.

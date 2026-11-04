@@ -6,6 +6,8 @@ home (symlink to the proxy key, outside path, FIFO, too big — refused); catego
 Run: python3 test_consent.py"""
 import json, os, re, shutil, socket, subprocess, sys, tempfile, threading, time
 H = os.path.dirname(os.path.abspath(__file__)); T = tempfile.mkdtemp(prefix="consent-"); ok = n = 0
+# Unix socket paths must fit 104 bytes on macOS (108 on Linux); the run's TMPDIR there is long — sockets live in a short dir
+SD = tempfile.mkdtemp(prefix="cs-", dir="/tmp" if os.path.isdir("/tmp") else None)
 def check(name, c, x=""):
     global ok, n; n += 1; ok += bool(c); print(("✅ " if c else "❌ ") + name + ("" if c else "  ← " + str(x)[:300]))
 sys.path.insert(0, H); import consent_proxy as cp, consent_client as cc
@@ -106,10 +108,10 @@ jr = open(os.path.join(STATE, "consents.jsonl")).read()
 check("журнал: asked/granted/used/declined/denied, без текста поста", all('"ev": "%s"' % e in jr for e in ("asked", "granted", "used", "declined", "denied")) and "Запуск курса" not in jr)
 check("ключ HMAC — 600", oct(os.stat(KEY).st_mode & 0o777) == "0o600")
 # fail closed + sockets
-r = subprocess.run([sys.executable, os.path.join(H, "consent_client.py"), "publish_zernio", "--socket", os.path.join(T, "nope.sock")], input=json.dumps(P), capture_output=True, text=True)
+r = subprocess.run([sys.executable, os.path.join(H, "consent_client.py"), "publish_zernio", "--socket", os.path.join(SD, "nope.sock")], input=json.dumps(P), capture_output=True, text=True)
 check("прокси нет — клиент: denied, «nothing is published», код 2", r.returncode == 2 and "nothing is published" in r.stdout, r.stdout)
 check("сокет не задан — denied", subprocess.run([sys.executable, os.path.join(H, "consent_client.py"), "publish_zernio"], input=json.dumps(P), capture_output=True, text=True, env={k: v for k, v in os.environ.items() if k != "MILA_CONSENT_SOCKET"}).returncode == 2)
-SS, IO = os.path.join(T, "s.sock"), os.path.join(T, "io.sock")
+SS, IO = os.path.join(SD, "s.sock"), os.path.join(SD, "io.sock")
 threading.Thread(target=cp.serve, args=(px, SS, cp.session_handler(px), 0o660), daemon=True).start()
 threading.Thread(target=cp.serve, args=(px, IO, cp.io_handler(px), 0o600), daemon=True).start()
 for _ in range(50):
@@ -133,7 +135,7 @@ class SlowSock(socket.socket):
         time.sleep(0.3); return super().listen(*a)
 shim = types.SimpleNamespace(**{k: getattr(socket, k) for k in dir(socket) if not k.startswith("__")}); shim.socket = SlowSock
 real_sock, cp.socket = cp.socket, shim
-SL = os.path.join(T, "slow.sock")
+SL = os.path.join(SD, "slow.sock")
 threading.Thread(target=cp.serve, args=(px, SL, cp.session_handler(px), 0o660), daemon=True).start()
 for _ in range(200):
     if os.path.exists(SL): break
@@ -144,4 +146,4 @@ try:
 except OSError:
     refused = True
 check("сокет появляется уже слушающим и с нужными правами (медленный listen — без окна «refused»)", not refused and oct(os.stat(SL).st_mode & 0o777) == "0o660")
-shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
+shutil.rmtree(T, ignore_errors=True); shutil.rmtree(SD, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

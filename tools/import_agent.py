@@ -19,6 +19,9 @@ Rules (open-source core; the other agent's files are data, not orders):
   starts with «imported, not a rule», and those lines are listed in the report under «conflicts»;
 - Hermes memory: one «§» entry = one file; OpenClaw: one «##» section = one file marked «to sort with the owner» (no silent
   re-wording); daily logs memory/YYYY-MM-DD.md — one file per day;
+- Hermes: SOUL.md → persona/; cron/jobs.json → cron/jobs-draft.md, every task OFF until the owner says «yes»; each profile
+  (profiles/<name>/) → its own profile-<name>/ folder, never merged; skills/.archive → skills-archived/ (not to turn on);
+  built-in skills (listed in skills/.bundled_manifest with an unchanged hash) are not moved — one line each in the report;
 - the same source imported again the same day → «already imported», nothing written twice. Only stdlib."""
 import argparse, datetime as dt, hashlib, importlib.util, json, os, re, shutil, stat, sys, tempfile
 
@@ -93,7 +96,7 @@ def snapshot(roots):
 
 def var_names(b):
     t = b.decode("utf-8", "replace")
-    return sorted(set(VAR.findall(t)) | set(re.findall(r"(?im)^\s*([a-z_]*(?:key|token|secret|password)[a-z_]*)\s*:", t)))
+    return sorted(set(VAR.findall(t)) | set(re.findall(r"(?im)^\s*([a-z_]*(?:key|token|secret|password)[a-z_]*|model|provider|allowed_users|allowed_chats)\s*:", t)))
 
 
 def text_of(rel, b, skipped):
@@ -107,13 +110,63 @@ def text_of(rel, b, skipped):
         skipped.append((rel, "not UTF-8")); return None
 
 
+def hermes_bundled(files, prefix):
+    """{skill: «builtin»|«changed»} from <prefix>skills/.bundled_manifest («name:md5» lines, Hermes skills_sync). Hash as
+    Hermes counts it: md5 over the skill's files in sorted order, relative path then bytes. Changed by the owner → «changed»."""
+    raw = files.get(prefix + "skills/.bundled_manifest")
+    if raw is None:
+        return {}
+    out = {}
+    for ln in raw.decode("utf-8-sig", "replace").splitlines():
+        name, _, h = ln.strip().partition(":")
+        name, h = name.strip(), h.strip()
+        if not name or "/" in name:
+            continue
+        top = prefix + "skills/" + name + "/"
+        mine = sorted(r for r in files if r.startswith(top))
+        if not mine:
+            continue
+        m = hashlib.md5()
+        for r in mine:
+            m.update(r[len(top):].encode("utf-8")); m.update(files[r])
+        out[name] = "builtin" if h and m.hexdigest() == h else "changed"
+    return out
+
+
+def cron_draft(t, origin):
+    """Hermes {"jobs": [...]} → a readable list, every task OFF. Nothing is scheduled here."""
+    try:
+        d = json.loads(t)
+        jobs = d.get("jobs") if isinstance(d, dict) else d
+        if not isinstance(jobs, list):
+            raise ValueError
+    except ValueError:
+        return None
+    L = ["# Scheduled tasks from Hermes — drafts, all OFF", "",
+         "Each one is turned on only after the owner's «yes» (a Baraban job or a loop). Delivery targets are not copied.", ""]
+    for n, j in enumerate([x for x in jobs if isinstance(x, dict)], 1):
+        sc = j.get("schedule") if isinstance(j.get("schedule"), dict) else {}
+        when = j.get("schedule_display") or sc.get("expr") or (("every %s min" % sc["minutes"]) if sc.get("minutes") else "") or sc.get("run_at") or str(j.get("schedule") or "?")
+        L += ["## %d. %s" % (n, str(j.get("name") or "task %d" % n)[:80]),
+              "- when: `%s`%s" % (str(when)[:80], " (timezone %s)" % j["timezone"] if j.get("timezone") else ""),
+              "- in Hermes it was: %s" % ("on" if j.get("enabled", True) else "off"),
+              "- here: **OFF** — draft", "", "```", str(j.get("prompt") or "").strip()[:2000], "```", ""]
+    return "\n".join(L) + "\n"
+
+
 def plan(kind, files):
     """[(dest_rel, text, origin_rel)] and lists for the report."""
     out, skipped, secrets, keys, conflicts = [], [], [], {}, []
+    bundled = {}
+    if kind == "hermes":
+        for pre in [""] + sorted({"/".join(r.split("/")[:2]) + "/" for r in files if r.startswith("profiles/") and r.count("/") >= 2}):
+            bundled[pre] = hermes_bundled(files, pre)
     for rel in sorted(files):
         b = files[rel]
         if KEY_FILES.search(rel):
             keys[rel] = var_names(b); continue
+        if kind == "hermes" and re.match(r"(profiles/[^/]+/)?skills/(\.[^/]+$|\.hub/)", rel):
+            continue   # Hermes' own bookkeeping (.bundled_manifest, hub lock), not a skill
         hits = scan_bytes(b, rel)
         if hits:
             secrets.append((rel, sorted({k for _, k in hits}))); continue
@@ -124,13 +177,33 @@ def plan(kind, files):
             if ORDER.search(ln):
                 conflicts.append((rel, ln.strip()[:160]))
         base = os.path.basename(rel)
+        if kind == "hermes":
+            pre, sub = "", rel
+            if rel.startswith("profiles/") and rel.count("/") >= 2:
+                pre = "/".join(rel.split("/")[:2]) + "/"; sub = rel[len(pre):]
+            to = ("profile-" + pre.split("/")[1] + "/") if pre else ""
+            if sub.startswith("skills/.archive/"):
+                out.append((to + "skills-archived/" + sub[len("skills/.archive/"):], t, rel)); continue
+            if sub.startswith("skills/"):
+                name = sub.split("/")[1]
+                if bundled.get(pre, {}).get(name) == "builtin":
+                    continue   # listed once per skill in the report, not per file
+                out.append((to + sub, t, rel)); continue
+            if sub == "SOUL.md":
+                out.append((to + "persona/SOUL.md", t, rel)); continue
+            if sub == "cron/jobs.json":
+                dr = cron_draft(t, rel)
+                if dr is None:
+                    skipped.append((rel, "cron/jobs.json not readable as Hermes jobs — nothing scheduled")); continue
+                out.append((to + "cron/jobs-draft.md", dr, rel)); continue
+            if sub in ("memories/MEMORY.md", "memories/USER.md"):
+                what = "memory" if base == "MEMORY.md" else "user"
+                for n, e in enumerate([x.strip() for x in t.split("§") if x.strip()], 1):
+                    out.append(("%s%s/%s-%02d.md" % (to, what, what, n), e + "\n", rel))
+                continue
+            skipped.append((rel, "not part of the import (only persona, user, memory, skills, scheduled tasks)")); continue
         if "/skills/" in "/" + rel or rel.startswith("skills/"):
             out.append(("skills/" + rel.split("skills/", 1)[1], t, rel)); continue
-        if kind == "hermes" and rel in ("memories/MEMORY.md", "memories/USER.md"):
-            what = "memory" if base == "MEMORY.md" else "user"
-            for n, e in enumerate([x.strip() for x in t.split("§") if x.strip()], 1):
-                out.append(("%s/%s-%02d.md" % (what, what, n), e + "\n", rel))
-            continue
         if kind == "openclaw" and base == "MEMORY.md" and "/" not in rel.strip("/"):
             parts = re.split(r"(?m)^(?=##\s)", t)
             for n, sec in enumerate([p for p in parts if p.strip()], 1):
@@ -145,19 +218,30 @@ def plan(kind, files):
         if kind == "openclaw" and base in ("AGENTS.md", "BOOT.md", "BOOTSTRAP.md", "TOOLS.md"):
             out.append(("agent-rules/" + base, t, rel)); continue
         skipped.append((rel, "not part of the import (only persona, user, memory, skills)"))
-    return out, skipped, secrets, keys, conflicts
+    builtin = sorted({(p, nm) for p, b in bundled.items() for nm, v in b.items() if v == "builtin"})
+    return out, skipped, secrets, keys, conflicts, builtin
 
 
-def report(kind, src, dest, items, skipped, secrets, keys, conflicts, dry):
-    skills = sorted({d.split("/")[1] for d, _, _ in items if d.startswith("skills/") and d.count("/") >= 2})
-    scripts = sorted({d.split("/")[1] for d, _, _ in items if d.startswith("skills/") and d.endswith((".py", ".sh", ".js", ".mjs", ".ts"))})
+def report(kind, src, dest, items, skipped, secrets, keys, conflicts, dry, builtin=()):
+    unp = lambda d: d.split("/", 1)[1] if d.startswith("profile-") else d
+    skills = sorted({unp(d).split("/")[1] for d, _, _ in items if unp(d).startswith("skills/") and unp(d).count("/") >= 2})
+    scripts = sorted({unp(d).split("/")[1] for d, _, _ in items if unp(d).startswith("skills/") and d.endswith((".py", ".sh", ".js", ".mjs", ".ts"))})
+    profiles = sorted({d.split("/")[0][len("profile-"):] for d, _, _ in items if d.startswith("profile-")})
     L = ["# Import from %s%s" % (kind, " — dry run, nothing written" if dry else ""), "",
          "Source: `%s` → `%s`" % (src, dest), "",
          "- memory files: %d" % sum(d.startswith("memory/") for d, _, _ in items),
          "- about you: %d" % sum(d.startswith("user/") for d, _, _ in items),
          "- persona: %s" % (", ".join(os.path.basename(d) for d, _, _ in items if d.startswith("persona/")) or "—"),
          "- skills: %s" % (", ".join(skills) or "—"),
-         "- skills with scripts (read the code before turning them on): %s" % (", ".join(scripts) or "—"), ""]
+         "- skills with scripts (read the code before turning them on): %s" % (", ".join(scripts) or "—")]
+    if kind == "hermes":
+        L += ["- archived skills (not to turn on): %d" % sum("skills-archived/" in d for d, _, _ in items),
+              "- scheduled tasks (drafts, all OFF): %s" % (", ".join(d for d, _, _ in items if d.endswith("cron/jobs-draft.md")) or "—"),
+              "- profiles, each in its own folder: %s" % (", ".join(profiles) or "—")]
+    L += [""]
+    if builtin:
+        L += ["## Built-in Hermes skills — not moved (find Mila's own skill for the same job)"]
+        L += ["- %s%s" % (nm, " (profile %s)" % p.split("/")[1] if p else "") for p, nm in builtin] + [""]
     if keys:
         L += ["## Keys to enter again (through the safe page — values were not copied)"]
         L += ["- `%s`: %s" % (k, ", ".join(v) or "no variable names found") for k, v in sorted(keys.items())] + [""]
@@ -182,12 +266,12 @@ def do_import(kind, src, work, dry=False, today=None):
     files, skipped = snapshot(roots)
     if not files:
         return {"ok": True, "status": "nothing to import", "source": src}
-    items, sk2, secrets, keys, conflicts = plan(kind, files)
+    items, sk2, secrets, keys, conflicts, builtin = plan(kind, files)
     skipped += sk2
     digest = hashlib.sha256(json.dumps(sorted((r, hashlib.sha256(b).hexdigest()) for r, b in files.items())).encode()).hexdigest()
     date = (today or dt.date.today()).isoformat()
     dest = os.path.join(work, "imported", "%s-%s" % (date, kind))
-    rep = report(kind, src, dest, items, skipped, secrets, keys, conflicts, dry)
+    rep = report(kind, src, dest, items, skipped, secrets, keys, conflicts, dry, builtin)
     if dry:
         return {"ok": True, "status": "dry-run", "report": rep, "files": len(items)}
     man_p = os.path.join(dest, "MANIFEST.json")

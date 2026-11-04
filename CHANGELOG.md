@@ -1,5 +1,45 @@
 # CHANGELOG · Mila
 
+## Unreleased (after v1.7.1)
+
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
+**Для хозяина**
+- Новое базовое качество №11 «Поднимаю вибрации»: я выбираю слова, от которых у вас прибавляется уверенности и силы, ничего не придумываю, а риск называю сразу с шагом, как его пройти.
+- Все качества Милы — одним списком в `canon/QUALITIES.md`; новое №19 — «Деловое любопытство»: знаю рынок, цены и конкурентов и могу дать сравнение со свежими фактами.
+
+- Конституция v2.2: в шапке — закон 4 утверждён владельцем 15.10.2026; текст законов не менялся.
+
+- Новый навык «Учёт дел»: каждое дело — строкой с уликой (сделала, приняли, результат); итог по типам — только числа.
+
+- «Сделала» — только после результата: если в одном ходу с командой я пишу вам «готово», а команда ещё не вернулась, сообщение не уходит; если команда упала после уже ушедшего «готово», я сразу присылаю поправку.
+
+</details>
+
+**For the owner**
+- New core quality №11 «I raise the spirit»: I pick words that add confidence and strength, make nothing up, and name a risk together with the step through it.
+- All of Mila's qualities in one list: `canon/QUALITIES.md`; new №19 «Business curiosity»: I follow the market, prices and competitors and can give a comparison with fresh facts.
+
+**For Milas**
+- done-guard (`templates/home/.claude/hooks/done-guard.py`): a `PreToolUse` hook on `reply`/`edit_message` denies a «done» text while a work call of the same model message has no result yet; a `PostToolUseFailure` hook tells the model to send a correction when a call failed after a «done» reply of the same message had already left. Fail open, a short word list; it catches the model's mistakes, not a hostile sender.
+- Mila Agent in one container: `docker-compose.yml`, `docker/` (Claude Code, the kit, the mila-telegram plugin as a development channel, receiver + session in tmux, healthcheck), `docs/DEPLOY-HOSTINGER.md`, GitHub Action `agent-image` (publishes to GHCR only on `v*` tags). Inside the container permissions are not asked — the threat model has a «one-container setup» section. `CLAUDE_CODE_VERSION` in the Dockerfile is pinned to the version README calls tested; the maintainer raises both together.
+- Sign in to Claude from Telegram (`docker/claude_login.py`): a container with no Claude login does not wait forever — it answers /start with Anthropic's own sign-in link (`claude setup-token` in a pseudo-terminal), takes the code back in the chat, deletes that message, keeps the token in the volume (600) and starts the session; the owner is OWNER_ID, the owner id of a birth code, or whoever sends the pairing code printed in the container's log (`/pair CODE`); the sign-in code is accepted only from the owner's private chat while that setup-token is alive (10 min). No ports, no page.
+- Birth code (`docker/birth_claim.py`): a container started with only `BIRTH_CODE=MILA-XXXX-XXXX-XXXX` fetches its bot token (and the owner's id) once from the birth relay over https and keeps it in the volume (600); the person never copies a bot token.
+- Baraban: the schedule service outside the session — mila-cron jobs keep running when the session is down; files in a Mila's home are opened component by component without following links.
+- `mila-update` fleet plan (`fleet_plan.py`): one read-only table before rolling an update out to many homes; started from root, it reads each home with that home owner's rights.
+- `cards`: a variant label longer than 40 characters is refused with a reason instead of being cut.
+- Safe as a module (`skills/safe-link/scripts/vault.py`): whether a key is in place (environment first, then the safe file) and whether the provider accepts it — OpenRouter, Groq, the bot token; the value is never printed, and the OpenRouter key limit is named a limit, not a balance.
+- `key_in_chat.py`: a key or token in a person's message is caught before the model sees it — the kind and where to reissue it, never the value; `redact()` gives the text for the journal and the model.
+- New skill `dela` (quality «remembers every deed»): each real piece of work goes to `work/dela.jsonl` with evidence — done, taken by the person, result; a pointer, never the chat text; refused without evidence, with personal data or with a generic name like «post». `dela.py itog` gives counts by type, cumulative (done ≥ taken ≥ result).
+- Delivery journal for core scripts (`install/tg_delivery.py`): heartbeat and bot_send write the same journal as the mila-telegram plugin — did each message reach the chat, and Telegram's own reason if not; chat ids are salted hashes, no message text. bot_send now reports a network error as «not delivered» for that recipient instead of stopping the whole broadcast.
+- Hearing and fuel read the key from the safe file (`work/secrets/groq.env`, `openrouter.env`, 600) when the environment has none; `docker-compose.yml` passes `GROQ_API_KEY`; SAFE docs say how to hand a key over until the own safe ships.
+
+- Constitution v2.2: the header now says law 4 was approved by the owner on 15.10.2026; the text of the laws is unchanged (law 4 has matched the fleet word for word since 28.10).
+
+**For maintainers**
+- Tests run on macOS and Python 3.14 too (short socket paths, the design-gates test takes Arial Bold from the system).
+- README: a shorter comparison table — rows with «no data» and the price line removed; a neutral grey «built on Claude Code» badge.
+
 ## v1.7.1 · 01.11 — stricter permissions and send checks, the whole text on the consent card, moving from OpenClaw or Hermes
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>

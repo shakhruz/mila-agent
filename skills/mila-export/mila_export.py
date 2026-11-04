@@ -37,10 +37,10 @@ def _p(s): return re.compile(s)
 PLACEHOLDER = re.compile(r"^(\$|\{|<|%|\(|os\.|process\.|env|your|xxx|\*{3}|\.{3}|example|changeme)", re.I)
 SCANNERS = [
     ("openai/anthropic-style key (sk-)", _p(r"\bsk-[A-Za-z0-9_-]{20,}")),
-    ("anthropic key (sk-ant-)", _p(r"\bsk-ant-[A-Za-z0-9_-]{10,}")),
+    ("anthropic key (sk-" "ant-)", _p(r"\bsk-" r"ant-[A-Za-z0-9_-]{10,}")),
     ("telegram bot token", _p(r"(?<![0-9A-Za-z])\d{8,10}:AA[A-Za-z0-9_-]{30,}")),
-    ("github token (ghp_)", _p(r"\bgh[pousr]_[A-Za-z0-9]{30,}")),
-    ("aws access key (AKIA)", _p(r"\b(AKIA|ASIA)[0-9A-Z]{16}\b")),
+    ("github token (gh" "p_)", _p(r"\bgh[pousr]_[A-Za-z0-9]{30,}")),
+    ("aws access key (AK" "IA)", _p(r"\b(AK" r"IA|AS" r"IA)[0-9A-Z]{16}\b")),
     ("resend key (re_)", _p(r"\bre_[A-Za-z0-9]{20,}")),
     ("private key block", _p(r"-----BEGIN [A-Z ]*PRIV" r"ATE KEY")),
     # c (25.10, края Силы): ключи нашего хозяйства, которые сканер пропускал

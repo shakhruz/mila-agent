@@ -7,7 +7,7 @@
  "seif.save": "Save",
  "seif.once": "This link works once and lives {min} minutes.",
  "seif.gone.h1": "This link no longer works",
- "seif.gone.p": "It works once and lives 30 minutes. Ask Mila for a new one.",
+ "seif.gone.p": "It works once and only for a short time. Ask Mila for a new one.",
  "seif.toobig": "Too much data",
  "seif.saved.h1": "Saved",
  "seif.saved.p": "You can close this page. Mila already knows the data is in place.",

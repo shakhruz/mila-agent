@@ -8,11 +8,20 @@ def check(name, c, x=""):
     global ok, n; n += 1; ok += bool(c); print(("✅ " if c else "❌ ") + name + ("" if c else "  " + str(x)[:300]))
 home = os.path.join(T, "srv", "acme", "home"); os.makedirs(os.path.join(home, "work")); open(os.path.join(home, "work", "USER.md"), "w").write("знакомство: пройдено")
 rel = os.path.join(T, "rel"); shutil.copytree(REPO, rel, ignore=shutil.ignore_patterns(".git"))
+# «python without tarfile.data_filter» (macOS system 3.9.6): remove the name AND make extract trust everything, as old python did.
+# Python 3.14 extracts with the «data» filter by default; deleting only the name broke that default instead of simulating old python.
+NOFILTER = ("_fully = getattr(tarfile, 'fully_trusted_filter', None)\n"
+            "if hasattr(tarfile, 'data_filter'): del tarfile.data_filter\n"
+            "if _fully:\n"
+            "  _ex = tarfile.TarFile.extract\n"
+            "  tarfile.TarFile.extract = lambda self, m, path='', **k: _ex(self, m, path, **dict(k, filter=_fully))\n")
+
+
 def run(*args, chown=None, nofilter=False):
     calls = []
     env = dict(os.environ, MILA_HOME=home, HOME=os.path.join(T, "admin-home")); env.pop("CLAUDE_CONFIG_DIR", None); env.pop("MILA_WORK", None)
     if chown: env["MILA_CHOWN"] = chown
-    code = ("import tarfile\n" + ("if hasattr(tarfile, \"data_filter\"): del tarfile.data_filter\n" if nofilter else "") + "import os,sys,json,runpy\nC=[]\nos.lchown=lambda p,u,g: C.append((p,u,g))\nsys.argv=%r\n"
+    code = ("import tarfile\n" + (NOFILTER if nofilter else "") + "import os,sys,json,runpy\nC=[]\nos.lchown=lambda p,u,g: C.append((p,u,g))\nsys.argv=%r\n"
             "try:\n  runpy.run_path(%r, run_name='__main__')\nexcept SystemExit as e:\n  print(e) if e.code not in (None, 0) else None\nopen(%r,'w').write(json.dumps(C))\n") % (["update.py"] + list(args), os.path.join(H, "update.py"), os.path.join(T, "calls.json"))
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env)
     try: calls = json.load(open(os.path.join(T, "calls.json")))

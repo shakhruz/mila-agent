@@ -22,7 +22,7 @@ values every Mila reads first (`CONSTITUTION.md`). The Telegram channel is a sep
   Tests use the fake values from `tests/fixtures/fake_people.py`; token-shaped strings are glued at run time.
 - Never weaken the send-guard (`templates/home/.claude/hooks/send-guard.py`) or the owner's-yes rule: nothing goes
   out on the owner's behalf without the owner's explicit yes for that step.
-- Never edit `CONSTITUTION.md` — its text is approved by the owner and must stay byte-equal across all Milas.
+- Edit `CONSTITUTION.md` only on the owner's word, with a line in CHANGELOG — its text is approved by the owner and must stay byte-equal across all Milas.
 - Never rewrite `CHANGELOG.md` history or anything under `legacy/` (old names kept for updates).
 - Never push, tag or publish — a maintainer does that after review.
 

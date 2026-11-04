@@ -31,7 +31,9 @@ EV = os.path.join(ST, "inbound", "events.jsonl")
 def ev(t, mid): return json.dumps({"ts": int(t * 1000), "method": "notifications/claude/channel", "params": {"content": "текст", "meta": {"chat_id": "1", "message_id": mid, "ts": iso(t)}}}) + "\n"
 lines = [ev(t_ok - 60, "m0"), ev(t_hit - 5, "m1"), ev(t_hit + 55, "m2"), ev(t_hit + 115, "m3")]
 open(EV, "w").write("".join(lines)); end = os.path.getsize(EV); off_m1 = len(lines[0].encode())
-open(F.SESSION_PID, "w").write("100"); fresh()
+def setpid(v, t):   # pid-файл пишет запуск сессии: его время — время старта сессии
+    open(F.SESSION_PID, "w").write(v); os.utime(F.SESSION_PID, (t, t))
+setpid("100", t_ok - 100); fresh()
 cur, held = F.limit_step(end, now=now)
 chk("лимит (сброс через 4 ч) → держу, курсор назад к первому съеденному 429 входящему (m1), m0 не трогаю", held and cur == off_m1)
 chk("ждут 3 входящих", F.channel_events_after(cur) == 3)
@@ -40,11 +42,25 @@ chk("следующий шаг: держу, проба ещё рано", held an
 fresh(); F.limit_step(cur, now=now + F.PROBE_S + 1)
 chk("через PROBE_S — проба подписки («ответь SKIP»), не сообщение человека", fed and fed[-1] == F.LIMIT_PROBE_TEXT)
 # подписку обновили: проба дала удачный ход ЗАДОЛГО до срока сброса
-fed.clear(); open(F.SESSION_PID, "w").write("100"); open(TR, "a").write(ok_rec(now + 10)); fresh()
+fed.clear(); setpid("100", t_ok - 100); open(TR, "a").write(ok_rec(now + 10)); fresh()
 cur3, held = F.limit_step(cur, now=now + 20)
 chk("удачный ход раньше «resets 2pm» → не держу, строка «Подписка снова работает. Пропущено … 3 входящих … Принято, №»", not held and len(fed) == 1 and "3 входящих" in fed[0] and "Принято, №" in fed[0])
 chk("после — курсор у m1: все 3 к подаче, состояние очищено", cur3 == off_m1 and F.channel_events_after(cur3) == 3 and F._load_limit() == {})
 fresh(); chk("второй раз «пропущено» не подаю", F.limit_step(cur3, now=now + 40) == (cur3, False) and len(fed) == 1)
+# ── перезапуск кормильца и сессии (две Милы флота 03.11): память кормильца пуста, решает время старта сессии и входа ──
+CRED = os.path.join(T, ".claude", ".credentials.json")
+open(TR, "w").write(ok_rec(t_ok) + hit_rec(t_hit)); setpid("300", t_ok - 100); fresh()
+chk("429, сессия старше 429 → держу", LW.hold(F.CLAUDE_DIR, F.SESSION_PID)[0])
+setpid("300", t_hit + 300); fresh()
+chk("сессия моложе 429, кормилец свежий (пустой кэш, тот же pid в памяти нет) → отпускаю", not LW.hold(F.CLAUDE_DIR, F.SESSION_PID)[0])
+open(TR, "a").write(hit_rec(t_hit + 600)); fresh()
+chk("новый 429 после перезапуска (тот же лимит) → снова держу", LW.hold(F.CLAUDE_DIR, F.SESSION_PID)[0])
+setpid("300", t_ok - 100); open(CRED, "w").write("{}"); os.utime(CRED, (t_hit + 900, t_hit + 900)); fresh()
+v = LW.hold(F.CLAUDE_DIR, F.SESSION_PID)
+chk("вход сменили после последнего 429 (.credentials.json новее) → отпускаю, причина в строке", not v[0] and "вход сменился" in v[2])
+os.utime(CRED, (t_ok, t_ok)); fresh()
+chk("вход старше 429 — не довод, держу", LW.hold(F.CLAUDE_DIR, F.SESSION_PID)[0])
+os.remove(CRED); fresh()
 open(TR, "w").write(ok_rec(now - 10)); fresh()
 chk("лимита нет — не держу и курсор не трогаю", F.limit_step(end, now=now) == (end, False))
 det = {"hit": {"kind": "seven_day", "first_at": now, "resets_at": resets, "tz": "UTC"}}
