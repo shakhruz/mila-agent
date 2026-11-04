@@ -54,16 +54,18 @@ mkdir -p "$ST" "$CL" "$TG/inbound" "$TGS/inbound" "$H/work" "$H/.local/bin"
 for d in "$CL" "$TG" "$TG/inbound" "$TGS" "$TGS/inbound"; do chmod 700 "$d"; done   # not 700 → the plugin silently does not poll
 export PATH="$H/.local/bin:$PATH"
 
-# First start: the kit (skills, hooks, launcher) into the home volume; Claude Code onboarding answered once.
-if [ ! -e "$CL/.mila-agent-installed" ]; then
-  log "first start: installing the Mila kit"
+# The kit (skills, hooks, launcher) into the home volume — on the first start and again whenever the image brings a changed kit:
+# core skills are replaced (an edited one is backed up first), the owner's own skills stay. Before, only the first start did it,
+# and a redeployed image never reached an existing home.
+KIT_SUM="$(cd "$MILA_KIT" && find skills templates install -type f ! -name '*.pyc' -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-16)"
+if [ "$(cat "$CL/.mila-agent-installed" 2>/dev/null)" != "$KIT_SUM" ]; then
+  log "installing the Mila kit ($KIT_SUM)"
   bash "$MILA_KIT/install/install.sh" >> "$ST/install.log" 2>&1 || wait_forever "kit install failed — see $ST/install.log"
-  touch "$CL/.mila-agent-installed"
+  echo "$KIT_SUM" > "$CL/.mila-agent-installed"
 fi
-# A home born before the newborn's CLAUDE.md existed gets it on the next start (add-only: the owner's own files stay)
-mkdir -p "$H/work/canon"
-for f in CLAUDE.md USER.md; do [ -e "$H/work/$f" ] || cp "$MILA_KIT/templates/work/$f" "$H/work/$f"; done
-for f in CONSTITUTION.md CONSTITUTION.en.md; do [ -e "$H/work/canon/$f" ] || cp "$MILA_KIT/$f" "$H/work/canon/$f"; done
+# Our CLAUDE.md and constitution in ~/work: added when missing, replaced when the owner has not edited them (a version we shipped),
+# otherwise the new one goes beside as *.new. USER.md is the owner's: only added when missing.
+python3 "$MILA_KIT/install/home_template.py" "$MILA_KIT" "$H/work" | while read -r l; do log "$l"; done
 [ -s "$H/.claude.json" ] || printf '{"hasCompletedOnboarding":true}\n' > "$H/.claude.json"
 [ -s "$CL/.claude.json" ] || printf '{"hasCompletedOnboarding":true}\n' > "$CL/.claude.json"
 [ -s "$CL/settings.json" ] || printf '{"skipDangerousModePermissionPrompt":true}\n' > "$CL/settings.json"
@@ -109,9 +111,13 @@ while :; do
     claude plugin marketplace add /opt/mila/marketplace >> "$ST/session.log" 2>&1
     claude plugin install "mila-telegram@$MK" >> "$ST/session.log" 2>&1
   fi
-  TELEGRAM_STATE_DIR="$TGS" claude -p --input-format stream-json --output-format stream-json --verbose \\
+  # the conversation goes on after a restart (--continue): she remembers what was said and does not greet again.
+  # A continued session that dies within 30 s starts fresh next time (a broken conversation must not loop).
+  CONT=--continue; [ -e "$ST/session.fresh" ] && CONT=; T0=\$(date +%s)
+  TELEGRAM_STATE_DIR="$TGS" claude -p \$CONT --input-format stream-json --output-format stream-json --verbose \\
     --dangerously-load-development-channels "plugin:mila-telegram@$MK" --dangerously-skip-permissions <&3 >> "$ST/session.jsonl" 2>> "$ST/session.err" &
   echo \$! > "$ST/session.pid"; wait \$!; exec 3>&-; rm -f "$ST/session.pid"
+  if [ -n "\$CONT" ] && [ \$(( \$(date +%s) - T0 )) -lt 30 ]; then touch "$ST/session.fresh"; else rm -f "$ST/session.fresh"; fi
   echo "\$(date +%FT%T) session ended — restarting in 10 s" >> "$ST/session.log"; sleep 10
 done
 LOOP

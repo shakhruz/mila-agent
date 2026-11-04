@@ -19,7 +19,8 @@ chk "Dockerfile в корне = docker/Dockerfile (Railway и панели «и�
 chk "в Dockerfile нет VOLUME (Railway такой не собирает) и нет USER (entrypoint сам переходит в agent)" "! grep -qE '^(VOLUME|USER)' docker/Dockerfile"
 chk "страница токена: PORT=8080 и EXPOSE 8080 в образе (подсказка Railway совпадает), compose отключает страницу" "grep -q '^ENV PORT=8080' docker/Dockerfile && grep -q '^EXPOSE 8080' docker/Dockerfile && python3 -c \"import yaml;assert yaml.safe_load(open('docker-compose.yml'))['services']['mila']['environment']['PORT']==''\""
 chk "railway.json: сборка по Dockerfile, перезапуск при сбое" "python3 -c \"import json;d=json.load(open('railway.json'));assert d['build']['builder']=='DOCKERFILE' and d['deploy']['restartPolicyType']=='ON_FAILURE'\""
-chk "entrypoint на каждом старте докладывает недостающие CLAUDE.md, USER.md и конституцию (только недостающее)" "grep -q 'templates/work/\$f' docker/entrypoint.sh && grep -q '\[ -e \"\$H/work/\$f\" \] ||' docker/entrypoint.sh"
+chk "каждый старт: наши CLAUDE.md и конституция — home_template.py (недостающее, наше прежнее — замена, правка хозяина — .new)" "grep -q 'install/home_template.py\" \"\$MILA_KIT\" \"\$H/work\"' docker/entrypoint.sh && python3 install/test_home_template.py >/dev/null 2>&1"
+chk "сессия продолжает разговор после рестарта (--continue), сломанный разговор — заново через session.fresh" "grep -q 'claude -p \\\\\$CONT' docker/entrypoint.sh && grep -q 'session.fresh' docker/entrypoint.sh"
 chk "голос: приёмник запускается с TELEGRAM_VOICE_TRANSCRIBE_CMD = скрипт Groq; key_page в образе" "grep -q 'TELEGRAM_VOICE_TRANSCRIBE_CMD=.*transcribe-voice.sh' docker/entrypoint.sh && grep -q 'docker/key_page.py' docker/Dockerfile"
 chk "CLAUDE.md новорождённой: ключ Deepgram (Groq — для узбекского) — страницей key_page, не в чат; без ключа — честно и просьба текстом, не угадывать" "grep -q 'key_page.py deepgram' templates/work/CLAUDE.md && grep -q 'Deepgram does not know Uzbek' templates/work/CLAUDE.md && grep -q 'not here in the chat' templates/work/CLAUDE.md && grep -q 'please write this one in text' templates/work/CLAUDE.md && grep -q 'never guess what a voice note said' templates/work/CLAUDE.md"
 chk "Барабан в контейнере: цикл tick раз в минуту для своего дома, состояние в ~/state/baraban" "grep -q 'install/baraban.py\" tick --home \"\$H\" --owner \"\$O\" --state \"\$ST/baraban\"' docker/entrypoint.sh && grep -q 'sleep 60' docker/entrypoint.sh"
@@ -48,6 +49,16 @@ rm -rf "$SB" "$HR"
 HC=$(mktemp -d); mkdir -p "$HC/state" "$HC/.claude/channels/telegram"; echo 0 > "$HC/state/session.pid"; echo 0 > "$HC/.claude/channels/telegram/receiver.pid"
 chk "healthcheck: pid 0 — не «жив» (kill -0 0 бьёт по группе)" "! HOME=$HC bash docker/healthcheck.sh >/dev/null 2>&1"
 rm -rf "$HC"
+# Kit sync: install.sh runs on the first start and again only when the image's kit changed
+KS=$(mktemp -d); mkdir -p "$KS/kit/install" "$KS/kit/skills/a" "$KS/kit/templates" "$KS/cl" "$KS/st"; echo a > "$KS/kit/skills/a/SKILL.md"
+printf 'echo run >> "%s/runs"\n' "$KS" > "$KS/kit/install/install.sh"
+sed -n '/^KIT_SUM=/,/^fi$/p' docker/entrypoint.sh > "$KS/sync.sh"
+sync_() { env -i PATH="$PATH" MILA_KIT="$KS/kit" CL="$KS/cl" ST="$KS/st" bash -c 'log(){ :; }; wait_forever(){ exit 9; }; . "$0"' "$KS/sync.sh"; }
+sync_; sync_
+chk "набор: первый старт ставит, второй с тем же набором — нет" "[ \$(wc -l < $KS/runs) = 1 ]"
+echo b > "$KS/kit/skills/a/SKILL.md"; sync_
+chk "набор в образе изменился — install.sh снова (обновление доходит до живого дома)" "[ \$(wc -l < $KS/runs) = 2 ]"
+rm -rf "$KS"
 # Baraban loop, one turn: the owner from the file / access.json when OWNER_ID is empty; the error log is cut
 O1="555"'000111'; O2="555"'000222'; O3="555"'000333'
 BB=$(mktemp -d); mkdir -p "$BB/kit/install" "$BB/st" "$BB/auth" "$BB/tg"
