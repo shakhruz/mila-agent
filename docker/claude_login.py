@@ -40,7 +40,7 @@ T = {"hello": "Здравствуйте! Я Мила. Чтобы я зарабо
      "checking": "Код получила, проверяю…",
      "no_read": "Вход завершился, но я не смогла прочитать ответ. Нажмите /login и попробуйте ещё раз — если повторится, напишите «помощь».",
      "timeout": "Не дождалась ответа от Anthropic. Нажмите /login — пришлю свежую ссылку.",
-     "done": "✅ Подписка подключена. Привет! Я твоя Мила. Как тебя зовут и чем ты занимаешься? (Отвечу через минуту — запускаюсь.)",
+     "done": "✅ Подписка подключена. Здравствуйте! Я ваша Мила. Как вас зовут и чем вы занимаетесь? (Отвечу через минуту — запускаюсь.)",
      "stranger": "Эту Милу подключает её хозяин. Если это вы — отправьте /pair и код из журнала контейнера (или задайте OWNER_ID).",
      "paired": "Код верный — вы хозяин этой Милы. Готовлю вход в Claude…", "pair_bad": "Код не подошёл. Он в журнале контейнера: строка «pairing code»."}
 T_EN = {"hello": "Hi! I'm Mila. To get me working, connect your Claude subscription — it takes a minute:\n"
@@ -54,7 +54,7 @@ T_EN = {"hello": "Hi! I'm Mila. To get me working, connect your Claude subscript
         "checking": "Got the code, checking…",
         "no_read": "The sign-in finished, but I could not read the answer. Tap /login and try again — if it repeats, write «help».",
         "timeout": "No answer from Anthropic yet. Tap /login — I'll send a fresh link.",
-        "done": "✅ Subscription connected. Hi! I'm your Mila. What's your name and what do you do? (I'll answer in a minute — starting up.)",
+        "done": "✅ Subscription connected. Hello! I'm your Mila. What's your name and what do you do? (I'll answer in a minute — starting up.)",
         "stranger": "This Mila is being set up by her owner. If that's you, open the link from the setup page (or send /pair and the code).",
         "paired": "The code is right — you are this Mila's owner. Preparing the Claude sign-in…", "pair_bad": "The code did not fit."}
 T_UZ = {"hello": "Salom! Men Milaman. Ishlashim uchun Claude obunangizni ulang — bir daqiqa:\n"
@@ -68,7 +68,7 @@ T_UZ = {"hello": "Salom! Men Milaman. Ishlashim uchun Claude obunangizni ulang �
         "checking": "Kodni oldim, tekshiryapman…",
         "no_read": "Kirish tugadi, lekin javobni o‘qiy olmadim. /login ni bosib, qayta urinib ko‘ring.",
         "timeout": "Anthropic’dan javob kelmadi. /login ni bosing — yangi havola yuboraman.",
-        "done": "✅ Obuna ulandi. Salom! Men sizning Milangizman. Ismingiz nima va nima bilan shug‘ullanasiz? (Bir daqiqada javob beraman — ishga tushyapman.)",
+        "done": "✅ Obuna ulandi. Assalomu alaykum! Men sizning Milangizman. Ismingiz nima va nima bilan shug‘ullanasiz? (Bir daqiqada javob beraman — ishga tushyapman.)",
         "stranger": "Bu Milani uning egasi sozlayapti. Agar bu siz bo‘lsangiz — sozlash sahifasidagi havolani oching (yoki /pair va kodni yuboring).",
         "paired": "Kod to‘g‘ri — siz bu Milaning egasisiz. Claude’ga kirishni tayyorlayapman…", "pair_bad": "Kod mos kelmadi."}
 TEXTS = {"ru": T, "en": T_EN, "uz": T_UZ}

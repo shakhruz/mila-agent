@@ -3,7 +3,7 @@
 /start → кнопка со ссылкой; чужой при OWNER_ID — одна строка, без ссылки; код не похож — просьба; верный код → сообщение с кодом
 удалено, токен в томе 600 (папка 700), хозяин записан, «подключено», код 0; неверный код — «не подошёл», ничего не сохранено;
 токен и код не попадают в вывод. Run: python3 test_claude_login.py"""
-import http.server, json, os, shutil, socket, subprocess, sys, tempfile, threading, time, urllib.parse
+import re, http.server, json, os, shutil, socket, subprocess, sys, tempfile, threading, time, urllib.parse
 OWN, OTH, STR = "555" + "000111", "555" + "000222", "555" + "000999"   # glued: no long id literals in the core
 H = os.path.dirname(os.path.abspath(__file__)); ok = n = 0
 def check(name, c, x=""):
@@ -83,7 +83,7 @@ check("сообщение с кодом удалено из чата", "12" in S
 check("токен в томе: файл 600, папка 700, содержимое = токен", open(os.path.join(A, "oauth_token")).read().strip() == TOKEN_OUT
       and oct(os.stat(os.path.join(A, "oauth_token")).st_mode & 0o777) == "0o600" and oct(os.stat(A).st_mode & 0o777) == "0o700")
 check("хозяин = тот, кто прислал код пары и прошёл вход", open(os.path.join(A, "owner_id")).read().strip() == OWN)
-check("«подписка подключена» хозяину", any("подключена" in m["text"] for m in S.sent))
+check("«подписка подключена» хозяину — на «вы», без «ты/тебя» (канон обращения)", any("подключена" in m["text"] and "Как вас зовут" in m["text"] and not re.search(r"\\b(ты|тебя|твоя)\\b", m["text"]) for m in S.sent))
 check("ни токен, ни код не попали в вывод и в сообщения", TOKEN_OUT not in out + err and CODE not in out + err and not any(TOKEN_OUT in json.dumps(m) or CODE in json.dumps(m) for m in S.sent))
 shutil.rmtree(A)
 # 2) OWNER_ID set: stranger refused; wrong code → nothing saved
