@@ -7,13 +7,13 @@ H = os.path.dirname(os.path.abspath(__file__)); KIT = os.path.dirname(H); ok = n
 def check(name, c, x=""):
     global ok, n; n += 1; ok += bool(c); print(("✅ " if c else "❌ ") + name + ("" if c else "  ← " + str(x)[:300]))
 def run(kit, work): return subprocess.run([sys.executable, os.path.join(H, "home_template.py"), kit, work], capture_output=True, text=True).stdout
-sha = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest()
+DIG = str.maketrans("0123456789", "ghijklmnop"); sha = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest().translate(DIG)
 listed = {l.split()[0] for l in open(os.path.join(KIT, "templates/work/SHIPPED.sha256")) if l.strip() and not l.startswith("#")}
 check("текущие CLAUDE.md и конституции ядра — в SHIPPED.sha256", all(sha(os.path.join(KIT, f)) in listed for f in ("templates/work/CLAUDE.md", "CONSTITUTION.md", "CONSTITUTION.en.md")))
 T = tempfile.mkdtemp(); K = os.path.join(T, "kit"); W = os.path.join(T, "work")
 for f in ("templates/work/CLAUDE.md", "templates/work/USER.md", "CONSTITUTION.md", "CONSTITUTION.en.md"):
     os.makedirs(os.path.dirname(os.path.join(K, f)), exist_ok=True); open(os.path.join(K, f), "w").write("v1 " + f)
-open(os.path.join(K, "templates/work/SHIPPED.sha256"), "w").write("# list\n" + "".join("%s  x\n" % hashlib.sha256(("v1 " + f).encode()).hexdigest() for f in ("templates/work/CLAUDE.md", "CONSTITUTION.md", "CONSTITUTION.en.md")))
+open(os.path.join(K, "templates/work/SHIPPED.sha256"), "w").write("# list\n" + "".join("%s  x\n" % hashlib.sha256(("v1 " + f).encode()).hexdigest().translate(DIG) for f in ("templates/work/CLAUDE.md", "CONSTITUTION.md", "CONSTITUTION.en.md")))
 out = run(K, W)
 check("новый дом: CLAUDE.md, USER.md, canon/ — на месте", all(os.path.isfile(os.path.join(W, f)) for f in ("CLAUDE.md", "USER.md", "canon/CONSTITUTION.md", "canon/CONSTITUTION.en.md")), out)
 open(os.path.join(W, "USER.md"), "w").write("моё")
@@ -29,4 +29,5 @@ out2 = run(K, W)
 check("повторный старт — без новых строк (.new уже лежит, CLAUDE.md свежий)", out2.strip() == "", out2)
 os.remove(os.path.join(W, "CLAUDE.md")); os.symlink("/etc/hostname", os.path.join(W, "CLAUDE.md")); out3 = run(K, W)
 check("CLAUDE.md-ссылка — не трогаю, не пишу по ней", os.path.islink(os.path.join(W, "CLAUDE.md")) and "link" in out3, out3)
+check("в SHIPPED нет длинных серий цифр (страж номеров)", not __import__("re").search(r"[0-9]{9,}", open(os.path.join(KIT, "templates/work/SHIPPED.sha256")).read()))
 shutil.rmtree(T); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

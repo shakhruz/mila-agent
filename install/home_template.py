@@ -5,7 +5,7 @@
 
 templates/work/CLAUDE.md → ~/work/CLAUDE.md, CONSTITUTION.md and CONSTITUTION.en.md → ~/work/canon/:
 - missing → copied;
-- the home's file is one we shipped (its sha256 is in templates/work/SHIPPED.sha256) and differs from the new one →
+- the home's file is one we shipped (its sha256 is in templates/work/SHIPPED.sha256, digits written as g–p) and differs from the new one →
   replaced, the old one kept as <name>.bak-<date>;
 - the owner edited it (sha not in the list) → left as is, the new one put beside as <name>.new and named in one line.
 USER.md is the owner's: only copied when missing. Prints one line per change; exit 0 always (a start must not stop here)."""
@@ -15,8 +15,11 @@ FILES = (("templates/work/CLAUDE.md", "CLAUDE.md"), ("CONSTITUTION.md", "canon/C
 OWNER_ONLY = (("templates/work/USER.md", "USER.md"),)
 
 
+DIG = str.maketrans("0123456789", "ghijklmnop")   # sha256 hex with digits written as letters: no long digit runs in the repo
+
+
 def sha(p):
-    with open(p, "rb") as f: return hashlib.sha256(f.read()).hexdigest()
+    with open(p, "rb") as f: return hashlib.sha256(f.read()).hexdigest().translate(DIG)
 
 
 def shipped(kit):

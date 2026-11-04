@@ -5,7 +5,7 @@
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
 **Для хозяина**
-- Mila Agent после обновления образа: новые навыки и мой новый CLAUDE.md доходят до уже живущей Милы (раньше — только до новой); ваши правки в CLAUDE.md и конституции не затираются — новая версия ляжет рядом. После перезапуска я продолжаю разговор, а не здороваюсь заново.
+- Mila Agent после обновления образа: новые навыки и мой новый CLAUDE.md доходят до уже живущей Милы (раньше — только до новой); ваши правки в CLAUDE.md и конституции не затираются — новая версия ляжет рядом; неизменённая конституция при новом образе обновляется (образ обновляете вы сами). После перезапуска я продолжаю разговор, а не здороваюсь заново.
 - Знакомство без кнопки «Удиви меня»: разбор вашего сайта или канала — шагом д2 в блоке «Ваше дело», одна находка и один шаг.
 - Паки: «поставь пак …» или архив пака в личку — показываю название, версию, новые навыки, нужные ключи и файлы с кодом; ставлю только после вашего «да». Новая версия архивом — обновление; «убери пак» и «откати» — назад, бэкап остаётся.
 - Новое базовое качество №11 «Поднимаю вибрации»: я выбираю слова, от которых у вас прибавляется уверенности и силы, ничего не придумываю, а риск называю сразу с шагом, как его пройти.
@@ -20,7 +20,7 @@
 </details>
 
 **For the owner**
-- Mila Agent after an image update: new skills and my new CLAUDE.md reach a Mila that already lives (before — only a new one); your edits to CLAUDE.md and the constitution are kept — the new version goes beside them. After a restart I continue the conversation instead of greeting you again.
+- Mila Agent after an image update: new skills and my new CLAUDE.md reach a Mila that already lives (before — only a new one); your edits to CLAUDE.md and the constitution are kept — the new version goes beside them; an unedited constitution is updated with a new image (you redeploy it yourself). After a restart I continue the conversation instead of greeting you again.
 - Getting acquainted without the «Surprise me» button: the look at your website or channel is step д2 in the «Your business» block — one finding and one step.
 - Packs: «install the pack …» or a pack archive in a DM — I show the name, version, new skills, keys it needs and its code files, and install only after your «yes». A newer archive updates it; «remove the pack» and «roll back» take it back, a backup stays.
 - New core quality №11 «I raise the spirit»: I pick words that add confidence and strength, make nothing up, and name a risk together with the step through it.
