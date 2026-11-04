@@ -1,0 +1,15 @@
+{
+ "id": "pochta",
+ "kind": "addon",
+ "version": "0.1.0",
+ "title": {
+  "ru": "Почта",
+  "en": "Mail",
+  "uz": "Pochta"
+ },
+ "requires_core": "1.8.0",
+ "core_skills": [],
+ "skills": [
+  "mail-outbound"
+ ]
+}

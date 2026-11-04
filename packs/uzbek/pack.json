@@ -1,0 +1,15 @@
+{
+ "id": "uzbek",
+ "kind": "addon",
+ "version": "0.1.0",
+ "title": {
+  "ru": "Узбекский",
+  "en": "Uzbek",
+  "uz": "O‘zbekcha"
+ },
+ "requires_core": "1.8.0",
+ "core_skills": [],
+ "skills": [
+  "humanizer-uz"
+ ]
+}

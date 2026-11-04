@@ -37,7 +37,7 @@ res = HB._tg_send("1:" + "x" * 10, OWNER, "текст-сигнала")
 urllib.request.urlopen = orig
 chk("heartbeat._tg_send: 403 → False без исключения, строка blocked via heartbeat, текста нет", res is False and lines()[-1]["cls"] == "blocked" and lines()[-1]["via"] == "heartbeat" and "текст-сигнала" not in open(os.path.join(T, "delivery.jsonl")).read(), lines()[-1])
 # bot_send
-sys.path.insert(0, os.path.join(H, "..", "skills", "bot-send")); import bot_send as B
+sys.path.insert(0, os.path.join(H, "..", "packs", "manager", "bot-send")); import bot_send as B
 cls = [c for c in vars(B).values() if isinstance(c, type) and hasattr(c, "_api")][0]
 o = cls.__new__(cls); o.token = "1:" + "x" * 10
 urllib.request.urlopen = lambda req, timeout=0: (_ for _ in ()).throw(urllib.error.HTTPError("u", 400, "x", {}, io.BytesIO(b'{"ok":false,"error_code":400,"description":"Bad Request: chat not found"}')))

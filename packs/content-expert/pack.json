@@ -9,27 +9,25 @@
  "requires_core": "1.6.0",
  "core_skills": [
   "communication",
-  "humanizer-ru",
-  "humanizer-uz",
-  "draft-and-check",
-  "infographic",
-  "flashcards",
-  "mini-podcast",
-  "live-frames",
-  "video-overview",
-  "youtube-research",
-  "kreativ-proverka",
-  "ab-test",
-  "metki-atribuciya",
-  "plan-fakt",
   "raspisanie",
   "tasks",
-  "pult-dnya",
   "obratnaya-svyaz",
   "cards",
   "onboarding"
  ],
- "skills": [],
+ "skills": [
+  "design-gates",
+  "flashcards",
+  "humanizer-ru",
+  "infographic",
+  "live-frames",
+  "mila-stickers",
+  "mini-podcast",
+  "stilnaya",
+  "video-overview",
+  "visual",
+  "youtube-research"
+ ],
  "first_tasks": {
   "ru": [
    "Пришлите 5–10 своих лучших постов — соберу ваш голос и предложу контент-план на 2 недели.",
@@ -41,5 +39,11 @@
    "Give me a topic — I'll make a post, a carousel and a short video script; nothing is published without your yes.",
    "Every Monday — what worked last week and what to repeat."
   ]
- }
+ },
+ "needs_packs": [
+  "business-assistant",
+  "manager",
+  "reklama",
+  "uzbek"
+ ]
 }

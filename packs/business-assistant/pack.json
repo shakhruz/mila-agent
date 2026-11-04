@@ -9,18 +9,10 @@
  "requires_core": "1.6.0",
  "core_skills": [
   "communication",
-  "client-chat",
   "tasks",
   "tasks-discipline",
-  "pult-dnya",
   "inbox",
   "inbox-triage",
-  "crm-dialogs",
-  "lead-qualify",
-  "dialog-close",
-  "draft-and-check",
-  "mail-outbound",
-  "plan-fakt",
   "raspisanie",
   "obratnaya-svyaz",
   "iniciativa",
@@ -28,7 +20,15 @@
   "cards",
   "onboarding"
  ],
- "skills": [],
+ "skills": [
+  "bud-gotova",
+  "mila-path",
+  "plan-fakt",
+  "pult-dnya",
+  "questions",
+  "razbor-lichki",
+  "zhonglyor"
+ ],
  "first_tasks": {
   "ru": [
    "Пришлите список дел на неделю — разложу по дням и каждое утро буду присылать план.",
@@ -40,5 +40,9 @@
    "Add me to your work chat — I'll record tasks and remind whose turn it is.",
    "Every Friday — the week's wrap-up: done, waiting, moved."
   ]
- }
+ },
+ "needs_packs": [
+  "manager",
+  "pochta"
+ ]
 }

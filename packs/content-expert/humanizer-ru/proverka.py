@@ -32,7 +32,9 @@ def _pd_find():
     try:
         import importlib.util
         here = os.path.dirname(os.path.abspath(__file__))
-        spec = importlib.util.spec_from_file_location("pd_vault", os.path.join(os.path.dirname(here), "pd-vault", "pd_vault.py"))
+        cand = [os.path.join(os.path.dirname(here), "pd-vault", "pd_vault.py"),   # installed: a sibling in ~/.claude/skills
+                os.path.join(here, "..", "..", "..", "skills", "pd-vault", "pd_vault.py")]   # in the repository: the pack sits in packs/<pack>/
+        spec = importlib.util.spec_from_file_location("pd_vault", next(c for c in cand if os.path.isfile(c)))
         m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
         return m.find
     except Exception:

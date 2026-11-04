@@ -9,20 +9,9 @@
  "requires_core": "1.6.0",
  "core_skills": [
   "communication",
-  "client-chat",
-  "guest-path",
-  "lead-qualify",
-  "crm-dialogs",
-  "dialog-close",
-  "reply-from-examples",
-  "draft-and-check",
-  "polite-no",
   "escalate-to-owner",
   "tasks",
-  "pult-dnya",
   "raspisanie",
-  "plan-fakt",
-  "metki-atribuciya",
   "obratnaya-svyaz",
   "cards",
   "onboarding"
@@ -39,5 +28,10 @@
    "Connect me to the request chat — each request gets a card: where, when, how many, budget, whose turn.",
    "Every evening — requests without an answer and tours with payment deadlines close."
   ]
- }
+ },
+ "needs_packs": [
+  "business-assistant",
+  "manager",
+  "reklama"
+ ]
 }

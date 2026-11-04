@@ -68,7 +68,7 @@ image and voice generation, payment links). Keys for those services are the main
 | A post through a consent category (publishing today) | cloud, rolling out: the consent proxy — a fresh single-use yes for that exact payload | a skill with a key in reach: only the permission policy for its command |
 | A mail, a broadcast, any other service call | the skill asks the owner — behavioural, not a boundary; the permission policy for the command | same |
 | Reading a key file | cloud, rolling out: consent-category keys (publishing) belong to `mila-io`, the session cannot read them; every other key — same as a laptop | nothing: the session can read it |
-| Spending above a limit | the `spend` skill asks the owner on a card — behavioural: the session could call a service around it | same |
+| Spending above a limit | the `spend` skill (pack «Images and paid generations») asks the owner on a card — behavioural: the session could call a service around it | same |
 | Writing in the owner's personal Telegram | the client allows only read, draft, folder and reaction requests — not a boundary | same |
 
 ## Where secrets live

@@ -13,7 +13,6 @@ services:
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}   # optional: empty → write /start to your bot and sign in to Claude from the chat
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}               # or an API key from console.anthropic.com
       OWNER_ID: ${OWNER_ID:-}                                 # optional: your Telegram id; empty → a pairing code in the log
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}             # optional: cheap tasks on open models (openrouter.ai/keys)
       GROQ_API_KEY: ${GROQ_API_KEY:-}                         # optional: Mila hears voice messages (console.groq.com/keys)
       TZ: ${TZ:-UTC}
       PORT: ""                                              # no token page here: the token comes from the variables above

@@ -59,7 +59,7 @@ def mask_cards(text, allow=None):
 
 def _delivery():
     """Журнал доставки ядра (tg_delivery.py рядом с хуками): нет — работаем как раньше."""
-    for d in (os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "install"), os.path.expanduser("~/.claude/hooks")):
+    for d in (os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "install"), os.path.expanduser("~/.claude/hooks")):
         if os.path.isfile(os.path.join(d, "tg_delivery.py")):
             if d not in sys.path: sys.path.insert(0, d)
             try:

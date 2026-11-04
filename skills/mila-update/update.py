@@ -1326,12 +1326,14 @@ def pack_list(lang="ru"):
 
 
 def pack_skills(d, m):
-    """свои навыки пака: подпапки с SKILL.md (и названные в «skills»), только внутри папки пака."""
-    names = [n for n in sorted(os.listdir(d)) if os.path.isfile(os.path.join(d, n, "SKILL.md"))]
+    """свои навыки пака: подпапки с SKILL.md (и названные в «skills»), только внутри папки пака.
+    Архив Маркета (tools/pack_mila.py) кладёт их в skills/<навык>/ — тоже понимаю."""
+    base = os.path.join(d, "skills") if os.path.isdir(os.path.join(d, "skills")) and not os.path.isfile(os.path.join(d, "skills", "SKILL.md")) else d
+    names = [n for n in sorted(os.listdir(base)) if os.path.isfile(os.path.join(base, n, "SKILL.md"))]
     names += [n for n in (m.get("skills") or []) if isinstance(n, str) and n not in names]
     out = []
     for n in names:
-        sd = os.path.realpath(os.path.join(d, n))
+        sd = os.path.realpath(os.path.join(base, n))
         if not PACK_ID.match(n) or not _inside(sd, os.path.realpath(d)) or not os.path.isfile(os.path.join(sd, "SKILL.md")):
             sys.exit(json.dumps({"error": "навык пака не найден в его папке: " + n}, ensure_ascii=False))
         out.append((n, sd))
@@ -1510,10 +1512,17 @@ def open_pack_archive(path, sha16):
         if not (reg or isdir): no("в архиве ссылка или особый файл: " + name[:80])
         if reg: files.append(n)
     tops = {f.split("/")[0] for f in files}
-    pre = (tops.pop() + "/") if len(tops) == 1 and "pack.json" not in files else ""
-    if pre + "pack.json" not in files: no("в архиве нет pack.json")
-    try: m = json.loads(read(next(n for n, *_ in ms if os.path.normpath(n) == pre + "pack.json")).decode("utf-8"))
-    except Exception: no("pack.json не читается")
+    pre = (tops.pop() + "/") if len(tops) == 1 and not {"pack.json", "manifest.json"} & set(files) else ""
+    head = pre + "pack.json" if pre + "pack.json" in files else pre + "manifest.json"   # manifest.json — архив Маркета (tools/pack_mila.py)
+    if head not in files: no("в архиве нет pack.json / manifest.json")
+    try: m = json.loads(read(next(n for n, *_ in ms if os.path.normpath(n) == head)).decode("utf-8"))
+    except Exception: no("%s не читается" % os.path.basename(head))
+    sums = m.get("files") if head.endswith("manifest.json") and isinstance(m.get("files"), dict) else None
+    if sums is not None:   # целостность: каждый файл архива — в манифесте с той же суммой, лишних и недостающих нет
+        got = {f[len(pre):] for f in files if f.startswith(pre)} - {"manifest.json"}
+        if got != set(sums): no("состав архива не совпадает с manifest.json")
+        for f in got:
+            if hashlib.sha256(read(next(n for n, *_ in ms if os.path.normpath(n) == pre + f))).hexdigest() != sums[f]: no("файл изменён после сборки: " + f[:80])
     pid = str(m.get("id", ""))
     if not PACK_ID.match(pid): no("в pack.json нет верного id (латиница, цифры, дефис)")
     stage = os.path.join(PACKS_IN, sha16)

@@ -16,24 +16,25 @@ r = sys.argv[1]; m = json.load(open(f"{r}/release.json")); ren = m.pop("renamed"
 for o, n in ren.items():
     if o.endswith(".md"):
         shutil.copy(f"{r}/canon/{n}", f"{r}/canon/{o}"); os.remove(f"{r}/canon/{n}"); continue
+    if not os.path.isdir(f"{r}/skills/{n}"): continue   # the skill went to a pack: not part of the core release any more
     shutil.rmtree(f"{r}/legacy/skills/{o}", ignore_errors=True); shutil.rmtree(f"{r}/skills/{o}", ignore_errors=True); shutil.move(f"{r}/skills/{n}", f"{r}/skills/{o}")
     p = f"{r}/skills/{o}/SKILL.md"; s = open(p).read().replace(f"name: {n}", f"name: {o}", 1); open(p, "w").write(s)
 m["version"], m["tag"] = "1.3.0", "v1.3.0"; json.dump(m, open(f"{r}/release.json", "w"), ensure_ascii=False, indent=2)
 PY
 $U apply --src "$T/old" --yes "тест: база 1.3" >/dev/null
-chk "база: навыки под старыми именами стоят" "[ -f $CLAUDE_CONFIG_DIR/skills/kartochki/SKILL.md ] && [ -f $CLAUDE_CONFIG_DIR/skills/rashod/SKILL.md ] && [ ! -e $CLAUDE_CONFIG_DIR/skills/cards ]"
-echo "моя правка расхода" >> "$CLAUDE_CONFIG_DIR/skills/rashod/SKILL.md"
+chk "база: навыки под старыми именами стоят" "[ -f $CLAUDE_CONFIG_DIR/skills/kartochki/SKILL.md ] && [ -f $CLAUDE_CONFIG_DIR/skills/proverka/SKILL.md ] && [ ! -e $CLAUDE_CONFIG_DIR/skills/cards ]"
+echo "моя правка проверки" >> "$CLAUDE_CONFIG_DIR/skills/proverka/SKILL.md"
 cp -R "$REPO" "$T/new"; rm -rf "$T/new/.git"
 python3 - "$T/new/release.json" <<'PY'
 import json, sys; p = sys.argv[1]; d = json.load(open(p)); d["version"], d["tag"] = "1.4.0", "v1.4.0"; json.dump(d, open(p, "w"), ensure_ascii=False, indent=2)
 PY
 $U apply --src "$T/new" --yes "тест: 1.4 с переименованием" > "$T/a.json"
-chk "новые имена поставлены (cards, spend, onboarding)" "[ -f $CLAUDE_CONFIG_DIR/skills/cards/SKILL.md ] && [ -f $CLAUDE_CONFIG_DIR/skills/spend/SKILL.md ] && [ -f $CLAUDE_CONFIG_DIR/skills/onboarding/SKILL.md ]"
-chk "старые папки — алиасы без SKILL.md (навык не задвоен)" "[ ! -e $CLAUDE_CONFIG_DIR/skills/kartochki/SKILL.md ] && [ -f $CLAUDE_CONFIG_DIR/skills/kartochki/MOVED.md ] && [ ! -e $CLAUDE_CONFIG_DIR/skills/rashod/SKILL.md ]"
+chk "новые имена поставлены (cards, verify, onboarding)" "[ -f $CLAUDE_CONFIG_DIR/skills/cards/SKILL.md ] && [ -f $CLAUDE_CONFIG_DIR/skills/verify/SKILL.md ] && [ -f $CLAUDE_CONFIG_DIR/skills/onboarding/SKILL.md ]"
+chk "старые папки — алиасы без SKILL.md (навык не задвоен)" "[ ! -e $CLAUDE_CONFIG_DIR/skills/kartochki/SKILL.md ] && [ -f $CLAUDE_CONFIG_DIR/skills/kartochki/MOVED.md ] && [ ! -e $CLAUDE_CONFIG_DIR/skills/proverka/SKILL.md ]"
 chk "ни один навык не задвоен по name:" "[ -z \"\$(grep -h '^name:' $CLAUDE_CONFIG_DIR/skills/*/SKILL.md | sort | uniq -d)\" ]"
 chk "старый путь скрипта работает: kartochki/kartochki.py → cards.py" "python3 $CLAUDE_CONFIG_DIR/skills/kartochki/kartochki.py 2>&1 | grep -q 'usage: cards.py'"
-chk "правка хозяина под старым именем сохранена в new/v1.4.0/было-rashod" "grep -q 'моя правка расхода' $CLAUDE_CONFIG_DIR/mila-update/new/v1.4.0/было-rashod/SKILL.md"
-chk "отчёт: переименовано и где правка" "python3 -c \"import json,sys; d=json.load(open('$T/a.json')); sys.exit(0 if d['pereimenovano'].get('kartochki')=='cards' and d['pereimenovano'].get('rashod')=='spend' and any('было-rashod' in x for x in d['pravka_starogo_imeni']) else 1)\""
+chk "правка хозяина под старым именем сохранена в new/v1.4.0/было-proverka" "grep -q 'моя правка проверки' $CLAUDE_CONFIG_DIR/mila-update/new/v1.4.0/было-proverka/SKILL.md"
+chk "отчёт: переименовано и где правка" "python3 -c \"import json,sys; d=json.load(open('$T/a.json')); sys.exit(0 if d['pereimenovano'].get('kartochki')=='cards' and d['pereimenovano'].get('proverka')=='verify' and any('было-proverka' in x for x in d['pravka_starogo_imeni']) else 1)\""
 chk "канон: OBDUMYVANIE → ссылка, THINKING-BUDGET — текст" "grep -q 'THINKING-BUDGET' $MILA_WORK/canon/OBDUMYVANIE.md && grep -q 'max_tokens' $MILA_WORK/canon/THINKING-BUDGET.md"
 chk "журнал: renamed записан" "grep -q '\"renamed\"' $CLAUDE_CONFIG_DIR/mila-update/journal.jsonl"
 $U diff --src "$T/new" > "$T/d.json"

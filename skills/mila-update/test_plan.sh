@@ -30,20 +30,20 @@ import json,sys; t=open('$T/p.txt').read(); d=json.load(open('$T/p.json')); g=t.
 L=[l[2:] for l in g.strip().splitlines() if l.startswith('· ')]; vs={v for v,l in zip(d['get_order'], d['get']) if l in L}
 sys.exit(0 if len(vs) >= 3 and all(len(l) <= 90 for l in L) else 1)\""
 chk "текст ≤ 900 знаков, есть «Не тронется» и «Отменить можно»" "python3 -c \"import sys; sys.exit(len(open('$T/p.txt').read().rstrip('\\\\n')) > 900)\" && grep -q 'Не тронется' $T/p.txt && grep -q 'Отменить можно' $T/p.txt"
-echo "новая строка текста" >> "$T/rel/skills/visual/SKILL.md"
+echo "новая строка текста" >> "$T/rel/skills/copyblock/SKILL.md"
 $U plan --src "$T/rel" --json > "$T/p.json"; $U plan --src "$T/rel" > "$T/p.txt"
-chk "поменялся только текст навыка → риск низкий, в «изменится» — visual" "grep -q '\"risk\": \"низкий\"' $T/p.json && grep -q 'visual' $T/p.txt"
-f=$(ls $T/rel/skills/visual/scripts/*.py 2>/dev/null | head -1); [ -z "$f" ] && { mkdir -p $T/rel/skills/visual/scripts; f=$T/rel/skills/visual/scripts/x.py; }
+chk "поменялся только текст навыка → риск низкий, в «изменится» — copyblock" "grep -q '\"risk\": \"низкий\"' $T/p.json && grep -q 'copyblock' $T/p.txt"
+f=$(ls $T/rel/skills/copyblock/scripts/*.py 2>/dev/null | head -1); [ -z "$f" ] && { mkdir -p $T/rel/skills/copyblock/scripts; f=$T/rel/skills/copyblock/scripts/x.py; }
 echo "# правка кода" >> "$f"
 $U plan --src "$T/rel" --json > "$T/p.json"
 chk "поменялся код навыка → риск средний" "grep -q '\"risk\": \"средний\"' $T/p.json"
 h=$(ls $T/rel/install/*.py | grep -v '/test_' | head -1); echo "# правка хука" >> "$h"
 $U plan --src "$T/rel" --json > "$T/p.json"
 chk "поменялся хук → риск высокий, имя хука в причине" "grep -q '\"risk\": \"высокий\"' $T/p.json && grep -q \"\$(basename $h)\" $T/p.json"
-echo "моя правка" >> "$CLAUDE_CONFIG_DIR/skills/visual/SKILL.md"
+echo "моя правка" >> "$CLAUDE_CONFIG_DIR/skills/copyblock/SKILL.md"
 $U plan --src "$T/rel" > "$T/p.txt"
 chk "хозяин правил навык → «ваши правки в 1 месте сохранятся» числом, без имени латиницей; не в «изменится»" "grep 'Не тронется' $T/p.txt | grep -q 'ваши правки в 1 месте сохранятся' && ! grep 'Не тронется' $T/p.txt | grep -q visual && ! grep 'навыки ядра' $T/p.txt | grep -q '(visual'"
-chk "plan ничего не пишет: дом не изменился" "grep -q 'моя правка' $CLAUDE_CONFIG_DIR/skills/visual/SKILL.md && ! grep -q 'правка хука' $CLAUDE_CONFIG_DIR/hooks/\$(basename $h)"
+chk "plan ничего не пишет: дом не изменился" "grep -q 'моя правка' $CLAUDE_CONFIG_DIR/skills/copyblock/SKILL.md && ! grep -q 'правка хука' $CLAUDE_CONFIG_DIR/hooks/\$(basename $h)"
 python3 - "$T/rel/CHANGELOG.md" <<'PY'
 import sys; p = sys.argv[1]; t = open(p).read(); h = "## v1.5.3 "
 i = t.index(h); j = t.index("\n", i) + 1

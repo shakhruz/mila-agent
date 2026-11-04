@@ -32,10 +32,4 @@ env -u GROQ_API_KEY bash "$H/install/transcribe-voice.sh" "$T/a.ogg" >/dev/null 
 chk "слух: две строки поля — берётся последняя (как read_safe)" "[ \"\$(cat '$T/auth.log')\" = 'Authorization: Bearer $GK' ]"
 rm -f "$T/sec/groq.env"
 chk "слух: нигде нет ключа → понятная строка" "env -u GROQ_API_KEY bash '$H/install/transcribe-voice.sh' '$T/a.ogg' 2>&1 | grep -q 'ни в env, ни в сейфе'"
-: > "$T/auth.log"; f=$(env -u OPENROUTER_API_KEY -u ANTHROPIC_BASE_URL sh "$H/skills/onboarding/fuel.sh" 2>&1)
-chk "топливо: env пуст, openrouter.env 600 → ключ из сейфа" "grep -q 'Bearer $OK_' '$T/auth.log' && echo '$f' | grep -q '^FUEL'"
-chk "топливо: значение ключа не в выводе" "! echo '$f' | grep -q '$OK_'"
-chmod 644 "$T/sec/openrouter.env"; : > "$T/auth.log"
-f=$(env -u OPENROUTER_API_KEY -u ANTHROPIC_BASE_URL sh "$H/skills/onboarding/fuel.sh" 2>&1)
-chk "топливо: openrouter.env 644 → отказ, FUEL unknown, в сеть не ходим" "echo '$f' | grep -q 'FUEL unknown' && [ ! -s '$T/auth.log' ]"
 echo "итог $ok/$n"; [ $ok -eq $n ]

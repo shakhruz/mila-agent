@@ -1,0 +1,17 @@
+{
+ "id": "reklama",
+ "kind": "addon",
+ "version": "0.1.0",
+ "title": {
+  "ru": "Реклама",
+  "en": "Ads",
+  "uz": "Reklama"
+ },
+ "requires_core": "1.8.0",
+ "core_skills": [],
+ "skills": [
+  "ab-test",
+  "kreativ-proverka",
+  "metki-atribuciya"
+ ]
+}

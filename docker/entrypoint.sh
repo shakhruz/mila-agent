@@ -4,7 +4,7 @@
 # Claude Code session in tmux «mila» (`claude -p --input-format stream-json`, stdin = FIFO, the plugin's channel).
 # Needs: TELEGRAM_BOT_TOKEN; the owner's own Claude login — CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token` on your computer,
 # your subscription) or ANTHROPIC_API_KEY. OWNER_ID (your Telegram id) is optional: without it a pairing code goes to the log.
-# OPENROUTER_API_KEY — optional, cheap tasks on open models. Nothing secret is printed.
+# Nothing secret is printed.
 set -u
 # Root only for one step: the home volume to agent (Railway mounts volumes as root), then the same script as agent.
 if [ "$(id -u)" = 0 ]; then

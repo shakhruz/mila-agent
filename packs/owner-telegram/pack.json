@@ -9,6 +9,7 @@
  "requires_core": "1.6.6",
  "core_skills": [],
  "skills": [
+  "own-inbox",
   "owner-telegram"
  ]
 }

@@ -16,14 +16,14 @@ v["files"] = {k.replace(home, "/opt/host/companion/test/home"): s for k, s in v[
 json.dump(v, open(p, "w"))
 PY
 chk "ключи version.json — пути хоста (подготовка)" "grep -q '/opt/host/companion/test/home/.claude/skills' $CLAUDE_CONFIG_DIR/mila-update/version.json"
-echo "# новое в релизе" >> "$T/rel/skills/visual/SKILL.md"
+echo "# новое в релизе" >> "$T/rel/skills/copyblock/SKILL.md"
 $U diff --src "$T/rel" --json > "$T/d.json"
-chk "изнутри дома: навык прошлого релиза с новым в релизе — «обновится», не «отличается»" "python3 -c \"import json,sys;r=[x for x in json.load(open('$T/d.json'))['rows'] if x['name']=='visual'][0];sys.exit(0 if r['state']=='обновится' else 1)\""
+chk "изнутри дома: навык прошлого релиза с новым в релизе — «обновится», не «отличается»" "python3 -c \"import json,sys;r=[x for x in json.load(open('$T/d.json'))['rows'] if x['name']=='copyblock'][0];sys.exit(0 if r['state']=='обновится' else 1)\""
 chk "остальные стоящие — «как есть», «отличается» нет" "python3 -c \"import json,sys;rs=json.load(open('$T/d.json'))['rows'];sys.exit(0 if not any(x['state']=='отличается' for x in rs) else 1)\""
-echo "моя правка" >> "$CLAUDE_CONFIG_DIR/skills/screen/SKILL.md"; echo "# и в релизе" >> "$T/rel/skills/screen/SKILL.md"
+echo "моя правка" >> "$CLAUDE_CONFIG_DIR/skills/topics/SKILL.md"; echo "# и в релизе" >> "$T/rel/skills/topics/SKILL.md"
 $U diff --src "$T/rel" --json > "$T/d2.json"
-chk "правка хозяина поверх записанной версии — «ваша правка», не затираю" "python3 -c \"import json,sys;r=[x for x in json.load(open('$T/d2.json'))['rows'] if x['name']=='screen'][0];sys.exit(0 if r['state']=='ваша правка' else 1)\""
+chk "правка хозяина поверх записанной версии — «ваша правка», не затираю" "python3 -c \"import json,sys;r=[x for x in json.load(open('$T/d2.json'))['rows'] if x['name']=='topics'][0];sys.exit(0 if r['state']=='ваша правка' else 1)\""
 $U apply --src "$T/rel" --yes "тест: обновление" >/dev/null 2>&1
-chk "apply обновил visual, а screen с правкой хозяина — нет" "grep -q 'новое в релизе' $CLAUDE_CONFIG_DIR/skills/visual/SKILL.md && grep -q 'моя правка' $CLAUDE_CONFIG_DIR/skills/screen/SKILL.md"
+chk "apply обновил copyblock, а topics с правкой хозяина — нет" "grep -q 'новое в релизе' $CLAUDE_CONFIG_DIR/skills/copyblock/SKILL.md && grep -q 'моя правка' $CLAUDE_CONFIG_DIR/skills/topics/SKILL.md"
 chk "после apply ключи — пути нынешнего дома (хвоста хоста нет)" "! grep -q '/opt/host/companion/test/home' $CLAUDE_CONFIG_DIR/mila-update/version.json"
 echo "итог $ok/$n"; [ $ok -eq $n ]

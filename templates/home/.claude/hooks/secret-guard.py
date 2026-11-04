@@ -4,7 +4,7 @@ and the safe's files with its own tools.
 
 The token of the owner's Claude subscription lives in ~/.mila-auth (and in the session's environment), the keys of the safe in
 ~/work/secrets. Mila never needs to read them herself: the helpers that use a key read it at the moment of the action
-(transcribe-voice.sh, safe_read.py, fuel.sh). So a tool call that names these places, dumps the environment or reads another
+(transcribe-voice.sh, safe_read.py). So a tool call that names these places, dumps the environment or reads another
 process's environment is denied with one line.
 
 This is a layer, not a wall: the session runs as the same user, and a determined command can be phrased so that no pattern
@@ -17,7 +17,7 @@ NAMES = re.compile(r"CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY|OPENROUTER_API_KE
 # the whole environment: env / printenv / export -p / set / declare -x on their own (or piped)
 DUMP = re.compile(r"(^|[;&|(`]\s*|\$\(\s*)(env|printenv|export\s+-p|declare\s+-[a-z]*x[a-z]*|set)\s*($|[;&|)`>])", re.I)
 # helpers that legitimately read a key at the moment of the action
-ALLOWED = re.compile(r"(transcribe-voice\.sh|safe_read\.py|fuel\.sh|key_page\.py|seif\.py|vault\.py)\b")
+ALLOWED = re.compile(r"(transcribe-voice\.sh|safe_read\.py|key_page\.py|seif\.py|vault\.py)\b")
 
 
 def why(tool, args):

@@ -75,9 +75,9 @@ That doubles the person's work: they read twice and still open the file.
 | Question | Skill |
 |---|---|
 | form and length of a message | `communication` |
-| style, natural Russian | `humanizer-ru` |
+| style, natural Russian | `humanizer-ru` (pack «Content expert») |
 | rapport, admitting a mistake, disagreement | `mila-speech` |
-| behaviour in a client chat, promises, tags | `client-chat` |
+| behaviour in a client chat, promises, tags | `client-chat` (pack «Mila — your first manager») |
 | money, complaints, haggling, value | `communication` (section on value) |
 | copy blocks for forwarding | `tg-copyblock` |
 

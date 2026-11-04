@@ -9,24 +9,25 @@
  "requires_core": "1.6.0",
  "core_skills": [
   "communication",
-  "client-chat",
-  "guest-path",
-  "lead-qualify",
-  "crm-dialogs",
-  "dialog-close",
-  "reply-from-examples",
-  "draft-and-check",
-  "polite-no",
   "escalate-to-owner",
   "tasks",
-  "pult-dnya",
   "raspisanie",
-  "plan-fakt",
   "obratnaya-svyaz",
   "cards",
   "onboarding"
  ],
- "skills": [],
+ "skills": [
+  "bot-send",
+  "client-chat",
+  "crm-dialogs",
+  "dialog-close",
+  "draft-and-check",
+  "exam",
+  "guest-path",
+  "lead-qualify",
+  "polite-no",
+  "reply-from-examples"
+ ],
  "docs": [
   "COURSE.md"
  ],
@@ -41,5 +42,8 @@
    "Give customers your bot's link or add me to the request chat — I answer everyone, usually within a minute or two.",
    "Every evening — who wrote, what I answered, who is waiting for you."
   ]
- }
+ },
+ "needs_packs": [
+  "business-assistant"
+ ]
 }

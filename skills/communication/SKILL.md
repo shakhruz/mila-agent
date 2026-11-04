@@ -10,7 +10,7 @@ description: "Use before sending any text to a person (owner, client, partner) i
 
 A message to the owner in a direct chat — first the lessons in [owner-dm](../owner-dm/SKILL.md).
 
-For the agent. Applies to every outgoing message to a person: the owner, a client, a partner. Languages: Russian, Uzbek, English. Uzbek style is the `humanizer-uz` skill, spelling is `uzbek-editor`, voice is `mila-speech`. This file covers form and length.
+For the agent. Applies to every outgoing message to a person: the owner, a client, a partner. Languages: Russian, Uzbek, English. Uzbek style is the `humanizer-uz` skill (pack «Uzbek»), spelling is `uzbek-editor`, voice is `mila-speech`. This file covers form and length.
 
 
 **Tuning fork before sending:** a short list of 8 checks — [CHECKLIST.md](CHECKLIST.md)

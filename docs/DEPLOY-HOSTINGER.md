@@ -15,7 +15,6 @@ It talks to Telegram outward only — no open ports.
 | `CLAUDE_CODE_OAUTH_TOKEN` *(optional)* | Leave it empty: after the start write /start to your bot — it sends a «Sign in to Claude» button, you sign in with your own account on the phone and send the code back in the chat. Or paste a token from `claude setup-token` here |
 | or `ANTHROPIC_API_KEY` | Pay-as-you-go instead of a subscription: console.anthropic.com → API keys |
 | `OWNER_ID` *(optional)* | Your numeric Telegram id (e.g. from @userinfobot). Empty → a pairing code in the log instead |
-| `OPENROUTER_API_KEY` *(optional)* | Cheap tasks on open models: openrouter.ai/keys |
 
 ## Steps
 

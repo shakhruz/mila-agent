@@ -1,0 +1,16 @@
+{
+ "id": "kartinki",
+ "kind": "addon",
+ "version": "0.1.0",
+ "title": {
+  "ru": "Картинки и платные генерации",
+  "en": "Images and paid generations",
+  "uz": "Rasmlar"
+ },
+ "requires_core": "1.8.0",
+ "core_skills": [],
+ "skills": [
+  "model-choice",
+  "spend"
+ ]
+}

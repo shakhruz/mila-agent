@@ -12,7 +12,7 @@ for c in ("cat ~/.mila-auth/oauth_token", "printenv CLAUDE_CODE_OAUTH_TOKEN", "e
           "cat /proc/1/environ", "export -p", "declare -px", "python3 -c 'import os;print(os.environ)' ; env", "cat work/secrets/groq.env",
           "base64 ~/.mila-auth/oauth_token", "grep -r sk- ~/.claude/.credentials.json"):
     chk("Bash стоп: " + c, dec("Bash", command=c), "deny")
-for c in ("ls -la", "git status", "python3 ~/.claude/skills/safe-link/scripts/safe_read.py groq GROQ_API_KEY --mask", "sh ~/.claude/skills/onboarding/fuel.sh",
+for c in ("ls -la", "git status", "python3 ~/.claude/skills/safe-link/scripts/safe_read.py groq GROQ_API_KEY --mask",
           "python3 /usr/local/bin/key_page.py deepgram --lang ru", "echo hello env", "grep -n environment README.md", "set -e; ls"):
     chk("Bash пропуск: " + c, dec("Bash", command=c), "allow")
 chk("Read ~/.mila-auth/oauth_token — стоп", dec("Read", file_path="/home/agent/.mila-auth/oauth_token"), "deny")

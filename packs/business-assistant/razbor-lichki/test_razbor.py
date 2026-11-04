@@ -2,7 +2,7 @@
 """Сценарий: Иван (клиент X) пишет хозяину «помощник молчит». По журналу помощника: Иван писал в 12:23, помощник ответил
 в 12:25 и 12:27 — не молчал. Второй случай: последнее входящее без ответа 40 минут — настоящее молчание. Тексты не выводятся."""
 import datetime as dt, json, os, sys, tempfile
-H = os.path.dirname(os.path.abspath(__file__)); R = os.path.dirname(os.path.dirname(H)); sys.path.insert(0, H); sys.path.insert(0, os.path.join(R, "tests", "fixtures"))
+H = os.path.dirname(os.path.abspath(__file__)); R = os.path.dirname(os.path.dirname(os.path.dirname(H))); sys.path.insert(0, H); sys.path.insert(0, os.path.join(R, "tests", "fixtures"))
 from razbor import report
 from fake_people import USER_ID, CHAT_ID
 ok = n = 0

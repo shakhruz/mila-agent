@@ -1,0 +1,15 @@
+{
+ "id": "jev",
+ "kind": "addon",
+ "version": "0.1.0",
+ "title": {
+  "ru": "Jev — кому адресовано",
+  "en": "Jev — who is it for",
+  "uz": "Jev"
+ },
+ "requires_core": "1.8.0",
+ "core_skills": [],
+ "skills": [
+  "jev"
+ ]
+}

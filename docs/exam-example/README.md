@@ -1,6 +1,6 @@
 # Express exam — example
 
-Check a sales Mila in under a minute after every prompt change (see [skills/exam](../../skills/exam/SKILL.md)).
+Check a sales Mila in under a minute after every prompt change (see [packs/manager/exam](../../packs/manager/exam/SKILL.md)).
 
 ```sh
 bun tools/express_exam.mjs --yaml docs/exam-example/exam.example.yaml --prompt docs/exam-example/guest-prompt.example.md --repeat 3
