@@ -30,6 +30,14 @@ except Exception:  # pragma: no cover
 # ---------- пути (переопределяются env для тестов) ----------
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("MILA_TASKS_DIR") or os.path.join(HOME, "work", "tasks")   # другая раскладка — env MILA_TASKS_DIR
+LEDGER = os.path.join(BASE, "ledger.jsonl")
+OPEN_MD = os.path.join(BASE, "OPEN.md")
+PROOF_DIR = os.path.join(BASE, "proof")
+ESTIMATES = os.path.join(BASE, "estimates.json")
+SENT_LOG = os.path.join(BASE, "sent.jsonl")          # исходящие через reply-хук
+STATE = os.path.join(BASE, "state.json")              # last_run команд
+TG_SENT_DIR = os.environ.get("MILA_TG_SENT_DIR") or os.path.join(HOME, ".claude", "channels", "telegram", "sent")
+TG_FAILED_DIR = os.environ.get("MILA_TG_FAILED_DIR") or os.path.join(HOME, ".claude", "channels", "telegram", "failed")
 NOW_MD = os.environ.get("MILA_NOW_MD") or os.path.join(HOME, "work", "NOW.md")
 
 ACTIVE_MAX = 3

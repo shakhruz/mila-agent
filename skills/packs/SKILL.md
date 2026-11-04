@@ -34,9 +34,10 @@ The same archive with a newer version is an update: the plan shows «Update: 0.1
 has are removed. A skill with the name of a core skill or one installed separately — the pack is refused.
 
 ## Remove and roll back
-- «Remove the pack X» → I ask «Remove the pack X? Its skills go, a backup stays.» → after «yes»:
+- «Remove the pack X» → I ask «Remove the pack X? Its skills go, a backup stays; to return it — install it again.» → after «yes»:
   `python3 $U remove-pack "X" --from "owner" --yes "<owner, DM, time>"`.
 - «Roll back» right after an install or update → `python3 $U rollback` returns the state before it.
+  After a removal «roll back» does not bring the pack back — to return it, install it again (a new plan and «yes»).
 
 Every step is a line in the journal of mila-update (who, when, the owner's «yes», backup); the list of installed packs is
 `~/work/PACKS.md`, my home reads the role from there.
