@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
-"""key_page.py groq — one key, once, through a page instead of the chat: Mila runs it when the owner wants her to hear voice
+"""key_page.py deepgram|groq — one key, once, through a page instead of the chat: Mila runs it when the owner wants her to hear voice
 messages. It prints one line — a one-time link https://<public address>/k/<token> — for Mila to send to the owner, then listens
 on $PORT until the key is saved or 10 minutes pass.
 
-The key is checked with the service (Groq: GET /openai/v1/models), saved in ~/work/secrets/groq.env (600, folder 700) — the
+The key is checked with the service (Deepgram: GET /v1/projects, Groq: GET /openai/v1/models), saved in ~/work/secrets/<kind>.env (600, folder 700) — the
 file the voice script already reads — and the page closes. The token in the link is 32 random characters and works once;
 wrong path → 404; 5 attempts in total. Neither the key nor the link token is written to any log.
 Without a public address (no RAILWAY_PUBLIC_DOMAIN / MILA_PUBLIC_URL) it says so in one line: then the key goes into the
 platform's variables (GROQ_API_KEY). Only stdlib. Exit 0 = saved, 3 = closed without a key, 2 = cannot open a page here."""
 import html, http.server, json, os, re, secrets, sys, threading, time, urllib.parse, urllib.request
 
-KINDS = {"groq": {"field": "GROQ_API_KEY", "file": "groq.env", "re": r"^gsk_[A-Za-z0-9]{20,}$",
-                  "check": "https://api.groq.com/openai/v1/models", "where": "console.groq.com/keys",
+KINDS = {"deepgram": {"field": "DEEPGRAM_API_KEY", "file": "deepgram.env", "re": r"^[A-Za-z0-9]{32,64}$", "auth": "Token ",
+                      "check": "https://api.deepgram.com/v1/projects", "where": "console.deepgram.com",
+                      "title": {"en": "Voice: Deepgram key", "ru": "Голос: ключ Deepgram", "uz": "Ovoz: Deepgram kaliti"},
+                      "intro": {"en": "So that I can hear your voice messages: open console.deepgram.com, sign up, create an API key and paste it here. New accounts get a free trial credit.",
+                                "ru": "Чтобы я слышала ваши голосовые: откройте console.deepgram.com, зарегистрируйтесь, создайте API-ключ и вставьте сюда. Новым аккаунтам даётся бесплатный пробный кредит.",
+                                "uz": "Ovozli xabarlaringizni eshitishim uchun: console.deepgram.com ni oching, ro‘yxatdan o‘ting, API kalit yarating va shu yerga qo‘ying. Yangi akkauntlarga bepul sinov krediti beriladi."}},
+         "groq": {"field": "GROQ_API_KEY", "file": "groq.env", "re": r"^gsk_[A-Za-z0-9]{20,}$",
+                  "check": "https://api.groq.com/openai/v1/models", "where": "console.groq.com/keys", "auth": "Bearer ",
                   "title": {"en": "Voice: Groq key", "ru": "Голос: ключ Groq", "uz": "Ovoz: Groq kaliti"},
                   "intro": {"en": "So that I can hear your voice messages: open console.groq.com/keys, create a key (free) and paste it here.",
                             "ru": "Чтобы я слышала ваши голосовые: откройте console.groq.com/keys, создайте ключ (бесплатно) и вставьте сюда.",
@@ -46,7 +52,7 @@ def page(body, lg):
 
 def check(kind, key):
     try:
-        r = urllib.request.Request(os.environ.get("KEY_CHECK_URL") or KINDS[kind]["check"], headers={"Authorization": "Bearer " + key})
+        r = urllib.request.Request(os.environ.get("KEY_CHECK_URL") or KINDS[kind]["check"], headers={"Authorization": KINDS[kind]["auth"] + key})
         with urllib.request.urlopen(r, timeout=15) as x:
             return x.status == 200
     except Exception:

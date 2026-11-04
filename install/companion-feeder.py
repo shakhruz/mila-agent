@@ -13,7 +13,7 @@ install/telegram-inbox-feed.py, с тем же экранированием пр
 Курсор — свой (inbound/feeder-cursor), чтобы после рестарта ничего не потерять и
 ничего не повторить. Секретов не печатает.
 """
-import json, os, stat, sys, time
+import json, os, re, stat, sys, time
 
 # Пути — через окружение. COMPANION_STATE — каталог состояния сессии (труба, журнал кормильца).
 COMPANION_STATE = os.environ.get("COMPANION_STATE", os.path.expanduser("~/.mila-companion/state"))
@@ -90,8 +90,9 @@ def envelope(p, m):
                 f.write(json.dumps({"ts": time.time(), "by": "feeder", "meta": m}, ensure_ascii=False) + "\n")
         except Exception:
             pass
-    return ('<channel source="telegram" chat_id="%s" message_id="%s" user="%s" ts="%s">%s%s%s</channel>'
-            % (esc(m.get("chat_id")), esc(m.get("message_id")), esc(who), esc(m.get("ts", "")),
+    lang = m.get("lang") if re.fullmatch(r"[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})?", str(m.get("lang") or "")) else ""
+    return ('<channel source="telegram" chat_id="%s" message_id="%s" user="%s"%s ts="%s">%s%s%s</channel>'
+            % (esc(m.get("chat_id")), esc(m.get("message_id")), esc(who), (' lang="%s"' % lang) if lang else "", esc(m.get("ts", "")),
                esc(txt), esc(att), quote))
 
 

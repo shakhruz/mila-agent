@@ -55,4 +55,20 @@ r = subprocess.run([sys.executable, os.path.join(H, "key_page.py"), "groq"], env
 check("нет публичного адреса — код 2 и строка «put GROQ_API_KEY into the platform's variables»", r.returncode == 2 and "GROQ_API_KEY" in r.stdout and "/k/" not in r.stdout, r.stdout)
 r = subprocess.run([sys.executable, os.path.join(H, "key_page.py"), "x"], capture_output=True, text=True, timeout=20)
 check("неизвестный вид ключа — код 2", r.returncode == 2)
+# Deepgram: the same page, its own header (Token) and file
+DGK = "a1b2c3d4" * 5
+class FakeDG(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def do_GET(self):
+        okk = self.headers.get("Authorization") == "Token " + DGK
+        b = b'{"projects": []}'; self.send_response(200 if okk else 401); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
+dg = http.server.ThreadingHTTPServer(("127.0.0.1", 0), FakeDG); threading.Thread(target=dg.serve_forever, daemon=True).start()
+port = free(); e = env(port); e["KEY_CHECK_URL"] = "http://127.0.0.1:%d/v1/projects" % dg.server_port
+r = subprocess.run([sys.executable, os.path.join(H, "key_page.py"), "deepgram"], env=e, capture_output=True, text=True, timeout=20)
+url = r.stdout.strip(); wait_port(port)
+c, b = req(url); check("deepgram: форма про console.deepgram.com", c == 200 and "console.deepgram.com" in b)
+c, b = req(url, {"k": DGK}); f2 = os.path.join(SEC, "deepgram.env")
+check("deepgram: ключ проверен заголовком Token и сохранён в deepgram.env 600", c == 200 and os.path.exists(f2) and open(f2).read().strip() == "DEEPGRAM_API_KEY='%s'" % DGK
+      and oct(os.stat(f2).st_mode & 0o777) == "0o600")
+dg.shutdown()
 api.shutdown(); shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

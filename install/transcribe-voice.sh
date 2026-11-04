@@ -10,11 +10,34 @@ safe_key() { _f="${SAFE_DIR:-$HOME/work/secrets}/$1.env"; [ -f "$_f" ] || return
   _m=$(stat -c %a "$_f" 2>/dev/null || stat -f %Lp "$_f"); case "$_m" in *00) ;; *) echo "[сейф $1 открыт другим ($_m) — не читаю]" >&2; return 1;; esac
   tr -d '\r' < "$_f" | sed -n -E "s/^[[:space:]]*(export[[:space:]]+)?$2[[:space:]]*=[[:space:]]*//p" | tail -n 1 |   # последняя строка — как dotenv и read_safe
     sed -E "s/[[:space:]]+\$//; s/^'(.*)'\$/\1/; s/^\"(.*)\"\$/\1/"; }   # руками пишут по-разному: CRLF, пробелы, export, "…"
+SRC="$1"
+# Deepgram first (nova-3, language=multi; a key is issued at once, $200 trial credit), Groq second (whisper; Uzbek — Deepgram has
+# none). Deepgram's answer is taken when it is sure (confidence ≥ 0.6); otherwise — Groq if its key is there, else Deepgram's text.
+DG="${DEEPGRAM_API_KEY:-}"
+[ -n "$DG" ] || DG=$(safe_key deepgram DEEPGRAM_API_KEY || true)
 KEY="${GROQ_API_KEY:-}"
 [ -n "$KEY" ] || KEY=$(safe_key groq GROQ_API_KEY || true)
-[ -n "$KEY" ] || { echo "[нет ключа Groq: ни в env, ни в сейфе groq.env]" >&2; exit 1; }
+[ -n "$DG$KEY" ] || { echo "[нет ключа распознавания: ни Deepgram, ни Groq — ни в env, ни в сейфе]" >&2; exit 1; }
+DG_TEXT=""
+if [ -n "$DG" ]; then
+  DG_OUT=$(curl -s --max-time 90 -X POST "${DEEPGRAM_API:-https://api.deepgram.com}/v1/listen?model=nova-3&language=multi&smart_format=true" \
+    -H "Authorization: Token $DG" -H "Content-Type: audio/ogg" --data-binary "@$SRC" | python3 -c '
+import json, sys
+try:
+    a = json.load(sys.stdin)["results"]["channels"][0]["alternatives"][0]
+    print("%.2f\t%s" % (float(a.get("confidence") or 0), (a.get("transcript") or "").strip()))
+except Exception:
+    print("0\t")')
+  DG_CONF="${DG_OUT%%$'\t'*}"; DG_TEXT="${DG_OUT#*$'\t'}"
+  if [ -n "$DG_TEXT" ] && python3 -c "import sys; sys.exit(0 if float('$DG_CONF') >= 0.6 else 1)"; then
+    printf '%s\n' "$DG_TEXT"; exit 0
+  fi
+  if [ -z "$KEY" ]; then
+    [ -n "$DG_TEXT" ] && { printf '%s\n' "$DG_TEXT"; exit 0; }
+    echo "[empty]"; exit 0
+  fi
+fi
 API="https://api.groq.com/openai/v1/audio/transcriptions"
-SRC="$1"
 case "$SRC" in
   *.oga) TMP="$(mktemp -t voiceXXXX).ogg"; cp "$SRC" "$TMP"; trap 'rm -f "$TMP"' EXIT; SRC="$TMP" ;;
 esac
@@ -36,6 +59,7 @@ case "$LANG" in
   uzbek|uz|azerbaijani|az|kazakh|kk|kyrgyz|ky|turkmen|tk|tatar|tt|turkish|tr|bashkir|ba|tajik|tg|uighur|ug|chuvash|cv|"")
     OUT2=$(ask "$SRC" "uz" | pick); TEXT2="${OUT2#*$'\t'}"; [ -n "$TEXT2" ] && TEXT="$TEXT2" ;;
 esac
+[ -z "$TEXT" ] && TEXT="$DG_TEXT"   # Groq said nothing — Deepgram's unsure text is better than none
 # D-NNNN (10.10): whisper путает имена продукта («Милодипити.io», «Milo Companion», «хайку 55»).
 # Подсказка prompt проверена и отвергнута: на голосовом 835 съела 30 % текста и вставила себя в ответ.
 # Поэтому только точная замена известных искажений после расшифровки; смысл не трогаем.

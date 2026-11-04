@@ -10,7 +10,7 @@ anything unread as additional context on every user turn.
 Marker file `inbound/seen` holds the byte offset already shown. `mila inbox`
 uses the same marker, so the two never double-report.
 """
-import json, os, sys
+import json, os, re, sys
 
 STATE = os.environ.get("TELEGRAM_STATE_DIR") or os.path.expanduser(
     "~/.claude/channels/telegram")
@@ -183,7 +183,8 @@ def main():
                 offset,
                 f'<channel source="telegram" chat_id="{esc(m.get("chat_id"))}" '
                 f'message_id="{esc(m.get("message_id"))}" user="{esc(who)}" '
-                f'ts="{esc(m.get("ts", ""))}">{esc(txt)}{esc(att)}{quote}</channel>'
+                + (f'lang="{m["lang"]}" ' if re.fullmatch(r"[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})?", str(m.get("lang") or "")) else "")
+                + f'ts="{esc(m.get("ts", ""))}">{esc(txt)}{esc(att)}{quote}</channel>'
             ))
 
     # Показываем самые СТАРЫЕ непрочитанные, а не самые свежие. Иначе маркер,
