@@ -5,6 +5,7 @@
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
 **Для хозяина**
+- Знакомство без кнопки «Удиви меня»: разбор вашего сайта или канала — шагом д2 в блоке «Ваше дело», одна находка и один шаг.
 - Паки: «поставь пак …» или архив пака в личку — показываю название, версию, новые навыки, нужные ключи и файлы с кодом; ставлю только после вашего «да». Новая версия архивом — обновление; «убери пак» и «откати» — назад, бэкап остаётся.
 - Новое базовое качество №11 «Поднимаю вибрации»: я выбираю слова, от которых у вас прибавляется уверенности и силы, ничего не придумываю, а риск называю сразу с шагом, как его пройти.
 - Все качества Милы — одним списком в `canon/QUALITIES.md`; новое №19 — «Деловое любопытство»: знаю рынок, цены и конкурентов и могу дать сравнение со свежими фактами.
@@ -18,6 +19,7 @@
 </details>
 
 **For the owner**
+- Getting acquainted without the «Surprise me» button: the look at your website or channel is step д2 in the «Your business» block — one finding and one step.
 - Packs: «install the pack …» or a pack archive in a DM — I show the name, version, new skills, keys it needs and its code files, and install only after your «yes». A newer archive updates it; «remove the pack» and «roll back» take it back, a backup stays.
 - New core quality №11 «I raise the spirit»: I pick words that add confidence and strength, make nothing up, and name a risk together with the step through it.
 - All of Mila's qualities in one list: `canon/QUALITIES.md`; new №19 «Business curiosity»: I follow the market, prices and competitors and can give a comparison with fresh facts.
