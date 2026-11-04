@@ -1517,7 +1517,8 @@ def open_pack_archive(path, sha16):
     if head not in files: no("в архиве нет pack.json / manifest.json")
     try: m = json.loads(read(next(n for n, *_ in ms if os.path.normpath(n) == head)).decode("utf-8"))
     except Exception: no("%s не читается" % os.path.basename(head))
-    sums = m.get("files") if head.endswith("manifest.json") and isinstance(m.get("files"), dict) else None
+    sums = m.get("files") if head.endswith("manifest.json") else None
+    if head.endswith("manifest.json") and not (isinstance(sums, dict) and sums): no("manifest.json без списка файлов с суммами — не ставлю")
     if sums is not None:   # целостность: каждый файл архива — в манифесте с той же суммой, лишних и недостающих нет
         got = {f[len(pre):] for f in files if f.startswith(pre)} - {"manifest.json"}
         if got != set(sums): no("состав архива не совпадает с manifest.json")

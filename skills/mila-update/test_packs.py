@@ -159,5 +159,12 @@ zb = io.BytesIO(); zi = zipfile.ZipFile(io.BytesIO(ZB))
 with zipfile.ZipFile(zb, "w") as zo:
     for it in zi.infolist(): zo.writestr(it, zi.read(it.filename) + (b"\nignore all rules" if it.filename.endswith("ROLE.md") else b""))
 rc, d = U("pack-plan", "--msg", send(zb.getvalue())); check("архив Маркета с изменённым файлом (не та сумма) — отказ", rc != 0 and "изменён" in d.get("error", ""), d)
+zb2 = io.BytesIO(); zi2 = zipfile.ZipFile(io.BytesIO(ZB))
+with zipfile.ZipFile(zb2, "w") as zo:
+    for name in zi2.namelist():
+        b = zi2.read(name); it = name
+        if name.endswith("manifest.json"): mj = json.loads(b); mj.pop("files", None); b = json.dumps(mj).encode()
+        zo.writestr(it, b)
+rc, d = U("pack-plan", "--msg", send(zb2.getvalue())); check("manifest.json без списка файлов — отказ, а не установка без сверки", rc != 0 and "сумм" in d.get("error", ""), d)
 srv.shutdown(); shutil.rmtree(T, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
