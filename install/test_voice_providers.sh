@@ -6,8 +6,9 @@ ok=0; n=0; chk(){ n=$((n+1)); if eval "$2" >/dev/null 2>&1; then ok=$((ok+1)); e
 mkdir -p "$T/bin" "$T/sec"
 cat > "$T/bin/curl" <<'C'
 #!/bin/bash
-for a in "$@"; do case "$a" in Authorization:*) printf '%s\n' "$a" >> "$CURL_LOG";; esac; done
+for a in "$@"; do case "$a" in Authorization:*) printf '%s\n' "$a" >> "$CURL_LOG";; http*) printf 'URL %s\n' "$a" >> "$CURL_LOG";; esac; done
 case "$*" in
+  */status*) echo "${KEYD_STATUS:-}";;
   *listen*) if [ "${DG_CODE:-200}" = 200 ]; then echo "{\"results\":{\"channels\":[{\"alternatives\":[{\"transcript\":\"$DG_SAYS\",\"confidence\":$DG_CONF}]}]}}"; else echo '{"err_code":"INVALID_AUTH"}'; fi
             case "$*" in *http_code*) echo "${DG_CODE:-200}";; esac;;
   *transcriptions*) echo '{"language":"uzbek","text":"salom dunyo"}';;
@@ -32,4 +33,10 @@ o=$(DG_CODE=401 run); chk "Deepgram 401, есть Groq — ответ Groq" 'ech
 rm "$T/sec/deepgram.env"; o=$(run); chk "только Groq (как во флоте) — путь прежний" '[ "$o" = "salom dunyo" ]' 'echo "$o"'
 rm "$T/sec/groq.env"; o=$(run); chk "ни одного ключа — понятная строка и код 1" 'echo "$o" | grep -q "нет ключа распознавания"' 'echo "$o"'
 o=$(DEEPGRAM_API_KEY="dg_env_1" DG_SAYS="ok" DG_CONF=0.9 bash "$H/install/transcribe-voice.sh" "$T/a.ogg" 2>&1); chk "ключ Deepgram из env" '[ "$o" = "ok" ]' 'echo "$o"'
+# the key keeper (Mila Agent): no key in the script — the request goes to the keeper with a placeholder
+: > "$T/auth.log"; o=$(MILA_KEYD=http://keyd KEYD_STATUS='{"anthropic": true, "deepgram": true, "groq": true}' DG_SAYS="через хранителя" DG_CONF=0.9 run)
+chk "хранитель ключей: Deepgram через него (/deepgram/v1/listen), в заголовке заглушка, не ключ" '[ "$o" = "через хранителя" ] && grep -q "URL http://keyd/deepgram/v1/listen" "$T/auth.log" && grep -q "Authorization: Token mila-keyd" "$T/auth.log"' 'cat "$T/auth.log"'
+: > "$T/auth.log"; o=$(MILA_KEYD=http://keyd KEYD_STATUS='{"anthropic": true, "deepgram": false, "groq": true}' run)
+chk "хранитель: только Groq — через него (/groq/openai/…), заглушка" '[ "$o" = "salom dunyo" ] && grep -q "URL http://keyd/groq/openai/v1/audio/transcriptions" "$T/auth.log" && grep -q "Bearer mila-keyd" "$T/auth.log"' 'cat "$T/auth.log"'
+o=$(MILA_KEYD=http://keyd KEYD_STATUS='{"anthropic": true, "deepgram": false, "groq": false}' run); chk "хранитель без ключей голоса — «нет ключа», код 1" 'echo "$o" | grep -q "нет ключа распознавания"' 'echo "$o"'
 echo "итог $ok/$n"; [ $ok -eq $n ]

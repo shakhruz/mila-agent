@@ -45,6 +45,16 @@ chmod +x "$SB"/*; env -i HOME="$HR" PATH="$SB:/usr/bin:/bin" "$PERL" -e "$TMO" 3
 chk "запуск от root: дом отдаётся agent (chown -R -h 1001), затем тот же скрипт под 1001 через setpriv" "grep -q 'chown -R -h 1001:1001 $HR' $SB/log && grep -q 'setpriv --reuid=1001 --regid=1001 --init-groups -- bash docker/entrypoint.sh' $SB/log"
 printf '#!/bin/sh\necho 1001\n' > "$SB/stat"; : > "$SB/log"; env -i HOME="$HR" PATH="$SB:/usr/bin:/bin" "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
 chk "дом уже agent — chown не нужен, только setpriv" "! grep -q chown $SB/log && grep -q setpriv $SB/log"
+PYD="$(dirname "$(command -v python3)")"
+# root → the key keeper first: on success the session gets only its address, the token variables are gone
+printf '#!/bin/sh\necho "setpriv $*" >> "%s/log"; env | grep -E "^(MILA_KEYD|KEYD_SOCK|CLAUDE_CODE_OAUTH_TOKEN|GROQ_API_KEY)=" | sed "s/=.*//" >> "%s/log"\nexit 0\n' "$SB" "$SB" > "$SB/setpriv"
+printf 'import os, sys\nopen("%s/log", "a").write("keyd " + " ".join(sys.argv[1:]) + "\\n")\nsys.exit(int(os.environ.get("KEYD_RC", "0")))\n' "$SB" > "$SB/keyd"; chmod +x "$SB"/*
+: > "$SB/log"; env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x GROQ_API_KEY=y "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
+chk "root: хранитель ключей запущен (boot --home --agent-uid 1001), сессии — только его адрес, переменных с токеном нет" "grep -q 'keyd boot --home $HR --agent-uid 1001' $SB/log && grep -qx MILA_KEYD $SB/log && grep -qx KEYD_SOCK $SB/log && ! grep -qx CLAUDE_CODE_OAUTH_TOKEN $SB/log && ! grep -qx GROQ_API_KEY $SB/log"
+: > "$SB/log"; env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" KEYD_RC=1 CLAUDE_CODE_OAUTH_TOKEN=x "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
+chk "хранитель не поднялся — без его адреса, токен как раньше (старт не ломается)" "! grep -qx MILA_KEYD $SB/log && grep -qx CLAUDE_CODE_OAUTH_TOKEN $SB/log && grep -q setpriv $SB/log"
+: > "$SB/log"; env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" MILA_KEYD=off "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
+chk "MILA_KEYD=off — хранитель не запускается" "! grep -q 'keyd boot' $SB/log && grep -q setpriv $SB/log"
 rm -rf "$SB" "$HR"
 HC=$(mktemp -d); mkdir -p "$HC/state" "$HC/.claude/channels/telegram"; echo 0 > "$HC/state/session.pid"; echo 0 > "$HC/.claude/channels/telegram/receiver.pid"
 chk "healthcheck: pid 0 — не «жив» (kill -0 0 бьёт по группе)" "! HOME=$HC bash docker/healthcheck.sh >/dev/null 2>&1"

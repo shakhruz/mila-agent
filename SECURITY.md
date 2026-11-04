@@ -24,16 +24,19 @@ Out of scope: vulnerabilities in Claude Code, Telegram or other upstream softwar
 
 ## The Claude token in the one-container setup
 
-In the container (Railway, docker-compose) the model can technically read the owner's Claude token: the token file and the
-session's environment belong to the same user as the session, and the session runs without permission prompts. A hook
-(`secret-guard.py`) and deny rules keep the model from doing it by accident; they do not stop a deliberate command. The
-fence — `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` (needs bubblewrap) or the token kept outside the session's user — is the next
-step, after a live probe on Railway. Until then, treat a prompt injection in the container as able to see the token.
+In the container (Railway, docker-compose) the Claude token and the voice keys are with the key keeper (`docker/mila_keyd.py`):
+its own user (`mila-keys`), files in `~/.keys` (700) the session's user cannot read, keys from earlier starts and from platform
+variables moved there by the entrypoint's root step. Claude Code and the voice script talk to the keeper at 127.0.0.1 with a
+placeholder; the keeper puts the key into the request to Anthropic, Deepgram or Groq. The model can use a key, not read it.
+`docker/wall_probe.sh` (run in CI inside the image) tries the ways out as the session's user. What is still open: a key
+passes through the sign-in helper or the key page (the session's user) for a moment when it is entered; the session can put
+another key in the keeper's socket (its own, not a leak); the bot token is still readable by the session — it moves to the
+keeper next. `MILA_KEYD=off` turns the keeper off (the old way: treat a prompt injection as able to see the token).
 
-The same holds for the receiver's journals (`inbound/events.jsonl`, `cards.jsonl`): the pack installer and the spend ledger
+The receiver's journals (`inbound/events.jsonl`, `cards.jsonl`) are still the session's user's: the pack installer and the spend ledger
 trust them for «the owner sent this file» and «the owner pressed yes», and they belong to the session's user. That stops an
-accident or a naive instruction, not a deliberate injection that writes a fake line. The fix is the same step as for the
-token: the receiver as its own user, signing its lines.
+accident or a naive instruction, not a deliberate injection that writes a fake line. The fix is the step the keys took: the receiver
+as its own user, signing its lines.
 
 ## What the send-guard is — and is not
 

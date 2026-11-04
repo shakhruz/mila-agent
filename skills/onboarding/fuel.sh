@@ -6,6 +6,12 @@
 CL="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 # вход по подписке хозяина (нет ANTHROPIC_BASE_URL, есть claudeAiOauth) — я не на запасе.
 # OPENROUTER_API_KEY при этом остаётся ключом инструментов (картинки, голос) — его баланс не «моё топливо».
+if [ -n "${MILA_KEYD:-}" ]; then   # Mila Agent with the key keeper: it says which login it holds, never the value
+  case "$(curl -s -m 5 "$MILA_KEYD/status")" in
+    *'"anthropic_kind": "sub"'*) echo "FUEL sub (подписка хозяина подключена: строку ⛽ не пишу, о запасе не говорю)"; exit 0 ;;
+    *'"anthropic_kind": "key"'*) echo "FUEL key (API-ключ Anthropic хозяина: строку ⛽ не пишу, о запасе не говорю)"; exit 0 ;;
+  esac
+fi
 if [ -z "${ANTHROPIC_BASE_URL:-}" ] && { grep -q claudeAiOauth "$CL/.credentials.json" 2>/dev/null || [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || [ -s "${MILA_AUTH_DIR:-$HOME/.mila-auth}/oauth_token" ]; }; then
   # подписка: вход в Claude Code файлом (credentials) или токеном setup-token (Mila Agent: env или ~/.mila-auth/oauth_token)
   echo "FUEL sub (подписка хозяина подключена: строку ⛽ не пишу, о запасе не говорю)"; exit 0

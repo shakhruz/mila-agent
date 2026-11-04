@@ -17,6 +17,11 @@ DG="${DEEPGRAM_API_KEY:-}"
 [ -n "$DG" ] || DG=$(safe_key deepgram DEEPGRAM_API_KEY || true)
 KEY="${GROQ_API_KEY:-}"
 [ -n "$KEY" ] || KEY=$(safe_key groq GROQ_API_KEY || true)
+# The key keeper (Mila Agent): the keys are with it, the request goes through it with a placeholder — this script never holds a key.
+if [ -n "${MILA_KEYD:-}" ] && ST_=$(curl -s --max-time 5 "$MILA_KEYD/status"); then
+  case "$ST_" in *'"deepgram": true'*) DG=mila-keyd; DEEPGRAM_API="$MILA_KEYD/deepgram" ;; esac
+  case "$ST_" in *'"groq": true'*) KEY=mila-keyd; GROQ_API="$MILA_KEYD/groq" ;; esac
+fi
 [ -n "$DG$KEY" ] || { echo "[нет ключа распознавания: ни Deepgram, ни Groq — ни в env, ни в сейфе]" >&2; exit 1; }
 DG_TEXT=""
 if [ -n "$DG" ]; then
@@ -47,7 +52,7 @@ except Exception:
     echo "[empty]"; exit 0
   fi
 fi
-API="https://api.groq.com/openai/v1/audio/transcriptions"
+API="${GROQ_API:-https://api.groq.com}/openai/v1/audio/transcriptions"
 case "$SRC" in
   *.oga) TMP="$(mktemp -t voiceXXXX).ogg"; cp "$SRC" "$TMP"; trap 'rm -f "$TMP"' EXIT; SRC="$TMP" ;;
 esac

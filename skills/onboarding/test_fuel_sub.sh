@@ -8,4 +8,8 @@ mkdir -p "$T/.mila-auth"; echo t > "$T/.mila-auth/oauth_token"; o=$(run); chk "�
 rm -rf "$T/.mila-auth"; o=$(run ANTHROPIC_API_KEY=x); chk "API-ключ Anthropic → FUEL key" 'echo "$o" | grep -q "^FUEL key"'
 o=$(run CLAUDE_CODE_OAUTH_TOKEN=x ANTHROPIC_BASE_URL=https://openrouter.ai/api); chk "через OpenRouter (BASE_URL) — не sub" '! echo "$o" | grep -q "^FUEL sub"'
 o=$(run); chk "ничего нет → FUEL unknown" 'echo "$o" | grep -q "^FUEL unknown"'
+mkdir -p "$T/bin"; printf '#!/bin/sh\necho "$KS"\n' > "$T/bin/curl"; chmod +x "$T/bin/curl"
+kd(){ env -i HOME="$T" PATH="$T/bin:/usr/bin:/bin" CLAUDE_CONFIG_DIR="$T/.claude" MILA_KEYD=http://keyd ANTHROPIC_BASE_URL=http://keyd/anthropic KS="$1" sh "$H/fuel.sh" 2>&1; }
+o=$(kd '{"anthropic": true, "anthropic_kind": "sub"}'); chk "хранитель ключей держит подписку → FUEL sub" 'echo "$o" | grep -q "^FUEL sub"'
+o=$(kd '{"anthropic": true, "anthropic_kind": "key"}'); chk "хранитель держит ключ API → FUEL key" 'echo "$o" | grep -q "^FUEL key"'
 echo "итог $ok/$n"; [ $ok -eq $n ]

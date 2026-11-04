@@ -27,6 +27,8 @@ jobs:
           docker rm -f smoke
       - name: smoke — tools inside the image
         run: docker run --rm --entrypoint bash mila-agent:ci -c 'claude --version && bun --version && python3 --version && test -f /opt/mila/plugin/mila-telegram/receiver.ts && test -f /opt/mila/kit/install/companion-feeder.py'
+      - name: wall probe — as the session's user no fake key is readable (key keeper as its own user)
+        run: docker run --rm --entrypoint bash mila-agent:ci /opt/mila/kit/docker/wall_probe.sh
       - name: publish to GHCR (release tags only)
         if: startsWith(github.ref, 'refs/tags/v')
         run: |

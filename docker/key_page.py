@@ -62,6 +62,11 @@ def check(kind, key):
 
 
 def save(kind, key):
+    if os.environ.get("KEYD_SOCK"):   # the key keeper is here: the key goes to it, the session never sees it
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import mila_keyd
+        if not mila_keyd.put_remote(kind, key): raise OSError("the key keeper refused the key")
+        return
     os.makedirs(SECRETS, mode=0o700, exist_ok=True); os.chmod(SECRETS, 0o700)
     p = os.path.join(SECRETS, KINDS[kind]["file"]); tmp = "%s.%d.tmp" % (p, os.getpid())
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)

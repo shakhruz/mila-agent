@@ -25,10 +25,11 @@ RUN git clone --depth 1 --branch "${PLUGIN_REF}" "${PLUGIN_REPO}" /opt/mila/plug
  && printf '{"name":"mila-local","owner":{"name":"Mila"},"plugins":[{"name":"mila-telegram","source":"./mila-telegram","description":"Mila Telegram channel"}]}' \
       > /opt/mila/marketplace/.claude-plugin/marketplace.json
 
-RUN useradd -m -u 1001 -s /bin/bash agent
+RUN useradd -m -u 1001 -s /bin/bash agent \
+ && useradd -M -u 1002 -d /nonexistent -s /usr/sbin/nologin mila-keys
 COPY . /opt/mila/kit
-COPY docker/entrypoint.sh docker/healthcheck.sh docker/claude_login.py docker/birth_claim.py docker/token_page.py docker/key_page.py docker/mila-face.webp /usr/local/bin/
-RUN chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh /usr/local/bin/claude_login.py /usr/local/bin/birth_claim.py /usr/local/bin/token_page.py /usr/local/bin/key_page.py /opt/mila/kit/install/transcribe-voice.sh \
+COPY docker/entrypoint.sh docker/healthcheck.sh docker/claude_login.py docker/birth_claim.py docker/token_page.py docker/key_page.py docker/mila_keyd.py docker/mila-face.webp /usr/local/bin/
+RUN chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh /usr/local/bin/claude_login.py /usr/local/bin/birth_claim.py /usr/local/bin/token_page.py /usr/local/bin/key_page.py /usr/local/bin/mila_keyd.py /opt/mila/kit/install/transcribe-voice.sh \
  && chown -R agent:agent /opt/mila/plugin /opt/mila/marketplace
 
 ENV HOME=/home/agent MILA_KIT=/opt/mila/kit \

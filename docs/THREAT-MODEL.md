@@ -107,12 +107,13 @@ the Claude token (`CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`) and any opti
 can read. What still holds: pairing / allowlist (layer 1), the send-guard (layer 4), no open ports. Mount nothing into the
 container you would not hand to the session.
 
-The model can technically read the owner's Claude token in this setup: the token file (`~/.mila-auth/oauth_token`) and the
-session's environment belong to the same user as the session. `secret-guard.py` and the deny rules on `~/.mila-auth` and
-`~/work/secrets` stop the model from doing it by accident; a deliberate command (a path mask, a variable name built in parts)
-gets past them — they are not a wall. The wall is `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which strips credentials from every
-subprocess; it needs bubblewrap, and Claude Code does not start without it. It will be turned on after a probe shows the
-platform (Railway) allows it; if it does not, the token will move to a file only a root step of the entrypoint reads.
+The Claude token and the voice keys are with the key keeper (`docker/mila_keyd.py`, user `mila-keys`, `~/.keys` 700): the
+session reaches Anthropic, Deepgram and Groq through it at 127.0.0.1 with a placeholder and never holds a key; the entrypoint's
+root step moves keys from variables and old files into it and drops them from the session's environment. Checked in CI by
+`docker/wall_probe.sh` as the session's user: files, the keeper's `/proc`, `ps`, the environment, a search of the home.
+Left open: the moment a key is entered (the sign-in helper and the key page run as the session's user), and the bot token —
+the session can still read it until the receiver goes through the keeper too. `secret-guard.py` and the deny rules stay as the
+layer in front.
 
 The receiver's journals (`inbound/events.jsonl`, `cards.jsonl`) are what the pack installer (`update.py install-pack`) and
 `spend.py` check for «the owner sent this file» and «the owner pressed yes». They are written by the receiver but owned by

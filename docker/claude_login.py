@@ -251,6 +251,11 @@ def save(token, owner):
     """token None — only the owner (right after pairing: a redeploy before the Claude sign-in must not lose the owner)."""
     os.makedirs(AUTH, mode=0o700, exist_ok=True)
     os.chmod(AUTH, 0o700)
+    if token is not None and os.environ.get("KEYD_SOCK"):   # the key keeper is here: the token goes to it, not to a file
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import mila_keyd
+        if not mila_keyd.put_remote("anthropic", token): raise OSError("the key keeper refused the token")
+        token = None
     for name, val in (("oauth_token", token), ("owner_id", owner)):
         if val is None: continue
         p = os.path.join(AUTH, name); tmp = p + ".tmp"
@@ -339,7 +344,9 @@ def main():
                 else: say(uid, tx(uid, "timeout"))
                 continue
             sess.close(); sess = None
-            save(tok, owner)
+            try: save(tok, owner)
+            except OSError as e:
+                print("claude-login: token not kept — %s" % e, flush=True); say(uid, tx(uid, "no_read")); who = None; continue
             # confirm every update read so far: the offset only reaches Telegram with the NEXT getUpdates — without this the
             # message with the code comes again to the receiver that starts next, and the model gets the sign-in code
             tg("getUpdates", offset=offset, timeout=0, allowed_updates=["message"])

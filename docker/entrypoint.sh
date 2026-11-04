@@ -10,6 +10,15 @@ set -u
 if [ "$(id -u)" = 0 ]; then
   AU="${MILA_AGENT_UID:-1001}"
   [ "$(stat -c %u "$HOME" 2>/dev/null)" = "$AU" ] || chown -R -h "$AU:$AU" "$HOME"
+  # The key keeper (mila_keyd.py): the Claude token and the voice keys move to its own user (~/.keys, 700) — variables and
+  # files of earlier starts included; the session gets only the keeper's address and can use a key, not read it.
+  # MILA_KEYD=off keeps the old way (keys readable by the session, see SECURITY.md).
+  if [ "${MILA_KEYD:-on}" != off ] && python3 "${KEYD_BIN:-/usr/local/bin/mila_keyd.py}" boot --home "$HOME" --agent-uid "$AU" 2>&1 | sed 's/^/mila-agent: /'; [ "${PIPESTATUS[0]}" = 0 ]; then
+    export MILA_KEYD=http://127.0.0.1:8790 KEYD_SOCK=/run/mila-keyd/put.sock
+    unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY DEEPGRAM_API_KEY GROQ_API_KEY
+  else
+    unset MILA_KEYD KEYD_SOCK
+  fi
   exec setpriv --reuid="$AU" --regid="$AU" --init-groups -- bash "$0" "$@"
 fi
 H="$HOME"; ST=$H/state; CL=$H/.claude
@@ -35,18 +44,22 @@ if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] && [ -s "$AUTH/bot_token" ]; then TELEGRAM_B
 # Claude login: a variable, or the one saved by an earlier sign-in from Telegram (volume, 600). None — sign in from the chat:
 # the helper answers /start with Anthropic's own sign-in link and takes the code back in the chat (no ports, no page).
 load_auth() {
-  if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}${ANTHROPIC_API_KEY:-}" ] && [ -s "$AUTH/oauth_token" ]; then
+  if [ -n "${MILA_KEYD:-}" ]; then   # the keeper holds the key: Claude Code talks to it, with a placeholder instead of a token
+    if curl -s --max-time 5 "$MILA_KEYD/status" | grep -q '"anthropic": true'; then
+      export ANTHROPIC_BASE_URL="$MILA_KEYD/anthropic" ANTHROPIC_AUTH_TOKEN=mila-keyd
+    fi
+  elif [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}${ANTHROPIC_API_KEY:-}" ] && [ -s "$AUTH/oauth_token" ]; then
     CLAUDE_CODE_OAUTH_TOKEN="$(head -n1 "$AUTH/oauth_token")"; export CLAUDE_CODE_OAUTH_TOKEN
   fi
   if [ -z "${OWNER_ID:-}" ] && [ -s "$AUTH/owner_id" ]; then OWNER_ID="$(head -n1 "$AUTH/owner_id")"; export OWNER_ID; fi
 }
 load_auth
-if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}${ANTHROPIC_API_KEY:-}" ]; then
+if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}${ANTHROPIC_API_KEY:-}${ANTHROPIC_AUTH_TOKEN:-}" ]; then
   log "no Claude login yet — write /start to your bot in Telegram: it sends the sign-in button (your own Claude account)"
   until MILA_AUTH_DIR="$AUTH" python3 "${LOGIN_HELPER:-/usr/local/bin/claude_login.py}"; do log "sign-in helper stopped — restarting in 10 s"; sleep 10; done
   load_auth
 fi
-[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}${ANTHROPIC_API_KEY:-}" ] || wait_forever "No Claude login after sign-in — write /login to the bot and try again."
+[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}${ANTHROPIC_API_KEY:-}${ANTHROPIC_AUTH_TOKEN:-}" ] || wait_forever "No Claude login after sign-in — write /login to the bot and try again."
 [ -z "${OWNER_ID:-}" ] || [[ "$OWNER_ID" =~ ^[0-9]{3,15}$ ]] || wait_forever "OWNER_ID must be your numeric Telegram id (or leave it empty for a pairing code)."
 
 umask 077
