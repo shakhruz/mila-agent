@@ -16,6 +16,7 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}             # optional: cheap tasks on open models (openrouter.ai/keys)
       GROQ_API_KEY: ${GROQ_API_KEY:-}                         # optional: Mila hears voice messages (console.groq.com/keys)
       TZ: ${TZ:-UTC}
+      PORT: ""                                              # no token page here: the token comes from the variables above
     volumes:
       - mila-home:/home/agent     # memory, skills, journal, the bot's state — survives updates
     # No ports: Mila talks to Telegram outward only; nothing listens on the internet.

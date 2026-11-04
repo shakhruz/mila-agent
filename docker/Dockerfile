@@ -37,6 +37,10 @@ ENV HOME=/home/agent MILA_KIT=/opt/mila/kit \
 
 # Starts as root only to give the home volume to agent (Railway and some panels mount volumes as root),
 # then entrypoint drops to agent (uid 1001) with setpriv before anything else runs. Claude Code never runs as root.
+# PORT: the one-field token page listens here only while there is no bot token (Railway asks for the port when you generate a
+# domain and suggests 8080). docker-compose sets PORT empty — there the token comes from a variable, no page.
+ENV PORT=8080
+EXPOSE 8080
 WORKDIR /home/agent
 # No VOLUME line: Railway refuses Dockerfiles with VOLUME. The home is a volume by the platform (compose: mila-home, Railway: Attach Volume → /home/agent).
 HEALTHCHECK --interval=60s --timeout=10s --start-period=180s --retries=3 CMD ["/usr/local/bin/healthcheck.sh"]
