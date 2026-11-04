@@ -26,7 +26,7 @@ Press **Deploy**. The first build takes a few minutes. In **Deploy Logs** wait f
 
 ## 4. Bot token — one field
 Open `https://<your domain>/` → paste the bot token → **Save**. The page checks it with Telegram, shows a button
-**Open the bot**, and closes itself. The token is kept on the volume; your Claude token and voice keys stay with the container's key keeper, which Mila uses but cannot read.
+**Open the bot**, and closes itself. The token is kept on the volume; your Claude token and voice keys stay with the container's key keeper, which Mila uses but cannot read (the key keeper is new — not yet tried live on Railway).
 
 ## 5. Your Claude — from Telegram
 In the bot press **Start** (that pairs you as the owner), then follow its message: it sends a «Sign in to Claude» link,
