@@ -6,6 +6,12 @@
 # your subscription) or ANTHROPIC_API_KEY. OWNER_ID (your Telegram id) is optional: without it a pairing code goes to the log.
 # OPENROUTER_API_KEY — optional, cheap tasks on open models. Nothing secret is printed.
 set -u
+# Root only for one step: the home volume to agent (Railway mounts volumes as root), then the same script as agent.
+if [ "$(id -u)" = 0 ]; then
+  AU="${MILA_AGENT_UID:-1001}"
+  [ "$(stat -c %u "$HOME" 2>/dev/null)" = "$AU" ] || chown -R -h "$AU:$AU" "$HOME"
+  exec setpriv --reuid="$AU" --regid="$AU" --init-groups -- bash "$0" "$@"
+fi
 H="$HOME"; ST=$H/state; CL=$H/.claude
 TG=$CL/channels/telegram            # the plugin's real state: .env, access.json, receiver journal
 TGS=$CL/channels/telegram-session   # the session's bridge: same token, EMPTY journal (the feeder delivers)

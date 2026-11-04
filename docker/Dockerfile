@@ -1,5 +1,6 @@
 # Mila Agent — one container: Claude Code + the Mila kit (skills, hooks, launcher) + the mila-telegram plugin.
-# Build context = the repository root:  docker build -f docker/Dockerfile .
+# Build context = the repository root:  docker build -f docker/Dockerfile .  (the root Dockerfile is the same file:
+# Railway and other «deploy from GitHub» panels look for ./Dockerfile; test_docker_files checks the two stay equal)
 # Same shape as the MILAGPT fleet image (companion-run.sh): receiver daemon + feeder + a Claude Code session in tmux.
 # Nothing secret is baked in: the bot token and the Claude login come from environment variables at run time.
 FROM node:22-bookworm-slim
@@ -34,8 +35,9 @@ ENV HOME=/home/agent MILA_KIT=/opt/mila/kit \
     TELEGRAM_STATE_DIR=/home/agent/.claude/channels/telegram \
     DISABLE_AUTOUPDATER=1 DISABLE_TELEMETRY=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 
-USER agent
+# Starts as root only to give the home volume to agent (Railway and some panels mount volumes as root),
+# then entrypoint drops to agent (uid 1001) with setpriv before anything else runs. Claude Code never runs as root.
 WORKDIR /home/agent
-VOLUME ["/home/agent"]
+# No VOLUME line: Railway refuses Dockerfiles with VOLUME. The home is a volume by the platform (compose: mila-home, Railway: Attach Volume → /home/agent).
 HEALTHCHECK --interval=60s --timeout=10s --start-period=180s --retries=3 CMD ["/usr/local/bin/healthcheck.sh"]
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
