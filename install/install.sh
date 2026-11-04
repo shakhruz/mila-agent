@@ -131,7 +131,7 @@ for f in reply-required.py pd-mask.py; do
   say "hook → $HOOK_DIR/$f"
 done
 # сторож отправки и журнал обещаний — у self-host тоже из коробки
-for f in send-guard.py done-guard.py secret-guard.py; do
+for f in send-guard.py done-guard.py secret-guard.py skill-hint.py; do
   install_file "$ROOT/templates/home/.claude/hooks/$f" "$HOOK_DIR/$f" "$f"
   run chmod 755 "$HOOK_DIR/$f"
   say "hook → $HOOK_DIR/$f"
@@ -275,7 +275,7 @@ fi
 
 if [[ $DRY -eq 1 ]]; then
   say "would check $CLAUDE_DIR/settings.json — register hooks (backup first if it changes):"
-  say "  UserPromptSubmit: telegram-inbox-feed.py · SessionStart + PostToolUse(CronCreate|CronDelete): crons-keeper.py · Stop: reply-required.py · PostToolUse(Write|Edit): pd-mask.py"
+  say "  UserPromptSubmit: telegram-inbox-feed.py, skill-hint.py · SessionStart + PostToolUse(CronCreate|CronDelete): crons-keeper.py · Stop: reply-required.py · PostToolUse(Write|Edit): pd-mask.py"
   say "  PreToolUse(reply|edit_message): send-guard.py, done-guard.py · PostToolUseFailure: done-guard.py · PostToolUse(reply): task-sent.py · SessionStart: task-open.py · env OWNER_ID (MILA_OWNER_ID)"
   say "would create the personal data vault key ~/.config/mila/pd.key (600) if missing"
 else
@@ -342,6 +342,10 @@ for _r in ('Read(~/.mila-auth/**)', 'Edit(~/.mila-auth/**)', 'Read(~/work/secret
     if _r not in _deny:
         _deny.append(_r)
         if ('_env', None) not in ck_missing: ck_missing.append(('_env', None))
+# skill-hint: одно короткое слово в личке владельца («пульт») → подсказка навыка; отдельной записью UserPromptSubmit
+sh = 'python3 ' + os.path.join(cfg_dir, 'hooks', 'skill-hint.py')
+if not any('skill-hint.py' in json.dumps(x) for x in hooks.get('UserPromptSubmit', [])):
+    ck_missing.append(('UserPromptSubmit', {'hooks': [{'type': 'command', 'command': sh}]}))
 # сторож упал/завис → сообщение НЕ уходит. Уже записанный хук без onFailure — дописываем ключ
 for e in hooks.get('PreToolUse', []):
     for hk in (e.get('hooks') or []) if isinstance(e, dict) else []:

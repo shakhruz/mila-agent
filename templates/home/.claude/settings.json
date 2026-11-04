@@ -28,6 +28,10 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/telegram-inbox-feed.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/hooks/skill-hint.py"
           }
         ]
       }
