@@ -233,6 +233,10 @@ server paths; if the guard itself fails, nothing is sent. It is a safety net, no
 Mila (pairing, allowlist), permission prompts and the consent proxy for outward actions are. See [SECURITY.md](SECURITY.md)
 and the [threat model](docs/THREAT-MODEL.md): who can write to Mila, what she can do, where the limits are.
 
+In the one-container setup the model can technically read your Claude token: a hook and deny rules stop it from doing so by
+accident, not on purpose. The full fence (`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`) is waiting for a probe on Railway — see the
+threat model.
+
 ## Who builds Mila
 
 MILAGPT is a small team led by **Shakhruz Ashot Ashirov** - founder of MILAGPT and AshotAI, 40 years in software,

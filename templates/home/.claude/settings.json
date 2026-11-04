@@ -46,6 +46,15 @@
             "command": "python3 $HOME/.claude/hooks/done-guard.py"
           }
         ]
+      },
+      {
+        "matcher": "Bash|Read|Grep|Glob|Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/hooks/secret-guard.py"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -68,6 +77,14 @@
           }
         ]
       }
+    ]
+  },
+  "permissions": {
+    "deny": [
+      "Read(~/.mila-auth/**)",
+      "Edit(~/.mila-auth/**)",
+      "Read(~/work/secrets/**)",
+      "Edit(~/work/secrets/**)"
     ]
   }
 }

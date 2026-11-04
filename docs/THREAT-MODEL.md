@@ -107,6 +107,13 @@ the Claude token (`CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`) and any opti
 can read. What still holds: pairing / allowlist (layer 1), the send-guard (layer 4), no open ports. Mount nothing into the
 container you would not hand to the session.
 
+The model can technically read the owner's Claude token in this setup: the token file (`~/.mila-auth/oauth_token`) and the
+session's environment belong to the same user as the session. `secret-guard.py` and the deny rules on `~/.mila-auth` and
+`~/work/secrets` stop the model from doing it by accident; a deliberate command (a path mask, a variable name built in parts)
+gets past them — they are not a wall. The wall is `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which strips credentials from every
+subprocess; it needs bubblewrap, and Claude Code does not start without it. It will be turned on after a probe shows the
+platform (Railway) allows it; if it does not, the token will move to a file only a root step of the entrypoint reads.
+
 ## Reporting
 
 See [SECURITY.md](../SECURITY.md) — private channel, answer within 5 business days.

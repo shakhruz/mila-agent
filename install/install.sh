@@ -130,7 +130,7 @@ for f in reply-required.py pd-mask.py; do
   say "hook → $HOOK_DIR/$f"
 done
 # сторож отправки и журнал обещаний — у self-host тоже из коробки
-for f in send-guard.py done-guard.py; do
+for f in send-guard.py done-guard.py secret-guard.py; do
   install_file "$ROOT/templates/home/.claude/hooks/$f" "$HOOK_DIR/$f" "$f"
   run chmod 755 "$HOOK_DIR/$f"
   say "hook → $HOOK_DIR/$f"
@@ -331,6 +331,15 @@ if not any('done-guard.py' in json.dumps(x) for x in hooks.get('PreToolUse', [])
     ck_missing.append(('PreToolUse', {'matcher': SEND_RE, 'hooks': [{'type': 'command', 'command': dg}]}))
 if ONFAIL_OK and not any('done-guard.py' in json.dumps(x) for x in hooks.get('PostToolUseFailure', [])):
     ck_missing.append(('PostToolUseFailure', {'hooks': [{'type': 'command', 'command': dg}]}))
+# secret-guard: модель своими инструментами не трогает токен входа (~/.mila-auth) и сейф (~/work/secrets); плюс deny-правила Read/Edit
+gg = 'python3 ' + os.path.join(cfg_dir, 'hooks', 'secret-guard.py')
+if not any('secret-guard.py' in json.dumps(x) for x in hooks.get('PreToolUse', [])):
+    ck_missing.append(('PreToolUse', {'matcher': 'Bash|Read|Grep|Glob|Edit|Write|MultiEdit', 'hooks': [{'type': 'command', 'command': gg}]}))
+_deny = cfg.setdefault('permissions', {}).setdefault('deny', [])
+for _r in ('Read(~/.mila-auth/**)', 'Edit(~/.mila-auth/**)', 'Read(~/work/secrets/**)', 'Edit(~/work/secrets/**)'):
+    if _r not in _deny:
+        _deny.append(_r)
+        if ('_env', None) not in ck_missing: ck_missing.append(('_env', None))
 # сторож упал/завис → сообщение НЕ уходит. Уже записанный хук без onFailure — дописываем ключ
 for e in hooks.get('PreToolUse', []):
     for hk in (e.get('hooks') or []) if isinstance(e, dict) else []:

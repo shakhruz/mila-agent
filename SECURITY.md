@@ -22,6 +22,14 @@ pairing flow guidance.
 Out of scope: vulnerabilities in Claude Code, Telegram or other upstream software
 (report those to their vendors), and misconfiguration of your own server.
 
+## The Claude token in the one-container setup
+
+In the container (Railway, docker-compose) the model can technically read the owner's Claude token: the token file and the
+session's environment belong to the same user as the session, and the session runs without permission prompts. A hook
+(`secret-guard.py`) and deny rules keep the model from doing it by accident; they do not stop a deliberate command. The
+fence — `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` (needs bubblewrap) or the token kept outside the session's user — is the next
+step, after a live probe on Railway. Until then, treat a prompt injection in the container as able to see the token.
+
 ## What the send-guard is — and is not
 
 The send-guard (`templates/home/.claude/hooks/send-guard.py`, a `PreToolUse` hook on `reply`/`edit_message`) catches the
