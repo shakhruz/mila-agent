@@ -166,6 +166,18 @@ p = subprocess.Popen([sys.executable, os.path.join(H, "claude_login.py")], env=e
 code_file = os.path.join(A, "pair_code")
 check("платформа со страницей (PORT) и без хозяина — код в том (600), не в журнал", wait(lambda: os.path.exists(code_file)) and open(code_file).read().strip() not in line and "not printed" in line, line)
 p.terminate(); p.wait(); shutil.rmtree(A, ignore_errors=True)
+# 2f) the log line on a failed sign-in never carries a key, whatever its shape
+import importlib.util as _iu
+_spec = _iu.spec_from_file_location("cl_mask", os.path.join(H, "claude_login.py")); _os_env = dict(os.environ); os.environ["TELEGRAM_BOT_TOKEN"] = BOT
+CL = _iu.module_from_spec(_spec); _spec.loader.exec_module(CL); os.environ.clear(); os.environ.update(_os_env)
+class _S: pass
+def masked(line):
+    s_ = _S(); s_.scr = CL.Screen(); s_.scr.feed(line + "\r\n"); return CL.Session.last_line(s_)
+for raw in ("Your token: " + "sk-" + "ant-oat01-" + "Q" * 60, "token " + "sk-" + "or-v1-" + "a" * 40, "key: " + "AbCdEf123456XyZ" + "98765" + "4321", "oat02_" + "x" * 30 + " done"):
+    out_ = masked(raw)
+    check("строка журнала без ключа: %s… → %s" % (raw[:10], out_), "Q" * 12 not in out_ and "a" * 12 not in out_ and "AbCdEf123456" not in out_ and "x" * 12 not in out_ and len(out_) <= 80, out_)
+check("короткий хвост ключа «sk-…» (короче 12) тоже скрыт", "ab12cd9" not in masked("key " + "sk-" + "ab12cd9"), masked("key " + "sk-" + "ab12cd9"))
+check("обычная строка не портится", masked("OAuth error: Request failed with status code 400") == "OAuth error: Request failed with status code 400")
 # 3) bad env
 r = subprocess.run([sys.executable, os.path.join(H, "claude_login.py")], env=dict(os.environ, TELEGRAM_BOT_TOKEN="x"), capture_output=True, text=True)
 check("нет токена бота — код 2, понятная строка", r.returncode == 2 and "TELEGRAM_BOT_TOKEN" in r.stderr)

@@ -192,7 +192,9 @@ class Session:
         """The last non-empty screen line with anything token- or code-like masked — for the log, to tell a refusal from a miss."""
         for ln in reversed(self.scr.lines()):
             if ln.strip():
-                return re.sub(r"[A-Za-z0-9_\-#.~]{16,}", "…", ln.strip())[:160]
+                ln = re.sub(r"sk-\S*", "***", ln.strip())                      # anything that starts like a key, whatever its shape
+                ln = re.sub(r"\b(oat|ant|key|token)\w*[-_]\S*", "***", ln, flags=re.I)
+                return re.sub(r"[A-Za-z0-9_\-#.~+/=]{12,}", "***", ln)[:80]  # any long run — a token or code of a new form
         return ""
 
     def close(self):
