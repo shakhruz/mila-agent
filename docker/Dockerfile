@@ -8,7 +8,8 @@ FROM node:22-bookworm-slim
 ARG CLAUDE_CODE_VERSION=2.1.305   # the version README says Mila is tested on; raise both together
 ARG BUN_VERSION=1.2.21
 ARG PLUGIN_REPO=https://github.com/shakhruz/mila-telegram.git
-ARG PLUGIN_REF=main
+# The plugin is pinned to a reviewed commit: a push to the plugin's main does not change this image until the pin moves here.
+ARG PLUGIN_REF=a6be1b26a770eb8463684df256b53e2bdf90d11c
 
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -19,7 +20,7 @@ RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
  && bun --version && claude --version
 
 # The plugin with its dependencies in the image (the start does not need the network), and a local marketplace for it.
-RUN git clone --depth 1 --branch "${PLUGIN_REF}" "${PLUGIN_REPO}" /opt/mila/plugin/mila-telegram \
+RUN git clone "${PLUGIN_REPO}" /opt/mila/plugin/mila-telegram && git -C /opt/mila/plugin/mila-telegram checkout -q "${PLUGIN_REF}" \
  && cd /opt/mila/plugin/mila-telegram && bun install --frozen-lockfile --no-summary \
  && mkdir -p /opt/mila/marketplace/.claude-plugin && ln -s /opt/mila/plugin/mila-telegram /opt/mila/marketplace/mila-telegram \
  && printf '{"name":"mila-local","owner":{"name":"Mila"},"plugins":[{"name":"mila-telegram","source":"./mila-telegram","description":"Mila Telegram channel"}]}' \

@@ -15,6 +15,7 @@ chk "код рождения: тест поддельного relay и entrypoin
 chk "compose: один сервис mila, том mila-home, портов нет" "python3 -c \"import yaml;d=yaml.safe_load(open('docker-compose.yml'));s=d['services']['mila'];assert 'ports' not in s and 'mila-home:/home/agent' in s['volumes'][0]\""
 chk "compose: переменные — только подстановкой \${…}, значений нет" "! grep -E '(TOKEN|KEY): [^\$ ]' docker-compose.yml"
 chk "Dockerfile: install.sh и onboard.py, на которые опирается entrypoint, есть в репозитории" "[ -f install/install.sh ] && [ -f install/onboard.py ] && grep -q 'COPY docker/entrypoint.sh docker/healthcheck.sh' docker/Dockerfile"
+chk "плагин в образе закреплён коммитом (40 знаков), не веткой main" "grep -qE '^ARG PLUGIN_REF=[0-9a-f]{40}$' docker/Dockerfile && grep -q 'checkout -q \"\${PLUGIN_REF}\"' docker/Dockerfile"
 chk "Dockerfile в корне = docker/Dockerfile (Railway и панели «из GitHub» ищут ./Dockerfile)" "cmp -s Dockerfile docker/Dockerfile"
 chk "в Dockerfile нет VOLUME (Railway такой не собирает) и нет USER (entrypoint сам переходит в agent)" "! grep -qE '^(VOLUME|USER)' docker/Dockerfile"
 chk "страница токена: PORT=8080 и EXPOSE 8080 в образе (подсказка Railway совпадает), compose отключает страницу" "grep -q '^ENV PORT=8080' docker/Dockerfile && grep -q '^EXPOSE 8080' docker/Dockerfile && python3 -c \"import yaml;assert yaml.safe_load(open('docker-compose.yml'))['services']['mila']['environment']['PORT']==''\""
