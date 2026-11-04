@@ -418,6 +418,84 @@ def backup(paths, tag):
     return b
 
 
+def _home_json(p, limit=1 << 20):
+    """JSON из дома Милы для снимка: только обычный файл внутри дома, без перехода по ссылке, до 1 МБ; иначе None."""
+    if not inside_home(p): return None   # ссылку на сам файл режет O_NOFOLLOW ниже
+    try:
+        fd = os.open(p, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_size > limit: return None
+        return json.loads(os.read(fd, limit).decode("utf-8", "replace"))
+    except ValueError:
+        return None
+    finally:
+        os.close(fd)
+
+
+def _snap_now():
+    """Снимок перед обновлением — то, что обновление трогать не должно, но без чего Мила глохнет: задания расписания (mila-cron),
+    кроны сессии (state/crons.json), хуки settings.json (только события и имена файлов — env с ключами не берём), навыки (sha SKILL.md).
+    Без значений и текстов задач — только ключи и отпечатки. health после обновления сверяет: ничего из снимка не пропало."""
+    def h(x): return hashlib.sha256(json.dumps(x, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:12]
+    jobs = _home_json(os.path.join(WORK, "schedule", "jobs.json")) or {}
+    crons = _home_json(os.path.join(WORK, "state", "crons.json"))
+    cfg = _home_json(os.path.join(CLAUDE, "settings.json")) or {}
+    def script(cmd):   # имя файла хука — первый токен с .py/.sh/.mjs/.ts/.js («…/send-guard.py --strict» → send-guard.py)
+        return next((os.path.basename(t) for t in str(cmd).split() if re.search(r"\.(py|sh|mjs|ts|js)$", t)), str(cmd).split()[-1] if str(cmd).split() else "")
+    hooks = sorted({"%s:%s" % (ev, script(hk.get("command", "")))
+                    for ev, lst in ((cfg.get("hooks") or {}) if isinstance(cfg, dict) else {}).items() if isinstance(lst, list)
+                    for e in lst if isinstance(e, dict) for hk in (e.get("hooks") or []) if isinstance(hk, dict)})
+    skills = {}
+    sd = os.path.join(CLAUDE, "skills")
+    for n in sorted(os.listdir(sd)) if os.path.isdir(sd) and not os.path.islink(sd) else []:
+        f = os.path.join(sd, n, "SKILL.md")
+        if os.path.isfile(f) and not os.path.islink(f) and inside_home(f):
+            skills[n] = hashlib.sha256(open(f, "rb").read()).hexdigest()[:12]
+    return {"jobs": sorted(str(j.get("id")) for j in (jobs.get("jobs") or []) if isinstance(j, dict)) if isinstance(jobs, dict) else [],
+            "crons": sorted(h({"cron": c.get("cron"), "prompt": c.get("prompt")}) for c in crons if isinstance(c, dict)) if isinstance(crons, list) else [],
+            "hooks": hooks, "skills": skills}
+
+
+def snapshot(tag):
+    """Снимок (_snap_now) в файл 600 рядом с бэкапами; путь — в журнал обновления и в version.json."""
+    snap = dict({"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "before": load_version().get("tag"), "to": tag}, **_snap_now())
+    os.makedirs(BACKUPS, exist_ok=True)
+    base = os.path.join(BACKUPS, time.strftime("%Y%m%d-%H%M%S") + "-" + re.sub(r"\W", "_", tag or "x") + "-snapshot")
+    for i in range(100):   # два apply в одну секунду с тем же тегом — второй снимок рядом, не поверх
+        out = base + ("-%d" % i if i else "") + ".json"
+        try:
+            fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600); break
+        except FileExistsError:
+            continue
+    else:
+        return None
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(snap, f, ensure_ascii=False, indent=1)
+    return out
+
+
+SNAP_FRESH = 900   # с; health в этом окне после apply сверяет снимок строго
+NOTES = []
+
+
+def snapshot_lost(path):
+    """Что из снимка пропало после обновления: задания, кроны, хуки, навыки. Пусто — всё на месте."""
+    try: old = json.load(open(path, encoding="utf-8"))
+    except (OSError, ValueError, TypeError): return []
+    cur = _snap_now()
+    out = []
+    for k, label in (("jobs", "задания расписания"), ("crons", "кроны сессии"), ("hooks", "хуки settings.json")):
+        gone = sorted(set(old.get(k) or []) - set(cur.get(k) or []))
+        if gone: out.append("после обновления пропали %s: %d (%s)" % (label, len(gone), ", ".join(gone[:3])))
+    # навык пропал — только если нет и папки: переименованный релизом оставляет под старым именем алиас (папка без SKILL.md)
+    gone = sorted(n for n in set(old.get("skills") or {}) - set(cur.get("skills") or {}) if not os.path.isdir(os.path.join(CLAUDE, "skills", n)))
+    if gone: out.append("после обновления пропали навыки: %s" % ", ".join(gone[:5]))
+    return out
+
+
 def readable(p, deep=True):
     """что записал apply —
     читаемо для группы и прочих: файлы go+r, каталоги go+rx. Ссылки не трогаем, лишних прав на запись не даём."""
@@ -531,6 +609,9 @@ def do_apply(src, m, rows, yes, take=(), tag=None, sha_="", channel="", src_labe
     for r in kept: r["state"] = "обновится"
     todo = [r for r in rows if r["state"] in ("новое", "обновится") or (r["state"] == "отличается" and r["name"] in take)]
     side = [r for r in rows if r["state"] in ("ваша правка", "отличается") and r not in todo]
+    try: snap = snapshot(tag)   # до записи
+    except OSError as e: snap = None; soft_err("snapshot", e)   # без снимка обновление идёт, health просто не сверит
+    # снимок — что должно уцелеть (задания, кроны, хуки, навыки); health сверит
     b = backup([r["dst"] for r in todo] + [VERSION], tag)
     added = [r["dst"] for r in todo if r["cur"] is None]
     newdir = os.path.join(STATE, "new", tag)   # не рядом с навыком: вторая папка навыка задвоила бы его
@@ -545,14 +626,14 @@ def do_apply(src, m, rows, yes, take=(), tag=None, sha_="", channel="", src_labe
         if r in todo or r["state"] == "как есть": files[r["dst"]] = r["new"]
     os.makedirs(STATE, exist_ok=True)
     json.dump({"version": m.get("version"), "tag": tag, "installed_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "channel": channel or CFG["channel"],
-               "sha": sha_, "source": src_label or REPO, "files": files}, open(VERSION, "w"), ensure_ascii=False, indent=1)
+               "sha": sha_, "source": src_label or REPO, "files": files, "snapshot": snap, "snapshot_ts": time.time()}, open(VERSION, "w"), ensure_ascii=False, indent=1)
     touched = [r["dst"] for r in todo] + [os.path.join(newdir, r["name"]) for r in side] + [os.path.join(newdir, "было-" + r["name"]) for r in kept] + [VERSION] + touched_extra
     for q in touched: readable(q)
     if side or kept:   # путь до new/<тег> — только сами каталоги (go+rx), не всё содержимое STATE (журнал и бэкапы не открываем)
         for q in (STATE, os.path.join(STATE, "new")): readable(q, deep=False)
         readable(newdir)
     effect_before(tag, m.get("version"))   # «до» — три числа за 7 дней перед обновлением
-    jlog({"event": "update", "tag": tag, "version": m.get("version"), "yes": yes, "backup": b, "added": added, "touched": touched,
+    jlog({"event": "update", "tag": tag, "version": m.get("version"), "yes": yes, "backup": b, "snapshot": snap, "added": added, "touched": touched,
           "updated": [r["name"] for r in todo if r["cur"] is not None], "new_beside": [r["name"] for r in side],
           "renamed": {r["name"]: ren[r["name"]] for r in rows if r["name"] in ren and r["cur"] is not None}, "renamed_kept_edit": [r["name"] for r in kept]})
     return {"ok": True, "version": m.get("version"), "obnovleno": [r["name"] for r in todo if r["cur"] is not None],
@@ -730,6 +811,12 @@ def run_health(m, tag):
         elif dst.endswith(".py"):
             try: compile(open(dst, encoding="utf-8").read(), dst, "exec")
             except SyntaxError as e: problems.append("хук %s: %s" % (os.path.basename(dst), e))
+    if v.get("snapshot"):
+        lost = snapshot_lost(v["snapshot"])
+        # сразу после apply (ночной шаг, updater релиза) — пропавшее = провал и откат; позже Мила могла сама снять задание или крон
+        # (done/rm/срок) — тогда только сообщаем, не откатываем
+        if time.time() - float(v.get("snapshot_ts") or 0) <= SNAP_FRESH: problems += lost
+        else: NOTES.extend(lost)
     cmd = m.get("health")
     if cmd:
         if isinstance(cmd, str): cmd = cmd.split()
@@ -743,7 +830,7 @@ def run_health(m, tag):
 
 def cmd_health(a):
     v = load_version(); p = run_health({}, v.get("tag"))
-    print(json.dumps({"ok": not p, "problems": p}, ensure_ascii=False)); sys.exit(1 if p else 0)
+    print(json.dumps(dict({"ok": not p, "problems": p}, **({"notes": NOTES} if NOTES else {})), ensure_ascii=False)); sys.exit(1 if p else 0)
 
 
 def changelog_card(src, tag, version):
