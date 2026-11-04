@@ -5,6 +5,7 @@
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
 **Для хозяина**
+- Паки: «поставь пак …» или архив пака в личку — показываю название, версию, новые навыки, нужные ключи и файлы с кодом; ставлю только после вашего «да». Новая версия архивом — обновление; «убери пак» и «откати» — назад, бэкап остаётся.
 - Новое базовое качество №11 «Поднимаю вибрации»: я выбираю слова, от которых у вас прибавляется уверенности и силы, ничего не придумываю, а риск называю сразу с шагом, как его пройти.
 - Все качества Милы — одним списком в `canon/QUALITIES.md`; новое №19 — «Деловое любопытство»: знаю рынок, цены и конкурентов и могу дать сравнение со свежими фактами.
 
@@ -17,10 +18,12 @@
 </details>
 
 **For the owner**
+- Packs: «install the pack …» or a pack archive in a DM — I show the name, version, new skills, keys it needs and its code files, and install only after your «yes». A newer archive updates it; «remove the pack» and «roll back» take it back, a backup stays.
 - New core quality №11 «I raise the spirit»: I pick words that add confidence and strength, make nothing up, and name a risk together with the step through it.
 - All of Mila's qualities in one list: `canon/QUALITIES.md`; new №19 «Business curiosity»: I follow the market, prices and competitors and can give a comparison with fresh facts.
 
 **For Milas**
+- Skill `packs` + `update.py packs | pack-plan | install-pack | remove-pack`: a pack (role + own skills) from the kit's `packs/` or from a .zip/.tar.gz the owner sent in a private chat (`--chat` must be the owner's id). Before «yes» nothing goes into the home: the plan clips the pack's texts to one short line each (data, not instructions). Archive checks: paths inside the pack, no links or special files, no secret-named files, no executable bits, ≤300 files, ≤10 MB. A pack skill named like a core or separately installed skill is refused. The role is read through `~/work/PACKS.md` (one `@PACKS.md` line added to the home's CLAUDE.md). An update removes the skills the old version added and the new one lacks; `rollback` returns the previous version.
 - The schedule in the container: Baraban ticks once a minute for the container's own home (`~/state/baraban`), so mila-cron jobs — «remind me in an hour», the morning summary — fire in Mila Agent too, not only on hosted servers. The owner is read on every tick, so pairing by a code after start needs no restart; the error log keeps its last 32–64 KB.
 - secret-guard (`templates/home/.claude/hooks/secret-guard.py`, PreToolUse on Bash/Read/Grep/Glob/Edit/Write): the model does not read the owner's sign-in token (`~/.mila-auth`), the safe (`~/work/secrets`), another process's environment or a full environment dump with its own tools; helpers that use a key at the moment of the action are allowed. Plus deny rules `Read/Edit(~/.mila-auth/**)` and `(~/work/secrets/**)` — they hold even in the container's skip-permissions mode. A layer, not a wall: the model can technically still read the token (a path mask or a variable name in parts gets past the hook); the wall is `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`, which needs bubblewrap and waits for a probe on Railway.
 - A newborn's first talk is short and honest: who you are, what you do, what hurts — no step list, no progress line; money only as fact (your Claude subscription or Anthropic key — `fuel.sh` now sees a setup-token subscription and an API key); no «trial reserve from us» anywhere in the onboarding skill; a Latin name in a Russian talk — Mila asks how to address you; formal «вы» after sign-in in every language.
