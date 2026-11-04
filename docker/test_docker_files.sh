@@ -19,6 +19,7 @@ chk "Dockerfile в корне = docker/Dockerfile (Railway и панели «и�
 chk "в Dockerfile нет VOLUME (Railway такой не собирает) и нет USER (entrypoint сам переходит в agent)" "! grep -qE '^(VOLUME|USER)' docker/Dockerfile"
 chk "страница токена: PORT=8080 и EXPOSE 8080 в образе (подсказка Railway совпадает), compose отключает страницу" "grep -q '^ENV PORT=8080' docker/Dockerfile && grep -q '^EXPOSE 8080' docker/Dockerfile && python3 -c \"import yaml;assert yaml.safe_load(open('docker-compose.yml'))['services']['mila']['environment']['PORT']==''\""
 chk "railway.json: сборка по Dockerfile, перезапуск при сбое" "python3 -c \"import json;d=json.load(open('railway.json'));assert d['build']['builder']=='DOCKERFILE' and d['deploy']['restartPolicyType']=='ON_FAILURE'\""
+chk "entrypoint на каждом старте докладывает недостающие CLAUDE.md, USER.md и конституцию (только недостающее)" "grep -q 'templates/work/\$f' docker/entrypoint.sh && grep -q '\[ -e \"\$H/work/\$f\" \] ||' docker/entrypoint.sh"
 chk "entrypoint и healthcheck — синтаксис bash" "bash -n docker/entrypoint.sh && bash -n docker/healthcheck.sh"
 H=$(mktemp -d); PYDIR=$(dirname "$(command -v python3)"); run_ep() { env -i HOME="$H" PATH="$PYDIR:/usr/bin:/bin" MILA_KIT="$PWD" "$@" "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh 2>&1; }
 o=$(run_ep); chk "нет TELEGRAM_BOT_TOKEN → ждёт со строкой про @BotFather (не падает)" "printf '%s' \"\$o\" | grep -q 'BotFather' && printf '%s' \"\$o\" | grep -q 'restart the container'"

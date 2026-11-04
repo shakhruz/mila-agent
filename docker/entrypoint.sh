@@ -60,6 +60,10 @@ if [ ! -e "$CL/.mila-agent-installed" ]; then
   bash "$MILA_KIT/install/install.sh" >> "$ST/install.log" 2>&1 || wait_forever "kit install failed — see $ST/install.log"
   touch "$CL/.mila-agent-installed"
 fi
+# A home born before the newborn's CLAUDE.md existed gets it on the next start (add-only: the owner's own files stay)
+mkdir -p "$H/work/canon"
+for f in CLAUDE.md USER.md; do [ -e "$H/work/$f" ] || cp "$MILA_KIT/templates/work/$f" "$H/work/$f"; done
+for f in CONSTITUTION.md CONSTITUTION.en.md; do [ -e "$H/work/canon/$f" ] || cp "$MILA_KIT/$f" "$H/work/canon/$f"; done
 [ -s "$H/.claude.json" ] || printf '{"hasCompletedOnboarding":true}\n' > "$H/.claude.json"
 [ -s "$CL/.claude.json" ] || printf '{"hasCompletedOnboarding":true}\n' > "$CL/.claude.json"
 [ -s "$CL/settings.json" ] || printf '{"skipDangerousModePermissionPrompt":true}\n' > "$CL/settings.json"

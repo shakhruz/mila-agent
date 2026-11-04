@@ -98,6 +98,20 @@ case ":$PATH:" in
 esac
 echo
 
+# ── a newborn's home: who Mila is and how the first talk goes ───────────────
+# Without ~/work/CLAUDE.md the session is a plain Claude: «How can I help?» instead of getting acquainted. Only what is missing
+# is added — an owner's own CLAUDE.md, USER.md or canon are never overwritten.
+echo "Home"
+WORK_DIR="${MILA_WORK:-$HOME/work}"
+run mkdir -p "$WORK_DIR/canon"
+for f in CLAUDE.md USER.md; do
+  if [[ -e "$WORK_DIR/$f" ]]; then say "$f — yours, kept"; else run cp "$ROOT/templates/work/$f" "$WORK_DIR/$f"; say "$f — added"; fi
+done
+for f in CONSTITUTION.md CONSTITUTION.en.md; do
+  [[ -e "$WORK_DIR/canon/$f" ]] || run cp "$ROOT/$f" "$WORK_DIR/canon/$f"
+done
+echo
+
 # ── inbox hook ────────────────────────────────────────────────────────────
 echo "Inbox hook"
 HOOK_DIR="$CLAUDE_DIR/hooks"
