@@ -85,7 +85,8 @@ PIDS=()
 cleanup() { log "stop"; tmux kill-server 2>/dev/null; kill "${PIDS[@]}" 2>/dev/null; exit 0; }
 trap cleanup TERM INT
 # 1. receiver daemon
-( while :; do RECEIVER_DAEMON=1 TELEGRAM_STATE_DIR="$TG" bun "$PLUG/receiver.ts" >> "$ST/receiver.log" 2>&1; sleep 5; done ) & PIDS+=($!)
+# voice: the receiver runs our script for every voice note (Groq key: GROQ_API_KEY or ~/work/secrets/groq.env, see key_page.py)
+( while :; do RECEIVER_DAEMON=1 TELEGRAM_STATE_DIR="$TG" TELEGRAM_VOICE_TRANSCRIBE_CMD="${TELEGRAM_VOICE_TRANSCRIBE_CMD:-$MILA_KIT/install/transcribe-voice.sh}" bun "$PLUG/receiver.ts" >> "$ST/receiver.log" 2>&1; sleep 5; done ) & PIDS+=($!)
 # 2. feeder: journal → session stdin
 ( while :; do TELEGRAM_STATE_DIR="$TG" COMPANION_STATE="$ST" COMPANION_FIFO="$FIFO" python3 "$MILA_KIT/install/companion-feeder.py" >> "$ST/feeder.err" 2>&1; sleep 3; done ) & PIDS+=($!)
 # 3. the session in tmux «mila». The plugin is not on Anthropic's channel list yet, so it loads with the development-channels flag,
