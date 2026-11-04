@@ -9,14 +9,18 @@ H = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, H); import mi
 ok = n = 0
 def check(name, c, x=""):
     global ok, n; n += 1; ok += bool(c); print(("✅ " if c else "❌ ") + name + ("" if c else "  ← " + str(x)[:300]))
-SEEN = []
+SEEN = []; DEAD = set()   # keys the fake provider no longer takes (the keeper's «alive» check gets 401)
 class Up(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     def log_message(self, *a): pass
     def do_POST(self):
         n_ = int(self.headers.get("Content-Length") or 0); body = self.rfile.read(n_)
+        auth = (self.headers.get("Authorization") or "") + (self.headers.get("x-api-key") or "")
+        if self.command == "GET" and self.path.endswith(("/v1/models", "/v1/projects")):   # the keeper's own «alive» check
+            st = 401 if any(k in auth for k in DEAD) else 200
+            self.send_response(st); self.send_header("Content-Length", "2"); self.end_headers(); self.wfile.write(b"{}"); return
         SEEN.append((self.path, dict(self.headers), body))
-        if self.path.endswith("/stream"):
+        if b'"stream"' in body:
             self.send_response(200); self.send_header("Content-Type", "text/event-stream"); self.send_header("Transfer-Encoding", "chunked"); self.end_headers()
             for i in range(3):
                 ch = ("event: ping\ndata: %d\n\n" % i).encode(); self.wfile.write(b"%x\r\n%s\r\n" % (len(ch), ch)); self.wfile.flush(); time.sleep(0.6)
@@ -40,14 +44,17 @@ check("/status без ключей — все «нет»", json.loads(req("GET",
 check("нет ключа — 503, к поставщику не ходим", req("POST", "/anthropic/v1/messages", b"{}")[0] == 503 and not SEEN)
 check("неверный формат ключа через сокет — отказ, файла нет", not mila_keyd.put_remote("anthropic", "hello", SOCK) and not os.path.exists(os.path.join(K, "anthropic")))
 check("неизвестный вид ключа — отказ", not mila_keyd.put_remote("openai", OAT, SOCK))
-check("токен подписки через сокет — принят; файл 600 в папке 700", mila_keyd.put_remote("anthropic", OAT, SOCK) and oct(os.stat(os.path.join(K, "anthropic")).st_mode & 0o777) == "0o600"
+check("токен подписки через сокет (ключа ещё нет) — принят; файл 600 в папке 700", mila_keyd.put_remote("anthropic", OAT, SOCK) and oct(os.stat(os.path.join(K, "anthropic")).st_mode & 0o777) == "0o600"
       and oct(os.stat(K).st_mode & 0o777) == "0o700")
 c, b = req("POST", "/anthropic/v1/messages?beta=true", b'{"m":1}', {"Authorization": "Bearer dummy", "x-api-key": "dummy2", "anthropic-beta": "tools-2024", "anthropic-version": "2023-06-01"})
 path, hd, body = SEEN[-1]; hl = {k.lower(): v for k, v in hd.items()}
 check("подписка: к поставщику — Bearer токена, путь и тело без изменений", c == 200 and hl.get("authorization") == "Bearer " + OAT and path == "/a/v1/messages?beta=true" and body == b'{"m":1}', (c, path, hl))
 check("подписка: oauth-бета добавлена к переданным, anthropic-version как был", hl.get("anthropic-beta") == "tools-2024,oauth-2025-04-20" and hl.get("anthropic-version") == "2023-06-01", hl)
 check("ключ, присланный клиентом (dummy, x-api-key), — выброшен", "dummy" not in json.dumps(hl) and "x-api-key" not in hl, hl)
-mila_keyd.put_remote("anthropic", API, SOCK); req("POST", "/anthropic/v1/messages", b"{}"); hl = {k.lower(): v for k, v in SEEN[-1][1].items()}
+check("подмена живого ключа через сокет — отказ, ключ прежний", not mila_keyd.put_remote("anthropic", API, SOCK) and open(os.path.join(K, "anthropic")).read().strip() == OAT)
+DEAD.add(OAT)
+check("старый ключ поставщик больше не принимает — новый принят (повторный вход)", mila_keyd.put_remote("anthropic", API, SOCK) and open(os.path.join(K, "anthropic")).read().strip() == API)
+req("POST", "/anthropic/v1/messages", b"{}"); hl = {k.lower(): v for k, v in SEEN[-1][1].items()}
 check("ключ API Anthropic — x-api-key, без Authorization и без oauth-беты", hl.get("x-api-key") == API and "authorization" not in hl and "oauth" not in hl.get("anthropic-beta", ""), hl)
 mila_keyd.put_remote("deepgram", DG, SOCK); mila_keyd.put_remote("groq", GQ, SOCK)
 req("POST", "/deepgram/v1/listen?model=nova-3", b"x"); hl = {k.lower(): v for k, v in SEEN[-1][1].items()}
@@ -56,7 +63,11 @@ req("POST", "/groq/openai/v1/audio/transcriptions", b"x"); hl = {k.lower(): v fo
 check("Groq — Authorization: Bearer <ключ>", hl.get("authorization") == "Bearer " + GQ, hl)
 check("/status — только да/нет и вид (подписка или ключ API)", json.loads(req("GET", "/status")[1]) == {"anthropic": True, "deepgram": True, "groq": True, "anthropic_kind": "key"})
 check("чужой маршрут — 404", req("GET", "/etc/passwd")[0] == 404 and req("GET", "/openai/v1")[0] == 404)
-cc = http.client.HTTPConnection("127.0.0.1", PORT, timeout=20); t0 = time.time(); cc.request("POST", "/anthropic/v1/stream", b"{}"); r = cc.getresponse()
+n0 = len(SEEN)
+check("управляющие ручки поставщика (новый ключ Deepgram, проекты, баланс, организации Anthropic) — 403, к поставщику не ходим",
+      req("POST", "/deepgram/v1/projects/x/keys", b"{}")[0] == 403 and req("GET", "/deepgram/v1/projects")[0] == 403 and req("GET", "/deepgram/v1/projects/x/balances")[0] == 403
+      and req("GET", "/anthropic/v1/organizations/x/api_keys")[0] == 403 and req("GET", "/anthropic/api/oauth/profile")[0] == 403 and req("DELETE", "/groq/openai/v1/models")[0] == 403 and len(SEEN) == n0)
+cc = http.client.HTTPConnection("127.0.0.1", PORT, timeout=20); t0 = time.time(); cc.request("POST", "/anthropic/v1/messages", b'{"stream": true}'); r = cc.getresponse()
 first = r.read1(100); t1 = time.time() - t0; rest = r.read()
 check("поток: первый кусок приходит сразу, не после всего ответа (SSE не копится)", b"data: 0" in first and t1 < 1.0 and b"data: 2" in rest, (first, t1))
 # the sign-in helper and the key page hand keys to the keeper, not to files the session can read
@@ -64,10 +75,10 @@ os.environ["KEYD_SOCK"] = SOCK; AUTHD = os.path.join(T, "auth"); SECD = os.path.
 os.environ["MILA_AUTH_DIR"] = AUTHD; os.environ["MILA_SECRETS"] = SECD
 import importlib; cl = importlib.import_module("claude_login"); kp = importlib.import_module("key_page")
 OAT2 = "sk-" + "ant-" + "oat01-" + "D" * 40; GQ2 = "gs" + "k_" + "E" * 40
-cl.AUTH = AUTHD; cl.save(OAT2, "4242")
+DEAD.add(API); cl.AUTH = AUTHD; cl.save(OAT2, "4242")
 check("вход в Claude при хранителе: токен у хранителя, файла oauth_token нет, владелец записан", open(os.path.join(K, "anthropic")).read().strip() == OAT2
       and not os.path.exists(os.path.join(AUTHD, "oauth_token")) and open(os.path.join(AUTHD, "owner_id")).read().strip() == "4242")
-kp.SECRETS = SECD; kp.save("groq", GQ2)
+DEAD.add(GQ); kp.SECRETS = SECD; kp.save("groq", GQ2)
 check("страница ключа при хранителе: ключ у хранителя, папки secrets нет", open(os.path.join(K, "groq")).read().strip() == GQ2 and not os.path.exists(SECD))
 # migration (root step, here as a plain function): old files and variables move to the keeper, old files are wiped
 HM = os.path.join(T, "hm"); os.makedirs(os.path.join(HM, ".mila-auth")); os.makedirs(os.path.join(HM, "work", "secrets"))
@@ -82,5 +93,5 @@ check("перенос: токен и ключи из старых файлов �
       and not os.path.exists(os.path.join(HM, ".mila-auth", "oauth_token")) and not os.path.exists(os.path.join(HM, "work", "secrets", "groq.env")), moved)
 check("перенос: переменная платформы сильнее старого файла (хозяин поменял её в панели)", kk("groq") == GQ4)
 p.terminate(); p.wait(); LOG.close(); logtxt = open(os.path.join(T, "keyd.log")).read()
-check("в журнале нет ни ключей, ни заголовков — только метод, маршрут, код", all(k not in logtxt for k in (OAT, API, DG, GQ, OAT2, GQ2, "dummy", "Bearer")) and "POST anthropic → 200" in logtxt, logtxt[-300:])
+check("в журнале нет ни ключей, ни заголовков — только метод, маршрут, код", all(k not in logtxt for k in (OAT, API, DG, GQ, OAT2, GQ2, "dummy", "Bearer")) and "POST anthropic/v1/messages → 200" in logtxt, logtxt[-300:])
 up.shutdown(); shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

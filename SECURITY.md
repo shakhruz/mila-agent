@@ -27,10 +27,11 @@ Out of scope: vulnerabilities in Claude Code, Telegram or other upstream softwar
 In the container (Railway, docker-compose) the Claude token and the voice keys are with the key keeper (`docker/mila_keyd.py`):
 its own user (`mila-keys`), files in `~/.keys` (700) the session's user cannot read, keys from earlier starts and from platform
 variables moved there by the entrypoint's root step. Claude Code and the voice script talk to the keeper at 127.0.0.1 with a
-placeholder; the keeper puts the key into the request to Anthropic, Deepgram or Groq. The model can use a key, not read it.
+placeholder; the keeper puts the key into the request to Anthropic, Deepgram or Groq. The model can use a key, not read it:
+only Mila's own calls pass (messages, speech-to-text), account, usage and key-management paths are refused before they
+reach the provider, and a key already there is replaced only when the provider no longer takes it (or by a platform variable).
 `docker/wall_probe.sh` (run in CI inside the image) tries the ways out as the session's user. What is still open: a key
-passes through the sign-in helper or the key page (the session's user) for a moment when it is entered; the session can put
-another key in the keeper's socket (its own, not a leak); the bot token is still readable by the session — it moves to the
+passes through the sign-in helper or the key page (the session's user) for a moment when it is entered; the bot token is still readable by the session — it moves to the
 keeper next. `MILA_KEYD=off` turns the keeper off (the old way: treat a prompt injection as able to see the token).
 
 The receiver's journals (`inbound/events.jsonl`, `cards.jsonl`) are still the session's user's: the pack installer and the spend ledger

@@ -21,6 +21,13 @@ KEYS = os.environ.get("KEYS_DIR") or "/home/agent/.keys"
 ROUTES = {"anthropic": "https://api.anthropic.com", "deepgram": "https://api.deepgram.com", "groq": "https://api.groq.com"}
 ANT = "sk-" + "ant-"; OAT = ANT + "oat"; GSK = "gs" + "k_"   # key prefixes glued: no key-shaped literal in the source
 FORMAT = {"anthropic": r"^" + ANT + r"[A-Za-z0-9_-]{20,300}$", "deepgram": r"^[A-Za-z0-9]{32,64}$", "groq": r"^" + GSK + r"[A-Za-z0-9]{20,100}$"}
+# Only what Mila's own work calls (Claude Code with non-essential traffic off: POST /v1/messages; the voice script: listen /
+# transcriptions). Everything else — a service's account, keys, usage, billing — is 403 and never reaches the service:
+# a key the session cannot read must not be usable to mint a new one.
+ALLOW = {"anthropic": [("POST", r"/v1/messages"), ("POST", r"/v1/messages/count_tokens"), ("GET", r"/v1/models"), ("HEAD", r"/api/hello"), ("GET", r"/api/hello")],
+         "deepgram": [("POST", r"/v1/listen")],
+         "groq": [("POST", r"/openai/v1/audio/transcriptions"), ("GET", r"/openai/v1/models")]}
+CHECK = {"anthropic": "/v1/models", "deepgram": "/v1/projects", "groq": "/openai/v1/models"}   # «is this key alive» — the keeper's own call
 HOP = {"host", "connection", "keep-alive", "proxy-authorization", "proxy-connection", "te", "trailer", "transfer-encoding", "upgrade",
        "authorization", "x-api-key", "content-length", "accept-encoding", "cookie"}
 OAUTH_BETA = "oauth-2025-04-20"
@@ -37,9 +44,27 @@ def key(kind):
         return ""
 
 
-def put(kind, value):
+def alive(kind, k):
+    """the provider still takes this key (the keeper's own GET, not a path from the session)."""
+    hd = {"anthropic-version": "2023-06-01"}; auth_headers(kind, k, hd)
+    up = urllib.parse.urlsplit(os.environ.get("KEYD_UPSTREAM_" + kind.upper()) or ROUTES[kind])
+    try:
+        c = (http.client.HTTPSConnection(up.hostname, up.port or 443, context=ssl.create_default_context(), timeout=20) if up.scheme == "https"
+             else http.client.HTTPConnection(up.hostname, up.port or 80, timeout=20))
+        c.request("GET", up.path.rstrip("/") + CHECK[kind], headers=hd); st = c.getresponse().status; c.close()
+        return st not in (401, 403)   # a network hiccup is not «dead»: the owner's key stays
+    except Exception:
+        return True
+
+
+def put(kind, value, replace=False):
+    """a key of this kind already here and still alive → refused (the session must not swap the owner's key for its own);
+    the old one is dead (401/403) → replaced. The root step (a platform variable the owner set) passes replace=True."""
     value = (value or "").strip()
     if kind not in FORMAT or not re.match(FORMAT[kind], value): return False
+    old = key(kind)
+    if old and old != value and not replace and alive(kind, old):
+        log("put %s refused: a live key is already here" % kind); return False
     os.makedirs(KEYS, mode=0o700, exist_ok=True); os.chmod(KEYS, 0o700)
     p = os.path.join(KEYS, kind); tmp = "%s.%d.tmp" % (p, os.getpid())
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
@@ -106,6 +131,9 @@ class Proxy(http.server.BaseHTTPRequestHandler):
         m = re.match(r"^/(anthropic|deepgram|groq)(/[^#]*)$", path)
         if not m: return self.plain(404, {"error": "unknown route"})
         kind, rest = m.group(1), m.group(2)
+        if not any(self.command == meth and re.fullmatch(pat, rest.split("?")[0]) for meth, pat in ALLOW[kind]):
+            log("%s %s%s → 403 (not on the list)" % (self.command, kind, rest.split("?")[0][:80]))
+            return self.plain(403, {"error": "not allowed through the key keeper"})
         k = key(kind)
         if not k: return self.plain(503, {"error": "no %s key here yet" % kind})
         n = int(self.headers.get("Content-Length") or 0)
@@ -123,7 +151,7 @@ class Proxy(http.server.BaseHTTPRequestHandler):
         except Exception as e:
             log("%s %s → upstream error %s" % (self.command, kind, type(e).__name__))
             return self.plain(502, {"error": "upstream unreachable"})
-        log("%s %s → %d" % (self.command, kind, r.status))
+        log("%s %s%s → %d" % (self.command, kind, rest.split("?")[0][:80], r.status))
         self.send_response(r.status)
         for a, b in r.getheaders():
             if a.lower() not in ("transfer-encoding", "connection", "content-length", "keep-alive"): self.send_header(a, b)
@@ -177,7 +205,7 @@ def migrate(home):
             with open(p, "r+b") as f: f.write(b"\0" * os.path.getsize(p))
             os.unlink(p)
     for kind, var in ENV_KEYS:   # a platform variable wins over an old file (the owner changed it in the panel)
-        if os.environ.get(var) and put(kind, os.environ[var]): moved.append(kind)
+        if os.environ.get(var) and put(kind, os.environ[var], replace=True): moved.append(kind)
     return sorted(set(moved))
 
 
