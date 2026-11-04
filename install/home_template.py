@@ -9,13 +9,13 @@ templates/work/CLAUDE.md → ~/work/CLAUDE.md, CONSTITUTION.md and CONSTITUTION.
   replaced, the old one kept as <name>.bak-<date>;
 - the owner edited it (sha not in the list) → left as is, the new one put beside as <name>.new and named in one line.
 USER.md is the owner's: only copied when missing. Prints one line per change; exit 0 always (a start must not stop here)."""
-import hashlib, os, shutil, sys, time
+import hashlib, os, shutil, string, sys, time
 
 FILES = (("templates/work/CLAUDE.md", "CLAUDE.md"), ("CONSTITUTION.md", "canon/CONSTITUTION.md"), ("CONSTITUTION.en.md", "canon/CONSTITUTION.en.md"))
 OWNER_ONLY = (("templates/work/USER.md", "USER.md"),)
 
 
-DIG = str.maketrans("0123456789", "ghijklmnop")   # sha256 hex with digits written as letters: no long digit runs in the repo
+DIG = str.maketrans(string.digits, "ghijklmnop")   # sha256 hex with digits written as letters: no long digit runs in the repo
 
 
 def sha(p):

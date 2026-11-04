@@ -2,12 +2,12 @@
 """home_template.py: новый дом — файлы на месте; наш прежний CLAUDE.md (sha в SHIPPED) — заменён, старый в .bak-;
 правленный хозяином — оставлен, новый рядом .new (один раз); USER.md хозяина не трогается; ссылка — не трогается;
 текущие шаблоны ядра — в списке SHIPPED (иначе их следующая версия не дойдёт до домов). Run: python3 test_home_template.py"""
-import glob, hashlib, os, shutil, subprocess, sys, tempfile
+import glob, hashlib, os, shutil, string, subprocess, sys, tempfile
 H = os.path.dirname(os.path.abspath(__file__)); KIT = os.path.dirname(H); ok = n = 0
 def check(name, c, x=""):
     global ok, n; n += 1; ok += bool(c); print(("✅ " if c else "❌ ") + name + ("" if c else "  ← " + str(x)[:300]))
 def run(kit, work): return subprocess.run([sys.executable, os.path.join(H, "home_template.py"), kit, work], capture_output=True, text=True).stdout
-DIG = str.maketrans("0123456789", "ghijklmnop"); sha = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest().translate(DIG)
+DIG = str.maketrans(string.digits, "ghijklmnop"); sha = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest().translate(DIG)
 listed = {l.split()[0] for l in open(os.path.join(KIT, "templates/work/SHIPPED.sha256")) if l.strip() and not l.startswith("#")}
 check("текущие CLAUDE.md и конституции ядра — в SHIPPED.sha256", all(sha(os.path.join(KIT, f)) in listed for f in ("templates/work/CLAUDE.md", "CONSTITUTION.md", "CONSTITUTION.en.md")))
 T = tempfile.mkdtemp(); K = os.path.join(T, "kit"); W = os.path.join(T, "work")
