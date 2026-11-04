@@ -15,7 +15,7 @@ A link lives LINK_TTL seconds (10 min); /login gives a new one. The code and the
 
 Env: TELEGRAM_BOT_TOKEN (required), OWNER_ID (optional), MILA_AUTH_DIR (default ~/.mila-auth), LOGIN_CMD (default
 «claude setup-token»), TG_API (tests), LINK_TTL. Exit: 0 signed in; 2 bad environment. Only stdlib."""
-import json, os, pty, re, secrets, select, shlex, signal, sys, time, urllib.parse, urllib.request
+import fcntl, struct, termios, json, os, pty, re, secrets, select, shlex, signal, sys, time, urllib.parse, urllib.request
 
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 API = os.environ.get("TG_API", "https://api.telegram.org")
@@ -37,6 +37,9 @@ T = {"hello": "Здравствуйте! Я Мила. Чтобы я зарабо
      "code_bad": "Это не похоже на код со страницы Anthropic. Скопируйте код целиком и пришлите одним сообщением.",
      "no_session": "Нажмите /login — пришлю свежую ссылку входа.", "expired": "Ссылка входа устарела. /login — новая.",
      "wrong_code": "Код не подошёл (или устарел). Нажмите /login и войдите ещё раз.",
+     "checking": "Код получила, проверяю…",
+     "no_read": "Вход завершился, но я не смогла прочитать ответ. Нажмите /login и попробуйте ещё раз — если повторится, напишите «помощь».",
+     "timeout": "Не дождалась ответа от Anthropic. Нажмите /login — пришлю свежую ссылку.",
      "done": "✅ Подписка подключена. Привет! Я твоя Мила. Как тебя зовут и чем ты занимаешься? (Отвечу через минуту — запускаюсь.)",
      "stranger": "Эту Милу подключает её хозяин. Если это вы — отправьте /pair и код из журнала контейнера (или задайте OWNER_ID).",
      "paired": "Код верный — вы хозяин этой Милы. Готовлю вход в Claude…", "pair_bad": "Код не подошёл. Он в журнале контейнера: строка «pairing code»."}
@@ -54,6 +57,16 @@ def new_pair():
     except OSError:
         pass
     c = "".join(secrets.choice(PAIR_ALPH) for _ in range(6))
+    if os.environ.get("PORT"):   # a platform with a token page and shared logs: the code goes to the volume, not the log
+        try:
+            os.makedirs(AUTH, mode=0o700, exist_ok=True); p = os.path.join(AUTH, "pair_code")
+            fd = os.open(p + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as f: f.write(c + "\n")
+            os.replace(p + ".tmp", p)
+        except OSError:
+            pass
+        print("claude-login: no owner yet — a pairing code is in the volume (.mila-auth/pair_code); not printed here", flush=True)
+        return c
     print("claude-login: pairing code %s — send «/pair %s» to your bot from your own Telegram" % (c, c), flush=True)
     return c
 
@@ -75,8 +88,64 @@ def say(chat, text, button=None):
     return tg("sendMessage", **kw)
 
 
+class Screen:
+    """Just enough of a terminal to read what Claude Code's TUI draws. The TUI does not print lines: it moves the cursor and
+    skips characters that are already on the screen, so a plain «strip ANSI» copy loses letters — a token read that way is
+    broken. This keeps a grid and applies cursor moves (CR, LF, CHA G, CUF C, CUB D, CUU A, CUD B, CUP H, EL K, ED J)."""
+    CSI = re.compile(r"\x1b\[([?>=<]?)([0-9;]*)([@-~])")
+    OSC = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+
+    def __init__(self, cols=400):
+        self.rows, self.r, self.c, self.cols = [[]], 0, 0, cols
+
+    def _row(self):
+        while len(self.rows) <= self.r: self.rows.append([])
+        return self.rows[self.r]
+
+    def feed(self, text):
+        text = self.OSC.sub("", text)
+        i = 0
+        while i < len(text):
+            ch = text[i]
+            if ch == "\x1b":
+                m = self.CSI.match(text, i)
+                if m:
+                    self._csi(m.group(1), m.group(2), m.group(3)); i = m.end(); continue
+                i += 2; continue   # other two-byte escapes (charset, keypad) — nothing to draw
+            if ch == "\r": self.c = 0
+            elif ch == "\n": self.r += 1; self._row()
+            elif ch == "\b": self.c = max(0, self.c - 1)
+            elif ch >= " " or ch == "\t":
+                row = self._row()
+                while len(row) < self.c: row.append(" ")
+                if self.c < len(row): row[self.c] = ch
+                else: row.append(ch)
+                self.c += 1
+            i += 1
+
+    def _csi(self, priv, args, op):
+        if priv: return
+        n = [int(x) if x else 0 for x in args.split(";")] if args else []
+        a = (n[0] if n else 0) or 1
+        if op == "G": self.c = a - 1
+        elif op == "C": self.c += a
+        elif op == "D": self.c = max(0, self.c - a)
+        elif op == "A": self.r = max(0, self.r - a)
+        elif op == "B": self.r += a; self._row()
+        elif op == "H": self.r, self.c = max(0, (n[0] if n else 1) - 1), max(0, (n[1] if len(n) > 1 else 1) - 1); self._row()
+        elif op == "K":
+            row = self._row(); k = n[0] if n else 0
+            if k == 0: del row[self.c:]
+            elif k == 2: row.clear()
+        elif op == "J" and (n[0] if n else 0) == 2: self.rows, self.r, self.c = [[]], 0, 0
+
+    def lines(self):
+        return ["".join(r).rstrip() for r in self.rows]
+
+
 class Session:
-    """setup-token in a pseudo-terminal: read until the sign-in URL, later write the code and read until the token."""
+    """setup-token in a pseudo-terminal (400 columns: a token never wraps): read until the sign-in URL, later write the code
+    and read until the token, from a screen model (see Screen), not from stripped text."""
     def __init__(self):
         self.pid, self.fd = pty.fork()
         if self.pid == 0:
@@ -85,32 +154,53 @@ class Session:
                 os.execvp(CMD[0], CMD)
             finally:
                 os._exit(127)
-        self.buf, self.started = "", time.time()
+        try:
+            fcntl.ioctl(self.fd, termios.TIOCSWINSZ, struct.pack("HHHH", 50, 400, 0, 0))
+        except OSError:
+            pass
+        self.buf, self.started, self.scr, self.closed, self.rc = "", time.time(), Screen(), False, None
 
-    def read_until(self, rx, timeout):
+    def read_until(self, rx, timeout, screen=False):
+        """→ match or None. screen=True: search the drawn screen rows (for the token); else the raw stream joined (for the URL,
+        which also comes whole inside the terminal hyperlink). self.closed: the program ended (pty gone) before a match."""
         end = time.time() + timeout
         while time.time() < end:
             r, _, _ = select.select([self.fd], [], [], 0.5)
             if r:
                 try:
-                    chunk = os.read(self.fd, 4096).decode("utf-8", "replace")
+                    raw = os.read(self.fd, 4096).decode("utf-8", "replace")
                 except OSError:
-                    break
-                if not chunk:
-                    break
-                self.buf += ANSI.sub("", chunk).replace("\r", "")
-                m = rx.search(self.buf.replace("\n", ""))   # a long URL may be wrapped by the terminal
-                if m:
-                    return m.group(1) if m.groups() else m.group(0)
+                    raw = ""
+                if not raw:
+                    self.closed = True
+                else:
+                    self.scr.feed(raw)
+                    self.buf += ANSI.sub("", raw).replace("\r", "")
+            hay = "\n".join(self.scr.lines()) if screen else self.buf.replace("\n", "")
+            m = rx.search(hay)
+            if m:
+                return m.group(1) if m.groups() else m.group(0)
+            if self.closed:
+                break
         return None
 
     def write(self, s):
-        os.write(self.fd, (s + "\r").encode())
+        """The code as typed, then Enter separately: some TUIs take «text+Enter» in one read as a paste and wait."""
+        os.write(self.fd, s.encode()); time.sleep(0.4); os.write(self.fd, b"\r")
+
+    def last_line(self):
+        """The last non-empty screen line with anything token- or code-like masked — for the log, to tell a refusal from a miss."""
+        for ln in reversed(self.scr.lines()):
+            if ln.strip():
+                return re.sub(r"[A-Za-z0-9_\-#.~]{16,}", "…", ln.strip())[:160]
+        return ""
 
     def close(self):
         try:
-            os.kill(self.pid, signal.SIGTERM); os.waitpid(self.pid, 0)
-        except OSError:
+            p, st = os.waitpid(self.pid, os.WNOHANG)
+            if p: self.rc = os.waitstatus_to_exitcode(st)
+            else: os.kill(self.pid, signal.SIGTERM); os.waitpid(self.pid, 0)
+        except (OSError, ChildProcessError):
             pass
         try:
             os.close(self.fd)
@@ -119,9 +209,11 @@ class Session:
 
 
 def save(token, owner):
+    """token None — only the owner (right after pairing: a redeploy before the Claude sign-in must not lose the owner)."""
     os.makedirs(AUTH, mode=0o700, exist_ok=True)
     os.chmod(AUTH, 0o700)
     for name, val in (("oauth_token", token), ("owner_id", owner)):
+        if val is None: continue
         p = os.path.join(AUTH, name); tmp = p + ".tmp"
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w") as f:
@@ -134,6 +226,9 @@ def main():
         sys.stderr.write("claude-login: TELEGRAM_BOT_TOKEN is missing or malformed\n"); return 2
     offset, sess, who, warned = 0, None, None, set()
     owner = OWNER
+    if not owner:   # paired before a restart (owner saved at pairing) — the same owner, no new code
+        try: owner = re.sub(r"\D", "", open(os.path.join(AUTH, "owner_id")).read())
+        except OSError: pass
     pair, bad, bad_all, lock_until = (None if owner else new_pair()), {}, 0, 0.0
     print("claude-login: waiting for /start from %s" % ("the owner" if owner else "the person with the pairing code"), flush=True)
     while True:
@@ -154,7 +249,7 @@ def main():
                     say(uid, T["pair_bad"]); continue   # 5 wrong codes from one person, or 20 from all — no more guesses for now
                 if pm:
                     if secrets.compare_digest(pm.group(1).upper(), pair):
-                        owner = uid; say(uid, T["paired"]); text = "/login"
+                        owner = uid; save(None, owner); say(uid, T["paired"]); text = "/login"
                         try: os.remove(os.path.join(AUTH, "pair_code"))   # one-time: the page's link stops working
                         except OSError: pass
                         print("claude-login: paired with %s" % uid, flush=True)
@@ -190,11 +285,19 @@ def main():
             if not CODE_RE.match(text):
                 say(uid, T["code_bad"]); continue
             tg("deleteMessage", chat_id=uid, message_id=m.get("message_id"))   # the code does not stay in the chat
+            say(uid, T["checking"])   # no minute of silence after the code
             sess.write(text)
-            tok = sess.read_until(TOK_RE, 60)
-            sess.close(); sess = None
+            tok = sess.read_until(TOK_RE, 90, screen=True)
             if not tok:
-                who = None; say(uid, T["wrong_code"]); continue
+                shown = "\n".join(sess.scr.lines()); closed = sess.closed; tail = sess.last_line()
+                time.sleep(0.3); sess.close()
+                print("claude-login: no token — %s, exit %s, last line: %s" % ("program ended" if closed else "timeout", sess.rc, tail), flush=True)
+                sess = None; who = None
+                if re.search(r"OAuth error|invalid|expired|status code 4\d\d", shown, re.I): say(uid, T["wrong_code"])
+                elif closed: say(uid, T["no_read"])
+                else: say(uid, T["timeout"])
+                continue
+            sess.close(); sess = None
             save(tok, owner)
             say(uid, T["done"])
             print("claude-login: signed in, owner %s" % owner, flush=True)

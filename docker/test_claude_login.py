@@ -120,6 +120,52 @@ wait(lambda: sum("Код не подошёл" in m["text"] for m in S.sent) >= 2
 S.queue.append(msg(int(OWN), "/start pair_K7M2Q9", 90))
 check("20 неверных от всех — пауза: и хозяину пока «не подошёл», код со страницы не сгорел", wait(lambda: sum("Код не подошёл" in m["text"] for m in S.sent) >= 22) and os.path.exists(os.path.join(A, "pair_code")))
 p.terminate(); p.wait(); shutil.rmtree(A, ignore_errors=True)
+# 2d) Claude Code's TUI: the token is drawn with cursor jumps over letters already on the screen — a stripped copy loses them
+tui = os.path.join(T, "fake-tui.py")
+open(tui, "w").write("""import sys, time
+print("If the browser didn't open, visit: https://claude.ai/oauth/authorize?code=true&client_id=x&state=s"); sys.stdout.flush()
+code = input("> ").strip()
+tok = %r
+if code == %r:
+    sys.stdout.write("Your OAuth token:\\r\\n" + " " * 14 + tok[14] + "\\r" + tok[:14] + "\\x1b[16G" + tok[15:] + "\\r\\n"); sys.stdout.flush()
+elif code == "silent-exit-code-1234":
+    sys.stdout.write("Something went wrong\\r\\n"); sys.stdout.flush(); sys.exit(3)
+time.sleep(0.3)
+""" % (TOKEN_OUT, CODE))
+def start_tui(owner=OWN):
+    S.queue.clear(); S.sent.clear(); S.deleted.clear()
+    env = dict(os.environ, TELEGRAM_BOT_TOKEN=BOT, TG_API="http://127.0.0.1:%d" % srv.server_port, MILA_AUTH_DIR=A,
+               LOGIN_CMD="%s %s" % (sys.executable, tui), OWNER_ID=owner)
+    return subprocess.Popen([sys.executable, os.path.join(H, "claude_login.py")], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+time.sleep(0.6); p = start_tui()
+S.queue.append(msg(int(OWN), "/login", 70)); wait(lambda: any("reply_markup" in m for m in S.sent))
+S.queue.append(msg(int(OWN), "silent-exit-code-1234", 71))
+check("сразу после кода — «Код получила, проверяю»", wait(lambda: any("проверяю" in m["text"] for m in S.sent)))
+check("программа вышла без токена — «не смогла прочитать ответ», не «код не подошёл»", wait(lambda: any("не смогла прочитать" in m["text"] for m in S.sent)) and not any("не подошёл" in m["text"] for m in S.sent))
+S.queue.append(msg(int(OWN), "/login", 72)); wait(lambda: sum("reply_markup" in m for m in S.sent) >= 2)
+S.queue.append(msg(int(OWN), CODE, 73))
+check("токен, нарисованный с прыжками курсора, прочитан целиком (экран, не голый текст)", wait(lambda: p.poll() is not None, 20) and p.returncode == 0
+      and open(os.path.join(A, "oauth_token")).read().strip() == TOKEN_OUT, (p.poll(), S.sent[-1:]))
+out, err = p.communicate()
+check("в журнале — выход и последняя строка без секретов", "no token — program ended, exit 3, last line: Something went wrong" in out and TOKEN_OUT not in out + err and CODE not in out + err, out[-300:])
+shutil.rmtree(A, ignore_errors=True)
+# 2e) the owner survives a redeploy: saved at pairing, before the Claude sign-in; a new start knows him, prints no code
+time.sleep(0.6); os.makedirs(A, mode=0o700, exist_ok=True); open(os.path.join(A, "pair_code"), "w").write("K7M2Q9\n")
+p = start(); p.stdout.readline()
+S.queue.append(msg(int(OWN), "/start pair_K7M2Q9", 80))
+check("хозяин записан в том сразу после пары (до входа в Claude), 600", wait(lambda: os.path.exists(os.path.join(A, "owner_id"))) and open(os.path.join(A, "owner_id")).read().strip() == OWN
+      and oct(os.stat(os.path.join(A, "owner_id")).st_mode & 0o777) == "0o600")
+p.terminate(); p.wait(); time.sleep(0.6)
+p = start(); line = p.stdout.readline()
+check("рестарт до входа: хозяин тот же, кода пары в журнале нет", "the owner" in line and "pairing code" not in line, line)
+S.queue.append(msg(int(OWN), "/login", 81))
+check("…и хозяину сразу кнопка входа", wait(lambda: any("reply_markup" in m for m in S.sent)))
+p.terminate(); p.wait(); shutil.rmtree(A, ignore_errors=True); time.sleep(0.6)
+env = dict(os.environ, TELEGRAM_BOT_TOKEN=BOT, TG_API="http://127.0.0.1:%d" % srv.server_port, MILA_AUTH_DIR=A, LOGIN_CMD="%s %s" % (sys.executable, fake), OWNER_ID="", PORT="8080")
+p = subprocess.Popen([sys.executable, os.path.join(H, "claude_login.py")], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True); line = p.stdout.readline()
+code_file = os.path.join(A, "pair_code")
+check("платформа со страницей (PORT) и без хозяина — код в том (600), не в журнал", wait(lambda: os.path.exists(code_file)) and open(code_file).read().strip() not in line and "not printed" in line, line)
+p.terminate(); p.wait(); shutil.rmtree(A, ignore_errors=True)
 # 3) bad env
 r = subprocess.run([sys.executable, os.path.join(H, "claude_login.py")], env=dict(os.environ, TELEGRAM_BOT_TOKEN="x"), capture_output=True, text=True)
 check("нет токена бота — код 2, понятная строка", r.returncode == 2 and "TELEGRAM_BOT_TOKEN" in r.stderr)
