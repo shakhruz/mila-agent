@@ -22,7 +22,7 @@ chk "railway.json: сборка по Dockerfile, перезапуск при с�
 chk "entrypoint на каждом старте докладывает недостающие CLAUDE.md, USER.md и конституцию (только недостающее)" "grep -q 'templates/work/\$f' docker/entrypoint.sh && grep -q '\[ -e \"\$H/work/\$f\" \] ||' docker/entrypoint.sh"
 chk "голос: приёмник запускается с TELEGRAM_VOICE_TRANSCRIBE_CMD = скрипт Groq; key_page в образе" "grep -q 'TELEGRAM_VOICE_TRANSCRIBE_CMD=.*transcribe-voice.sh' docker/entrypoint.sh && grep -q 'docker/key_page.py' docker/Dockerfile"
 chk "CLAUDE.md новорождённой: ключ Deepgram (Groq — для узбекского) — страницей key_page, не в чат; без ключа — честно и просьба текстом, не угадывать" "grep -q 'key_page.py deepgram' templates/work/CLAUDE.md && grep -q 'Deepgram does not know Uzbek' templates/work/CLAUDE.md && grep -q 'not here in the chat' templates/work/CLAUDE.md && grep -q 'please write this one in text' templates/work/CLAUDE.md && grep -q 'never guess what a voice note said' templates/work/CLAUDE.md"
-chk "Барабан в контейнере: цикл tick раз в минуту для своего дома, состояние в ~/state/baraban" "grep -q 'install/baraban.py\" tick --home \"\$H\" --owner \"\$OWNER_ID\" --state \"\$ST/baraban\"' docker/entrypoint.sh && grep -q 'sleep 60' docker/entrypoint.sh"
+chk "Барабан в контейнере: цикл tick раз в минуту для своего дома, состояние в ~/state/baraban" "grep -q 'install/baraban.py\" tick --home \"\$H\" --owner \"\$O\" --state \"\$ST/baraban\"' docker/entrypoint.sh && grep -q 'sleep 60' docker/entrypoint.sh"
 chk "entrypoint и healthcheck — синтаксис bash" "bash -n docker/entrypoint.sh && bash -n docker/healthcheck.sh"
 H=$(mktemp -d); PYDIR=$(dirname "$(command -v python3)"); run_ep() { env -i HOME="$H" PATH="$PYDIR:/usr/bin:/bin" MILA_KIT="$PWD" "$@" "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh 2>&1; }
 o=$(run_ep); chk "нет TELEGRAM_BOT_TOKEN → ждёт со строкой про @BotFather (не падает)" "printf '%s' \"\$o\" | grep -q 'BotFather' && printf '%s' \"\$o\" | grep -q 'restart the container'"
@@ -48,5 +48,22 @@ rm -rf "$SB" "$HR"
 HC=$(mktemp -d); mkdir -p "$HC/state" "$HC/.claude/channels/telegram"; echo 0 > "$HC/state/session.pid"; echo 0 > "$HC/.claude/channels/telegram/receiver.pid"
 chk "healthcheck: pid 0 — не «жив» (kill -0 0 бьёт по группе)" "! HOME=$HC bash docker/healthcheck.sh >/dev/null 2>&1"
 rm -rf "$HC"
+# Baraban loop, one turn: the owner from the file / access.json when OWNER_ID is empty; the error log is cut
+O1="555"'000111'; O2="555"'000222'; O3="555"'000333'
+BB=$(mktemp -d); mkdir -p "$BB/kit/install" "$BB/st" "$BB/auth" "$BB/tg"
+printf 'import sys\nopen(sys.argv[0]+".args","a").write(" ".join(sys.argv[1:])+"\\n")\nsys.stderr.write("e"*100)\n' > "$BB/kit/install/baraban.py"
+sed -n '/^( while :; do O=/,/sleep 60; done ) & PIDS/p' docker/entrypoint.sh | sed -e 's/^( while :; do //' -e 's/  sleep 60; done ) & PIDS+=(\$!)$/:/' > "$BB/turn.sh"
+turn() { env -i PATH="$PATH" OWNER_ID="${1:-}" MILA_KIT="$BB/kit" H="$BB/h" ST="$BB/st" AUTH="$BB/auth" TG="$BB/tg" bash "$BB/turn.sh"; }
+rm -f "$BB/kit/install/baraban.py.args"; turn
+chk "Барабан: нет владельца нигде — виток молчит" "[ ! -e $BB/kit/install/baraban.py.args ]"
+echo '{"allowFrom":["'"$O1"'"]}' > "$BB/tg/access.json"; turn
+chk "Барабан: OWNER_ID пуст, пара по коду (access.json) — тик идёт без рестарта" "grep -q -- \"--owner $O1 \" $BB/kit/install/baraban.py.args"
+echo "$O2" > "$BB/auth/owner_id"; : > "$BB/kit/install/baraban.py.args"; turn
+chk "Барабан: файл owner_id важнее access.json" "grep -q -- \"--owner $O2 \" $BB/kit/install/baraban.py.args"
+: > "$BB/kit/install/baraban.py.args"; turn "$O3"
+chk "Барабан: OWNER_ID из переменной — первым" "grep -q -- \"--owner $O3 \" $BB/kit/install/baraban.py.args"
+head -c 70000 /dev/zero > "$BB/st/baraban.err"; turn
+chk "Барабан: журнал ошибок больше 64 КБ обрезан до 32 КБ" "[ \$(stat -c %s $BB/st/baraban.err) -le 32768 ]"
+rm -rf "$BB"
 rm -rf "$H"
 echo "итог $ok/$n"; [ $ok -eq $n ]

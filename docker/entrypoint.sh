@@ -89,7 +89,13 @@ trap cleanup TERM INT
 ( while :; do RECEIVER_DAEMON=1 TELEGRAM_STATE_DIR="$TG" TELEGRAM_VOICE_TRANSCRIBE_CMD="${TELEGRAM_VOICE_TRANSCRIBE_CMD:-$MILA_KIT/install/transcribe-voice.sh}" bun "$PLUG/receiver.ts" >> "$ST/receiver.log" 2>&1; sleep 5; done ) & PIDS+=($!)
 # schedule outside the session (Baraban): mila-cron jobs of this home become events once a minute — «remind me in an hour»,
 # the morning summary — even while the session restarts. State in ~/state/baraban (one owner, one home in the container).
-( while :; do [ -n "${OWNER_ID:-}" ] && python3 "$MILA_KIT/install/baraban.py" tick --home "$H" --owner "$OWNER_ID" --state "$ST/baraban" >/dev/null 2>>"$ST/baraban.err"; sleep 60; done ) & PIDS+=($!)
+# The owner is read on every tick: paired by a code in the log after start (no OWNER_ID), the schedule starts without a restart.
+# Errors keep only the last 64 KB.
+( while :; do O="${OWNER_ID:-}"; [ -n "$O" ] || O="$(head -n1 "$AUTH/owner_id" 2>/dev/null | tr -cd 0-9)"
+  [ -n "$O" ] || O="$(python3 -c 'import json,sys; print((json.load(open(sys.argv[1])).get("allowFrom") or [""])[0])' "$TG/access.json" 2>/dev/null | tr -cd 0-9)"
+  [ -n "$O" ] && python3 "$MILA_KIT/install/baraban.py" tick --home "$H" --owner "$O" --state "$ST/baraban" >/dev/null 2>>"$ST/baraban.err"
+  [ "$(stat -c %s "$ST/baraban.err" 2>/dev/null || echo 0)" -gt 65536 ] && { tail -c 32768 "$ST/baraban.err" > "$ST/baraban.err.t" && mv -f "$ST/baraban.err.t" "$ST/baraban.err"; }
+  sleep 60; done ) & PIDS+=($!)
 # 2. feeder: journal → session stdin
 ( while :; do TELEGRAM_STATE_DIR="$TG" COMPANION_STATE="$ST" COMPANION_FIFO="$FIFO" python3 "$MILA_KIT/install/companion-feeder.py" >> "$ST/feeder.err" 2>&1; sleep 3; done ) & PIDS+=($!)
 # 3. the session in tmux «mila». The plugin is not on Anthropic's channel list yet, so it loads with the development-channels flag,
