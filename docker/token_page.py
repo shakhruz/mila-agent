@@ -105,7 +105,7 @@ def page(body, lg="en"):
 
 def form(lg, err=""):
     t = L[lg]
-    return page("<p>%s</p><form method=post autocomplete=off><input name=token placeholder='%s' required autofocus>"
+    return page("<p>%s</p><form method=post autocomplete=off><input name=bt type=text placeholder='%s' required autofocus autocomplete=off autocapitalize=off autocorrect=off spellcheck=false data-1p-ignore data-lpignore=true data-form-type=other>"
                 "<button type=submit>%s</button></form>%s<p><small>%s</small></p>"
                 % (html.escape(t["intro"]), t["ph"], html.escape(t["btn"]), ("<p class=e>%s</p>" % html.escape(t[err])) if err else "",
                    html.escape(t["small"] % (TTL // 60))), lg)
@@ -176,13 +176,14 @@ class H(http.server.BaseHTTPRequestHandler):
             h = [t for t in S.hits.get(a, []) if now - t < PER_ADDR_WINDOW]
             if len(h) >= PER_ADDR:
                 return self.send(429, note(lg, "many", "many_p"))
-            S.hits[a] = h + [now]; S.total += 1
+            S.hits[a] = h + [now]
             n = int(self.headers.get("Content-Length") or 0)
             if n > 2048:
                 return self.send(413, note(lg, "fmt", "fmt"))
-            tok = (urllib.parse.parse_qs(self.rfile.read(n).decode("utf-8", "replace")).get("token") or [""])[0].strip()
+            tok = (urllib.parse.parse_qs(self.rfile.read(n).decode("utf-8", "replace")).get("bt") or [""])[0].strip()
             if not TOKEN_RE.match(tok):
-                return self.send(200, form(lg, "fmt"))
+                return self.send(200, form(lg, "fmt"))   # empty or not a token: does not count toward the 20 — a stranger cannot close the page with junk
+            S.total += 1
             me = get_me(tok)
             if not me:
                 return self.send(200, form(lg, "tg"))

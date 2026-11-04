@@ -41,6 +41,7 @@ T = {"hello": "Здравствуйте! Я Мила. Чтобы я зарабо
      "stranger": "Эту Милу подключает её хозяин. Если это вы — отправьте /pair и код из журнала контейнера (или задайте OWNER_ID).",
      "paired": "Код верный — вы хозяин этой Милы. Готовлю вход в Claude…", "pair_bad": "Код не подошёл. Он в журнале контейнера: строка «pairing code»."}
 PAIR_ALPH = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+PAIR_LOCK = int(os.environ.get("PAIR_LOCK", "600"))
 
 
 def new_pair():
@@ -133,7 +134,7 @@ def main():
         sys.stderr.write("claude-login: TELEGRAM_BOT_TOKEN is missing or malformed\n"); return 2
     offset, sess, who, warned = 0, None, None, set()
     owner = OWNER
-    pair, bad, bad_all = (None if owner else new_pair()), {}, 0
+    pair, bad, bad_all, lock_until = (None if owner else new_pair()), {}, 0, 0.0
     print("claude-login: waiting for /start from %s" % ("the owner" if owner else "the person with the pairing code"), flush=True)
     while True:
         if sess and time.time() - sess.started > TTL:
@@ -149,7 +150,9 @@ def main():
             uid, text = str((m.get("from") or {}).get("id", "")), (m.get("text") or "").strip()
             if not owner:
                 pm = re.match(r"^/pair\s+([A-Za-z0-9]{6})\s*$", text) or re.match(r"^/start\s+pair_([A-Za-z0-9]{6})\s*$", text)
-                if pm and bad.get(uid, 0) < 5:
+                if pm and (bad.get(uid, 0) >= 5 or time.time() < lock_until):
+                    say(uid, T["pair_bad"]); continue   # 5 wrong codes from one person, or 20 from all — no more guesses for now
+                if pm:
                     if secrets.compare_digest(pm.group(1).upper(), pair):
                         owner = uid; say(uid, T["paired"]); text = "/login"
                         try: os.remove(os.path.join(AUTH, "pair_code"))   # one-time: the page's link stops working
@@ -157,8 +160,9 @@ def main():
                         print("claude-login: paired with %s" % uid, flush=True)
                     else:
                         bad[uid] = bad.get(uid, 0) + 1; bad_all += 1; say(uid, T["pair_bad"])
-                        if bad_all >= 20:
-                            pair, bad_all = new_pair(), 0
+                        if bad_all >= 20:   # someone is guessing: 10 minutes of no pairing at all. The page's code stays —
+                            lock_until, bad_all = time.time() + PAIR_LOCK, 0   # the owner's link still works after the pause
+                            print("claude-login: 20 wrong pairing codes — pairing paused for %d min" % (PAIR_LOCK // 60), flush=True)
                         continue
                 elif uid not in warned:
                     say(uid, T["stranger"]); warned.add(uid); continue

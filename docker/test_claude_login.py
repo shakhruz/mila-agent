@@ -103,6 +103,23 @@ S.queue.append(msg(int(OWN), "/start pair_K7M2Q9", 31))
 check("хозяин по ссылке t.me/<бот>?start=pair_<код> — сразу кнопка входа", wait(lambda: any("reply_markup" in m and "claude.ai/oauth" in m["reply_markup"] for m in S.sent)), S.sent)
 check("код одноразовый: файл pair_code удалён", wait(lambda: not os.path.exists(os.path.join(A, "pair_code"))))
 p.terminate(); p.wait(); shutil.rmtree(A, ignore_errors=True)
+# 2c) guessing: 5 wrong from one person — then even the right code is refused for him; 20 wrong from all — pause for everyone
+time.sleep(0.6); os.makedirs(A, mode=0o700, exist_ok=True); open(os.path.join(A, "pair_code"), "w").write("K7M2Q9\n")
+def start_lock():
+    S.queue.clear(); S.sent.clear()
+    env = dict(os.environ, TELEGRAM_BOT_TOKEN=BOT, TG_API="http://127.0.0.1:%d" % srv.server_port, MILA_AUTH_DIR=A,
+               LOGIN_CMD="%s %s" % (sys.executable, fake), OWNER_ID="", PAIR_LOCK="600")
+    return subprocess.Popen([sys.executable, os.path.join(H, "claude_login.py")], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+p = start_lock(); p.stdout.readline()
+for i in range(5): S.queue.append(msg(int(STR), "/start pair_ZZZZZ%d" % (i + 2), 40 + i))
+wait(lambda: sum("Код не подошёл" in m["text"] for m in S.sent) >= 5)
+S.queue.append(msg(int(STR), "/start pair_K7M2Q9", 50))
+check("после 5 неверных от одного — даже верный код от него не принят", wait(lambda: sum("Код не подошёл" in m["text"] for m in S.sent) >= 6) and os.path.exists(os.path.join(A, "pair_code")) and not any("reply_markup" in m for m in S.sent))
+for i in range(15): S.queue.append(msg(int("555000" + "%03d" % (300 + i)), "/pair ZZZZZ%d" % (i % 8 + 2), 60 + i))
+wait(lambda: sum("Код не подошёл" in m["text"] for m in S.sent) >= 21)
+S.queue.append(msg(int(OWN), "/start pair_K7M2Q9", 90))
+check("20 неверных от всех — пауза: и хозяину пока «не подошёл», код со страницы не сгорел", wait(lambda: sum("Код не подошёл" in m["text"] for m in S.sent) >= 22) and os.path.exists(os.path.join(A, "pair_code")))
+p.terminate(); p.wait(); shutil.rmtree(A, ignore_errors=True)
 # 3) bad env
 r = subprocess.run([sys.executable, os.path.join(H, "claude_login.py")], env=dict(os.environ, TELEGRAM_BOT_TOKEN="x"), capture_output=True, text=True)
 check("нет токена бота — код 2, понятная строка", r.returncode == 2 and "TELEGRAM_BOT_TOKEN" in r.stderr)
