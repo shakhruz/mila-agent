@@ -23,14 +23,17 @@ else:
 sys.stdout.flush(); time.sleep(0.2)
 """ % (CODE, TOKEN_OUT))
 class S:
-    queue, sent, deleted = [], [], []
+    queue, sent, deleted, offsets, tos = [], [], [], [], []
 class Fake(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def do_POST(self):
         body = urllib.parse.parse_qs(self.rfile.read(int(self.headers.get("Content-Length") or 0)).decode())
         method = self.path.rsplit("/", 1)[-1]
         if method == "getUpdates":
-            time.sleep(0.2); res = S.queue[:]; del S.queue[:]
+            S.offsets.append(int(body.get("offset", ["0"])[0])); S.tos.append(body.get("timeout", ["?"])[0])
+            if body.get("timeout", ["25"])[0] != "0": time.sleep(0.2)
+            res = S.queue[:] if body.get("timeout", ["25"])[0] != "0" else []; 
+            if res: del S.queue[:]
         elif method == "sendMessage":
             S.sent.append({k: v[0] for k, v in body.items()}); res = {"message_id": len(S.sent)}
         elif method == "deleteMessage":
@@ -44,8 +47,8 @@ class Fake(http.server.BaseHTTPRequestHandler):
             pass   # the helper was stopped mid-poll
 srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Fake); threading.Thread(target=srv.serve_forever, daemon=True).start()
 uid = [0]
-def msg(frm, text, mid):
-    uid[0] += 1; return {"update_id": uid[0], "message": {"message_id": mid, "chat": {"id": frm, "type": "private"}, "from": {"id": frm}, "text": text}}
+def msg(frm, text, mid, lang="ru"):
+    uid[0] += 1; return {"update_id": uid[0], "message": {"message_id": mid, "chat": {"id": frm, "type": "private"}, "from": {"id": frm, "language_code": lang}, "text": text}}
 def start(owner="", ttl="600"):
     S.queue.clear(); S.sent.clear(); S.deleted.clear()
     env = dict(os.environ, TELEGRAM_BOT_TOKEN=BOT, TG_API="http://127.0.0.1:%d" % srv.server_port, MILA_AUTH_DIR=os.path.join(T, "auth"),
@@ -73,6 +76,7 @@ S.queue.append(msg(int(OWN), "просто текст", 11))
 check("не код — просьба прислать код целиком", wait(lambda: any("не похоже на код" in m["text"] for m in S.sent)))
 S.queue.append(msg(int(OWN), CODE, 12))
 check("верный код → процесс завершился с кодом 0", wait(lambda: p.poll() is not None, 20) and p.returncode == 0, p.poll())
+check("перед выходом подтверждён последний апдейт (getUpdates timeout=0, offset = код+1) — код не придёт движку второй раз", S.tos and S.tos[-1] == "0" and S.offsets[-1] == uid[0] + 1, (S.offsets[-3:], S.tos[-3:], uid[0]))
 out, err = p.communicate(); out = line + out
 A = os.path.join(T, "auth")
 check("сообщение с кодом удалено из чата", "12" in S.deleted, S.deleted)
@@ -178,6 +182,15 @@ for raw in ("Your token: " + "sk-" + "ant-oat01-" + "Q" * 60, "token " + "sk-" +
     check("строка журнала без ключа: %s… → %s" % (raw[:10], out_), "Q" * 12 not in out_ and "a" * 12 not in out_ and "AbCdEf123456" not in out_ and "x" * 12 not in out_ and len(out_) <= 80, out_)
 check("короткий хвост ключа «sk-…» (короче 12) тоже скрыт", "ab12cd9" not in masked("key " + "sk-" + "ab12cd9"), masked("key " + "sk-" + "ab12cd9"))
 check("обычная строка не портится", masked("OAuth error: Request failed with status code 400") == "OAuth error: Request failed with status code 400")
+# 2g) the language of the person's Telegram: English by default, Russian and Uzbek when the app says so
+time.sleep(0.6); p = start(owner=OWN)
+S.queue.append(msg(int(OWN), "/login", 95, lang="en"))
+check("язык Telegram en → вход по-английски (кнопка «Sign in to Claude»)", wait(lambda: any("reply_markup" in m and "Sign in to Claude" in m["reply_markup"] for m in S.sent)), S.sent[-1:])
+S.sent.clear(); S.queue.append(msg(int(OTH), "/start", 96, lang="de"))
+check("язык не ru/uz (de) → английский", wait(lambda: any("set up by her owner" in m["text"] for m in S.sent)), S.sent)
+S.sent.clear(); S.queue.append(msg(int(OWN), "/login", 97, lang="uz"))
+check("uz → по-узбекски", wait(lambda: any("reply_markup" in m and m["text"].startswith("Salom! Men Milaman") for m in S.sent)), S.sent[-1:])
+p.terminate(); p.wait(); shutil.rmtree(A, ignore_errors=True)
 # 3) bad env
 r = subprocess.run([sys.executable, os.path.join(H, "claude_login.py")], env=dict(os.environ, TELEGRAM_BOT_TOKEN="x"), capture_output=True, text=True)
 check("нет токена бота — код 2, понятная строка", r.returncode == 2 and "TELEGRAM_BOT_TOKEN" in r.stderr)

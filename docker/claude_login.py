@@ -43,6 +43,43 @@ T = {"hello": "Здравствуйте! Я Мила. Чтобы я зарабо
      "done": "✅ Подписка подключена. Привет! Я твоя Мила. Как тебя зовут и чем ты занимаешься? (Отвечу через минуту — запускаюсь.)",
      "stranger": "Эту Милу подключает её хозяин. Если это вы — отправьте /pair и код из журнала контейнера (или задайте OWNER_ID).",
      "paired": "Код верный — вы хозяин этой Милы. Готовлю вход в Claude…", "pair_bad": "Код не подошёл. Он в журнале контейнера: строка «pairing code»."}
+T_EN = {"hello": "Hi! I'm Mila. To get me working, connect your Claude subscription — it takes a minute:\n"
+                 "1. Tap the button below and sign in with the account that has the subscription.\n"
+                 "2. Anthropic shows a code — copy it and send it here, in this chat.\n"
+                 "Only I see the code, and I delete the message right away. The link works 10 minutes; /login gives a new one.",
+        "btn": "🔑 Sign in to Claude", "busy": "Preparing the sign-in link…", "fail": "Could not open the Claude sign-in: %s. Try /login again.",
+        "code_bad": "This does not look like the code from the Anthropic page. Copy the whole code and send it as one message.",
+        "no_session": "Tap /login — I'll send a fresh sign-in link.", "expired": "The sign-in link has expired. /login gives a new one.",
+        "wrong_code": "The code did not fit (or expired). Tap /login and sign in again.",
+        "checking": "Got the code, checking…",
+        "no_read": "The sign-in finished, but I could not read the answer. Tap /login and try again — if it repeats, write «help».",
+        "timeout": "No answer from Anthropic yet. Tap /login — I'll send a fresh link.",
+        "done": "✅ Subscription connected. Hi! I'm your Mila. What's your name and what do you do? (I'll answer in a minute — starting up.)",
+        "stranger": "This Mila is being set up by her owner. If that's you, open the link from the setup page (or send /pair and the code).",
+        "paired": "The code is right — you are this Mila's owner. Preparing the Claude sign-in…", "pair_bad": "The code did not fit."}
+T_UZ = {"hello": "Salom! Men Milaman. Ishlashim uchun Claude obunangizni ulang — bir daqiqa:\n"
+                 "1. Pastdagi tugmani bosing va obuna bor akkaunt bilan kiring.\n"
+                 "2. Anthropic kod ko‘rsatadi — uni nusxalab, shu chatga yuboring.\n"
+                 "Kodni faqat men ko‘raman, xabarni darhol o‘chiraman. Havola 10 daqiqa ishlaydi; yangisi — /login.",
+        "btn": "🔑 Claude’ga kirish", "busy": "Kirish havolasini tayyorlayapman…", "fail": "Claude’ga kirishni ochib bo‘lmadi: %s. /login ni qayta bosing.",
+        "code_bad": "Bu Anthropic sahifasidagi kodga o‘xshamaydi. Kodni to‘liq nusxalab, bitta xabarda yuboring.",
+        "no_session": "/login ni bosing — yangi havola yuboraman.", "expired": "Kirish havolasi eskirdi. Yangisi — /login.",
+        "wrong_code": "Kod mos kelmadi (yoki eskirgan). /login ni bosib, qayta kiring.",
+        "checking": "Kodni oldim, tekshiryapman…",
+        "no_read": "Kirish tugadi, lekin javobni o‘qiy olmadim. /login ni bosib, qayta urinib ko‘ring.",
+        "timeout": "Anthropic’dan javob kelmadi. /login ni bosing — yangi havola yuboraman.",
+        "done": "✅ Obuna ulandi. Salom! Men sizning Milangizman. Ismingiz nima va nima bilan shug‘ullanasiz? (Bir daqiqada javob beraman — ishga tushyapman.)",
+        "stranger": "Bu Milani uning egasi sozlayapti. Agar bu siz bo‘lsangiz — sozlash sahifasidagi havolani oching (yoki /pair va kodni yuboring).",
+        "paired": "Kod to‘g‘ri — siz bu Milaning egasisiz. Claude’ga kirishni tayyorlayapman…", "pair_bad": "Kod mos kelmadi."}
+TEXTS = {"ru": T, "en": T_EN, "uz": T_UZ}
+LANG = {}   # chat id → language from Telegram (language_code); unknown — English
+
+
+def tx(chat, key):
+    """Text in the person's Telegram language: ru, uz, otherwise English (the product is international)."""
+    return TEXTS.get(LANG.get(str(chat), "en"), T_EN).get(key) or T_EN[key]
+
+
 PAIR_ALPH = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 PAIR_LOCK = int(os.environ.get("PAIR_LOCK", "600"))
 
@@ -84,7 +121,7 @@ def tg(method, **params):
 def say(chat, text, button=None):
     kw = {"chat_id": chat, "text": text}
     if button:
-        kw["reply_markup"] = {"inline_keyboard": [[{"text": T["btn"], "url": button}]]}
+        kw["reply_markup"] = {"inline_keyboard": [[{"text": tx(chat, "btn"), "url": button}]]}
     return tg("sendMessage", **kw)
 
 
@@ -235,7 +272,7 @@ def main():
     print("claude-login: waiting for /start from %s" % ("the owner" if owner else "the person with the pairing code"), flush=True)
     while True:
         if sess and time.time() - sess.started > TTL:
-            sess.close(); say(who, T["expired"]); sess, who = None, None
+            sess.close(); say(who, tx(who, "expired")); sess, who = None, None
         upd = tg("getUpdates", offset=offset, timeout=25, allowed_updates=["message"])
         if not upd.get("ok"):
             time.sleep(5); continue          # Telegram unreachable: wait, do not spin
@@ -245,49 +282,51 @@ def main():
             if (m.get("chat") or {}).get("type") != "private":
                 continue
             uid, text = str((m.get("from") or {}).get("id", "")), (m.get("text") or "").strip()
+            lc = str((m.get("from") or {}).get("language_code") or "")[:2].lower()
+            LANG[uid] = lc if lc in TEXTS else "en"
             if not owner:
                 pm = re.match(r"^/pair\s+([A-Za-z0-9]{6})\s*$", text) or re.match(r"^/start\s+pair_([A-Za-z0-9]{6})\s*$", text)
                 if pm and (bad.get(uid, 0) >= 5 or time.time() < lock_until):
-                    say(uid, T["pair_bad"]); continue   # 5 wrong codes from one person, or 20 from all — no more guesses for now
+                    say(uid, tx(uid, "pair_bad")); continue   # 5 wrong codes from one person, or 20 from all — no more guesses for now
                 if pm:
                     if secrets.compare_digest(pm.group(1).upper(), pair):
-                        owner = uid; save(None, owner); say(uid, T["paired"]); text = "/login"
+                        owner = uid; save(None, owner); say(uid, tx(uid, "paired")); text = "/login"
                         try: os.remove(os.path.join(AUTH, "pair_code"))   # one-time: the page's link stops working
                         except OSError: pass
                         print("claude-login: paired with %s" % uid, flush=True)
                     else:
-                        bad[uid] = bad.get(uid, 0) + 1; bad_all += 1; say(uid, T["pair_bad"])
+                        bad[uid] = bad.get(uid, 0) + 1; bad_all += 1; say(uid, tx(uid, "pair_bad"))
                         if bad_all >= 20:   # someone is guessing: 10 minutes of no pairing at all. The page's code stays —
                             lock_until, bad_all = time.time() + PAIR_LOCK, 0   # the owner's link still works after the pause
                             print("claude-login: 20 wrong pairing codes — pairing paused for %d min" % (PAIR_LOCK // 60), flush=True)
                         continue
                 elif uid not in warned:
-                    say(uid, T["stranger"]); warned.add(uid); continue
+                    say(uid, tx(uid, "stranger")); warned.add(uid); continue
                 else:
                     continue
             if uid != owner:
                 if uid not in warned:
-                    say(uid, T["stranger"]); warned.add(uid)
+                    say(uid, tx(uid, "stranger")); warned.add(uid)
                 continue
             if re.match(r"^/(start|login)\b", text):
                 if sess:
                     sess.close()
-                say(uid, T["busy"])
+                say(uid, tx(uid, "busy"))
                 sess, who = Session(), uid
                 url = sess.read_until(URL_RE, 45)
                 if not url:
                     sess.close(); sess, who = None, None
-                    say(uid, T["fail"] % "нет ссылки от claude setup-token"); continue
-                say(uid, T["hello"], button=url)
+                    say(uid, tx(uid, "fail") % "no link from claude setup-token"); continue
+                say(uid, tx(uid, "hello"), button=url)
                 continue
             if sess and time.time() - sess.started > TTL:      # a code only while this setup-token is alive
-                sess.close(); sess, who = None, None; say(uid, T["expired"]); continue
+                sess.close(); sess, who = None, None; say(uid, tx(uid, "expired")); continue
             if not sess or uid != who:
-                say(uid, T["no_session"]); continue
+                say(uid, tx(uid, "no_session")); continue
             if not CODE_RE.match(text):
-                say(uid, T["code_bad"]); continue
+                say(uid, tx(uid, "code_bad")); continue
             tg("deleteMessage", chat_id=uid, message_id=m.get("message_id"))   # the code does not stay in the chat
-            say(uid, T["checking"])   # no minute of silence after the code
+            say(uid, tx(uid, "checking"))   # no minute of silence after the code
             sess.write(text)
             tok = sess.read_until(TOK_RE, 90, screen=True)
             if not tok:
@@ -295,13 +334,16 @@ def main():
                 time.sleep(0.3); sess.close()
                 print("claude-login: no token — %s, exit %s, last line: %s" % ("program ended" if closed else "timeout", sess.rc, tail), flush=True)
                 sess = None; who = None
-                if re.search(r"OAuth error|invalid|expired|status code 4\d\d", shown, re.I): say(uid, T["wrong_code"])
-                elif closed: say(uid, T["no_read"])
-                else: say(uid, T["timeout"])
+                if re.search(r"OAuth error|invalid|expired|status code 4\d\d", shown, re.I): say(uid, tx(uid, "wrong_code"))
+                elif closed: say(uid, tx(uid, "no_read"))
+                else: say(uid, tx(uid, "timeout"))
                 continue
             sess.close(); sess = None
             save(tok, owner)
-            say(uid, T["done"])
+            # confirm every update read so far: the offset only reaches Telegram with the NEXT getUpdates — without this the
+            # message with the code comes again to the receiver that starts next, and the model gets the sign-in code
+            tg("getUpdates", offset=offset, timeout=0, allowed_updates=["message"])
+            say(uid, tx(uid, "done"))
             print("claude-login: signed in, owner %s" % owner, flush=True)
             return 0
 
