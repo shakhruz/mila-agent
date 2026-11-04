@@ -114,6 +114,12 @@ gets past them — they are not a wall. The wall is `CLAUDE_CODE_SUBPROCESS_ENV_
 subprocess; it needs bubblewrap, and Claude Code does not start without it. It will be turned on after a probe shows the
 platform (Railway) allows it; if it does not, the token will move to a file only a root step of the entrypoint reads.
 
+The receiver's journals (`inbound/events.jsonl`, `cards.jsonl`) are what the pack installer (`update.py install-pack`) and
+`spend.py` check for «the owner sent this file» and «the owner pressed yes». They are written by the receiver but owned by
+the session's user, so a deliberate injection can append a fake «owner» line (a real `file_id` from a group plus a fake
+press). It is a lock against accidents and naive instructions, not against a deliberate attack — until the receiver runs as
+its own user and signs its lines.
+
 ## Reporting
 
 See [SECURITY.md](../SECURITY.md) — private channel, answer within 5 business days.

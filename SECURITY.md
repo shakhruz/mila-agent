@@ -30,6 +30,11 @@ session's environment belong to the same user as the session, and the session ru
 fence — `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` (needs bubblewrap) or the token kept outside the session's user — is the next
 step, after a live probe on Railway. Until then, treat a prompt injection in the container as able to see the token.
 
+The same holds for the receiver's journals (`inbound/events.jsonl`, `cards.jsonl`): the pack installer and the spend ledger
+trust them for «the owner sent this file» and «the owner pressed yes», and they belong to the session's user. That stops an
+accident or a naive instruction, not a deliberate injection that writes a fake line. The fix is the same step as for the
+token: the receiver as its own user, signing its lines.
+
 ## What the send-guard is — and is not
 
 The send-guard (`templates/home/.claude/hooks/send-guard.py`, a `PreToolUse` hook on `reply`/`edit_message`) catches the
