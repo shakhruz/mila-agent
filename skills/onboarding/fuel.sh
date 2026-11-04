@@ -6,8 +6,12 @@
 CL="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 # вход по подписке хозяина (нет ANTHROPIC_BASE_URL, есть claudeAiOauth) — я не на запасе.
 # OPENROUTER_API_KEY при этом остаётся ключом инструментов (картинки, голос) — его баланс не «моё топливо».
-if [ -z "${ANTHROPIC_BASE_URL:-}" ] && grep -q claudeAiOauth "$CL/.credentials.json" 2>/dev/null; then
+if [ -z "${ANTHROPIC_BASE_URL:-}" ] && { grep -q claudeAiOauth "$CL/.credentials.json" 2>/dev/null || [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || [ -s "${MILA_AUTH_DIR:-$HOME/.mila-auth}/oauth_token" ]; }; then
+  # подписка: вход в Claude Code файлом (credentials) или токеном setup-token (Mila Agent: env или ~/.mila-auth/oauth_token)
   echo "FUEL sub (подписка хозяина подключена: строку ⛽ не пишу, о запасе не говорю)"; exit 0
+fi
+if [ -z "${ANTHROPIC_BASE_URL:-}" ] && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  echo "FUEL key (API-ключ Anthropic хозяина: строку ⛽ не пишу, о запасе не говорю)"; exit 0
 fi
 # Ключ из сейфа work/secrets/<имя>.env, если в env пусто (env важнее файла — как vault.py). Файл открыт группе/другим — не читаю.
 safe_key() { _f="${SAFE_DIR:-$HOME/work/secrets}/$1.env"; [ -f "$_f" ] || return 1

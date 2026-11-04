@@ -6,7 +6,8 @@ ok=0; n=0; chk() { n=$((n+1)); if eval "$2"; then ok=$((ok+1)); echo "✅ $1"; e
 inst() { HOME="$T/home" CLAUDE_CONFIG_DIR="$T/home/.claude" MILA_CC_VERSION=2.1.310 PATH=/usr/bin:/bin:/usr/local/bin bash "$REPO/install/install.sh" >/dev/null 2>&1; }
 inst; W="$T/home/work"
 chk "CLAUDE.md в ~/work есть" "[ -f $W/CLAUDE.md ]"
-chk "в нём знакомство через onboarding, не «How can I help»: правило и запрет" "grep -q 'onboarding' $W/CLAUDE.md && grep -q 'знакомство: пройдено' $W/CLAUDE.md && grep -q 'Never a bare' $W/CLAUDE.md"
+chk "в нём знакомство (кто вы, чем заняты, что болит), не «How can I help»; без шагов, «Мы здесь» и резерва" "grep -q 'what hurts now' $W/CLAUDE.md && grep -q 'знакомство: пройдено' $W/CLAUDE.md && grep -q 'Never a bare' $W/CLAUDE.md && grep -q 'No step lists, no «We are here' $W/CLAUDE.md && grep -q 'No reserve, no gifts' $W/CLAUDE.md"
+chk "имя латиницей при русском — спросить, как обращаться" "grep -q 'Latin' $W/CLAUDE.md && grep -q 'ask how to address them' $W/CLAUDE.md"
 chk "конституция подключена (@canon/CONSTITUTION.en.md) и лежит рядом" "grep -q '@canon/CONSTITUTION.en.md' $W/CLAUDE.md && [ -f $W/canon/CONSTITUTION.en.md ] && [ -f $W/canon/CONSTITUTION.md ]"
 chk "USER.md — паспорт хозяина" "grep -q 'Name:' $W/USER.md"
 echo "мой собственный" > "$W/CLAUDE.md"; echo "Имя: Иван" > "$W/USER.md"; inst
