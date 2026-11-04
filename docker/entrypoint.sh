@@ -87,6 +87,9 @@ trap cleanup TERM INT
 # 1. receiver daemon
 # voice: the receiver runs our script for every voice note (Groq key: GROQ_API_KEY or ~/work/secrets/groq.env, see key_page.py)
 ( while :; do RECEIVER_DAEMON=1 TELEGRAM_STATE_DIR="$TG" TELEGRAM_VOICE_TRANSCRIBE_CMD="${TELEGRAM_VOICE_TRANSCRIBE_CMD:-$MILA_KIT/install/transcribe-voice.sh}" bun "$PLUG/receiver.ts" >> "$ST/receiver.log" 2>&1; sleep 5; done ) & PIDS+=($!)
+# schedule outside the session (Baraban): mila-cron jobs of this home become events once a minute — «remind me in an hour»,
+# the morning summary — even while the session restarts. State in ~/state/baraban (one owner, one home in the container).
+( while :; do [ -n "${OWNER_ID:-}" ] && python3 "$MILA_KIT/install/baraban.py" tick --home "$H" --owner "$OWNER_ID" --state "$ST/baraban" >/dev/null 2>>"$ST/baraban.err"; sleep 60; done ) & PIDS+=($!)
 # 2. feeder: journal → session stdin
 ( while :; do TELEGRAM_STATE_DIR="$TG" COMPANION_STATE="$ST" COMPANION_FIFO="$FIFO" python3 "$MILA_KIT/install/companion-feeder.py" >> "$ST/feeder.err" 2>&1; sleep 3; done ) & PIDS+=($!)
 # 3. the session in tmux «mila». The plugin is not on Anthropic's channel list yet, so it loads with the development-channels flag,
