@@ -91,6 +91,18 @@ wait(lambda: any("reply_markup" in m for m in S.sent))
 S.queue.append(msg(int(OWN), "wrongcode123456", 22))
 check("неверный код — «не подошёл», ничего не сохранено, ждёт дальше", wait(lambda: any("не подошёл" in m["text"] for m in S.sent)) and not os.path.exists(os.path.join(A, "oauth_token")) and p.poll() is None)
 p.terminate(); p.wait()
+# 2b) the token page saved a pairing code: no code in the log; «/start pair_<code>» from the page's link pairs the owner, once
+os.makedirs(A, mode=0o700, exist_ok=True); open(os.path.join(A, "pair_code"), "w").write("K7M2Q9\n")
+time.sleep(0.6)   # the stopped helper's last long-poll (0.2 s in the fake) must not take this section's messages
+p = start()
+line = p.stdout.readline()
+check("код со страницы токена — в журнал не печатается", "K7M2Q9" not in line and "token page" in line, line)
+S.queue.append(msg(int(STR), "/start pair_ZZZZZZ", 30))
+check("чужой со своим кодом — «не подошёл»", wait(lambda: any("Код не подошёл" in m["text"] for m in S.sent)), S.sent)
+S.queue.append(msg(int(OWN), "/start pair_K7M2Q9", 31))
+check("хозяин по ссылке t.me/<бот>?start=pair_<код> — сразу кнопка входа", wait(lambda: any("reply_markup" in m and "claude.ai/oauth" in m["reply_markup"] for m in S.sent)), S.sent)
+check("код одноразовый: файл pair_code удалён", wait(lambda: not os.path.exists(os.path.join(A, "pair_code"))))
+p.terminate(); p.wait(); shutil.rmtree(A, ignore_errors=True)
 # 3) bad env
 r = subprocess.run([sys.executable, os.path.join(H, "claude_login.py")], env=dict(os.environ, TELEGRAM_BOT_TOKEN="x"), capture_output=True, text=True)
 check("нет токена бота — код 2, понятная строка", r.returncode == 2 and "TELEGRAM_BOT_TOKEN" in r.stderr)

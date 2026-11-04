@@ -20,6 +20,11 @@ log() { printf '%s mila-agent: %s\n' "$(date +%FT%T)" "$*"; }
 wait_forever() { log "$1"; log "Fix the variable in your Docker settings and restart the container."; exec sleep infinity; }
 
 AUTH="$H/.mila-auth"
+# No token anywhere and the platform gave a port (Railway, panels with a public address): one-field page, once.
+if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] && [ ! -s "$AUTH/bot_token" ] && [ -z "${BIRTH_CODE:-}" ] && [ -n "${PORT:-}" ] && [ ! -e "$AUTH/token_page.done" ]; then
+  MILA_AUTH_DIR="$AUTH" python3 "${TOKEN_PAGE:-/usr/local/bin/token_page.py}" | while IFS= read -r l; do log "$l"; done
+  [ -s "$AUTH/bot_token" ] || wait_forever "The token page closed without a token (time or attempts ran out) — restart the service to open it again."
+fi
 # Bot token: the variable, or the one fetched earlier by a birth code (volume, 600), or now by BIRTH_CODE — once, from our relay.
 if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] && [ ! -s "$AUTH/bot_token" ] && [ -n "${BIRTH_CODE:-}" ]; then
   MILA_AUTH_DIR="$AUTH" python3 "${BIRTH_HELPER:-/usr/local/bin/birth_claim.py}" | while IFS= read -r l; do log "$l"; done

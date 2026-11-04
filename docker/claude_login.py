@@ -44,6 +44,14 @@ PAIR_ALPH = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 
 def new_pair():
+    """A pairing code. If the token page saved one (pair_code, 600) — that one: the owner got it as a t.me/<bot>?start=pair_<code>
+    link on the page, so it is not printed to the log. Otherwise a new code goes to the container's log."""
+    try:
+        c = open(os.path.join(AUTH, "pair_code")).read().strip().upper()
+        if re.fullmatch(r"[A-Z2-9]{6}", c):
+            print("claude-login: waiting for the owner's link from the token page", flush=True); return c
+    except OSError:
+        pass
     c = "".join(secrets.choice(PAIR_ALPH) for _ in range(6))
     print("claude-login: pairing code %s — send «/pair %s» to your bot from your own Telegram" % (c, c), flush=True)
     return c
@@ -140,10 +148,12 @@ def main():
                 continue
             uid, text = str((m.get("from") or {}).get("id", "")), (m.get("text") or "").strip()
             if not owner:
-                pm = re.match(r"^/pair\s+([A-Za-z0-9]{6})\s*$", text)
+                pm = re.match(r"^/pair\s+([A-Za-z0-9]{6})\s*$", text) or re.match(r"^/start\s+pair_([A-Za-z0-9]{6})\s*$", text)
                 if pm and bad.get(uid, 0) < 5:
                     if secrets.compare_digest(pm.group(1).upper(), pair):
                         owner = uid; say(uid, T["paired"]); text = "/login"
+                        try: os.remove(os.path.join(AUTH, "pair_code"))   # one-time: the page's link stops working
+                        except OSError: pass
                         print("claude-login: paired with %s" % uid, flush=True)
                     else:
                         bad[uid] = bad.get(uid, 0) + 1; bad_all += 1; say(uid, T["pair_bad"])

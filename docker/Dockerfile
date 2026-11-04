@@ -27,8 +27,8 @@ RUN git clone --depth 1 --branch "${PLUGIN_REF}" "${PLUGIN_REPO}" /opt/mila/plug
 
 RUN useradd -m -u 1001 -s /bin/bash agent
 COPY . /opt/mila/kit
-COPY docker/entrypoint.sh docker/healthcheck.sh docker/claude_login.py docker/birth_claim.py /usr/local/bin/
-RUN chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh /usr/local/bin/claude_login.py /usr/local/bin/birth_claim.py \
+COPY docker/entrypoint.sh docker/healthcheck.sh docker/claude_login.py docker/birth_claim.py docker/token_page.py docker/mila-face.webp /usr/local/bin/
+RUN chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh /usr/local/bin/claude_login.py /usr/local/bin/birth_claim.py /usr/local/bin/token_page.py \
  && chown -R agent:agent /opt/mila/plugin /opt/mila/marketplace
 
 ENV HOME=/home/agent MILA_KIT=/opt/mila/kit \
