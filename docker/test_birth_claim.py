@@ -39,8 +39,18 @@ check("ответ без токена → код 1, ничего не запис
 HM = os.path.join(T, "home"); os.makedirs(HM); py = os.path.dirname(shutil.which("python3"))
 env = {"HOME": HM, "PATH": py + ":/usr/bin:/bin", "MILA_KIT": R, "BIRTH_CODE": GOOD, "BIRTH_RELAY": URL, "BIRTH_RELAY_INSECURE_TEST": "1",
        "BIRTH_HELPER": os.path.join(H, "birth_claim.py"), "LOGIN_HELPER": os.path.join(H, "claude_login.py"), "TG_API": "http://127.0.0.1:9"}
-r = subprocess.run(["timeout", "4", "bash", os.path.join(H, "entrypoint.sh")], capture_output=True, text=True, env=env)
+def run_ep(sec):
+    """entrypoint for a few seconds: it waits forever on purpose. Its own process group, killed whole after sec —
+    Python, not GNU timeout (macOS has none); otherwise the waiting children keep the pipes open."""
+    import signal
+    p = subprocess.Popen(["bash", os.path.join(H, "entrypoint.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, start_new_session=True)
+    try:
+        out, err = p.communicate(timeout=sec)
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL); out, err = p.communicate()
+    return subprocess.CompletedProcess(p.args, p.returncode, out, err)
+r = run_ep(4)
 o = r.stdout + r.stderr
 check("entrypoint: BIRTH_CODE → «birth code accepted» → помощник входа ждёт /start; токен не в логе", "birth code accepted" in o and "waiting for /start" in o and TOK not in o, o[-400:])
-check("…второй старт не ходит в relay снова (токен уже в томе)", (lambda h: (subprocess.run(["timeout", "3", "bash", os.path.join(H, "entrypoint.sh")], capture_output=True, text=True, env=env), len(HITS) == h)[1])(len(HITS)))
+check("…второй старт не ходит в relay снова (токен уже в томе)", (lambda h: (run_ep(3), len(HITS) == h)[1])(len(HITS)))
 srv.shutdown(); shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

@@ -204,7 +204,7 @@ def main():
     port = int(os.environ["PORT"])
     srv = http.server.ThreadingHTTPServer((os.environ.get("BIND", "0.0.0.0"), port), H)
     threading.Thread(target=lambda: (time.sleep(TTL + 1), srv.shutdown()), daemon=True).start()
-    print("token-page: open this service's public address — one field, the bot token (closes in %d min)" % (TTL // 60), flush=True)
+    print("token-page: open this service's public address and paste the bot token from @BotFather — one field (closes in %d min)" % (TTL // 60), flush=True)
     srv.serve_forever()
     srv.server_close()
     if S.saved is not None:

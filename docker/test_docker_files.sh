@@ -3,6 +3,11 @@
 # entrypoint waits with a clear line (not a crash loop) when a variable is missing or wrong.
 cd "$(dirname "$0")/.." || exit 1
 ok=0; n=0
+# portable «timeout N cmd»: macOS has no GNU timeout; perl is on both runners
+PERL=$(command -v perl)
+# perl as «timeout N cmd»: the command in its own process group, the whole group killed after N s (like GNU timeout,
+# which macOS lacks) — a waiting child (the sign-in helper) must not keep the output pipe open
+TMO='$t=shift; $p=fork; if(!$p){setpgrp(0,0); exec @ARGV; exit 127} $SIG{ALRM}=sub{kill "KILL", -$p}; alarm $t; waitpid($p,0); exit($?>>8)'
 chk() { n=$((n+1)); if eval "$2"; then ok=$((ok+1)); echo "✅ $1"; else echo "❌ $1"; fi; }
 chk "помощник входа: тест поддельного Telegram и setup-token" "python3 docker/test_claude_login.py >/dev/null 2>&1"
 chk "страница токена: тест поддельного Telegram" "python3 docker/test_token_page.py >/dev/null 2>&1"
@@ -15,7 +20,7 @@ chk "в Dockerfile нет VOLUME (Railway такой не собирает) и �
 chk "страница токена: PORT=8080 и EXPOSE 8080 в образе (подсказка Railway совпадает), compose отключает страницу" "grep -q '^ENV PORT=8080' docker/Dockerfile && grep -q '^EXPOSE 8080' docker/Dockerfile && python3 -c \"import yaml;assert yaml.safe_load(open('docker-compose.yml'))['services']['mila']['environment']['PORT']==''\""
 chk "railway.json: сборка по Dockerfile, перезапуск при сбое" "python3 -c \"import json;d=json.load(open('railway.json'));assert d['build']['builder']=='DOCKERFILE' and d['deploy']['restartPolicyType']=='ON_FAILURE'\""
 chk "entrypoint и healthcheck — синтаксис bash" "bash -n docker/entrypoint.sh && bash -n docker/healthcheck.sh"
-H=$(mktemp -d); PYDIR=$(dirname "$(command -v python3)"); run_ep() { env -i HOME="$H" PATH="$PYDIR:/usr/bin:/bin" MILA_KIT="$PWD" "$@" timeout 3 bash docker/entrypoint.sh 2>&1; }
+H=$(mktemp -d); PYDIR=$(dirname "$(command -v python3)"); run_ep() { env -i HOME="$H" PATH="$PYDIR:/usr/bin:/bin" MILA_KIT="$PWD" "$@" "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh 2>&1; }
 o=$(run_ep); chk "нет TELEGRAM_BOT_TOKEN → ждёт со строкой про @BotFather (не падает)" "printf '%s' \"\$o\" | grep -q 'BotFather' && printf '%s' \"\$o\" | grep -q 'restart the container'"
 TP=$(mktemp -d); printf '#!/bin/sh\necho "token-page: open this service public address"\nexit 3\n' > "$TP/tp"; chmod +x "$TP/tp"
 o=$(run_ep PORT=8080 TOKEN_PAGE="$TP/tp"); chk "нет токена, есть PORT → страница токена; закрылась пустой — ждёт со строкой «restart the service»" "printf '%s' \"\$o\" | grep -q 'token-page: open' && printf '%s' \"\$o\" | grep -q 'restart the service'"
@@ -31,9 +36,9 @@ o=$(run_ep TELEGRAM_BOT_TOKEN="$T" ANTHROPIC_API_KEY=x OWNER_ID=abc); chk "OWNER
 SB=$(mktemp -d); HR=$(mktemp -d)
 printf '#!/bin/sh\necho 0\n' > "$SB/id"; printf '#!/bin/sh\necho 0\n' > "$SB/stat"
 printf '#!/bin/sh\necho "chown $*" >> "%s/log"\n' "$SB" > "$SB/chown"; printf '#!/bin/sh\necho "setpriv $*" >> "%s/log"\nexit 0\n' "$SB" > "$SB/setpriv"
-chmod +x "$SB"/*; env -i HOME="$HR" PATH="$SB:/usr/bin:/bin" timeout 3 bash docker/entrypoint.sh >/dev/null 2>&1
+chmod +x "$SB"/*; env -i HOME="$HR" PATH="$SB:/usr/bin:/bin" "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
 chk "запуск от root: дом отдаётся agent (chown -R -h 1001), затем тот же скрипт под 1001 через setpriv" "grep -q 'chown -R -h 1001:1001 $HR' $SB/log && grep -q 'setpriv --reuid=1001 --regid=1001 --init-groups -- bash docker/entrypoint.sh' $SB/log"
-printf '#!/bin/sh\necho 1001\n' > "$SB/stat"; : > "$SB/log"; env -i HOME="$HR" PATH="$SB:/usr/bin:/bin" timeout 3 bash docker/entrypoint.sh >/dev/null 2>&1
+printf '#!/bin/sh\necho 1001\n' > "$SB/stat"; : > "$SB/log"; env -i HOME="$HR" PATH="$SB:/usr/bin:/bin" "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
 chk "дом уже agent — chown не нужен, только setpriv" "! grep -q chown $SB/log && grep -q setpriv $SB/log"
 rm -rf "$SB" "$HR"
 HC=$(mktemp -d); mkdir -p "$HC/state" "$HC/.claude/channels/telegram"; echo 0 > "$HC/state/session.pid"; echo 0 > "$HC/.claude/channels/telegram/receiver.pid"
