@@ -65,17 +65,20 @@ class Limits:
             return ""
 
 
-URL = re.compile(r"(?i)\b(?:https?://|www\.)[^\s<>\"')]+|\b(?:[a-z0-9-]+\.)+(?:com|net|org|io|ru|uz|me|app|dev|info|biz|co|xyz|site|online|shop|store|link|ly|gg|to|tk|su|kz|tj|kg|ua|by|uk|de|tr|cn|in|ai|pro|top|club|space|tech|cc|tv|fm)\b")
+# a link by its form, not by a list of zones: any «scheme:» (http:, tg:, mailto:…) and any «name.zone» with a zone of letters in any
+# script (пример.рф) or punycode (xn--…). Allowed only if it is in the owner's knowledge.
+SCHEME = re.compile(r"(?i)(?<![\w.-])[a-z][a-z0-9+.-]{1,15}:(?://)?[^\s<>\"'()]+")
+DOMAIN = re.compile(r"(?<![\w-])(?:[\w-]+\.)+(?:[^\W\d_]{2,63}|xn--[a-zA-Z0-9-]{2,59})(?![\w-])")
 
 
 def clean(out, know):
     """what the lane may publish in the owner's group: no @mentions, links only those in the owner's knowledge. Else ''."""
     if re.search(r"(?<![\w.])@[A-Za-z][A-Za-z0-9_]{3,}", out): return ""
     k = know.lower()
-    for m in URL.finditer(out):
-        u = m.group(0).lower().rstrip(".,;:!?")
-        host = re.sub(r"^(?:https?://)?(?:www\.)?", "", u).split("/")[0]
-        if host not in k and u not in k: return ""
+    for m in SCHEME.finditer(out):
+        if m.group(0).lower().rstrip(".,;:!?") not in k: return ""
+    for m in DOMAIN.finditer(out):
+        if m.group(0).lower().rstrip(".") not in k: return ""
     return out
 
 

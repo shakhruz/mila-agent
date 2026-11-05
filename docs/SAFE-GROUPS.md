@@ -37,7 +37,8 @@ A stranger who addresses the bot (a mention or a reply to it) can get a short an
   change) and has limits: 3 answers per chat a minute and 100 a day, 20 per person a day, 300 for all chats together a day
   (`LANE_PER_MIN`, `LANE_PER_DAY`, `LANE_PER_USER`, `LANE_DAY_ALL`). Over the ceiling — silence in the groups and one line to
   the owner that day. Input up to 2000 characters, an answer up to 1500;
-- **what it may publish:** an answer with an @mention, or a link that is not in the owner's knowledge, is not sent; the stranger
+- **what it may publish:** an answer with an @mention, or a link (by its form: any «scheme:», any «name.zone» in any script or
+  punycode) that is not in the owner's knowledge, is not sent; the stranger
   gets «I will pass your question to the owner» instead;
 - **the receiver sends** the answer: text only, as a reply, to the same chat (and topic). The lane sends nothing itself.
 

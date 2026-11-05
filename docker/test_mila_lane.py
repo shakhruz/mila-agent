@@ -63,6 +63,13 @@ check("@упоминание в ответе — не публикуется", r
 open(SAY, "w").write("Mail us at info@shop.example.com"); r = ask(S1, {"chat_id": "-703", "text": "mail?"})
 check("почта из знаний — не @упоминание, можно", r.get("ok"), r)
 os.remove(SAY); os.remove(os.path.join(KD, "site.md"))
+# a link by its form: any scheme, any zone of letters in any script, punycode — allowed only if in the owner's knowledge
+sys.path.insert(0, H); import mila_lane as LN
+KN = "Our site: shop.example.com, write to info@shop.example.com"
+bad = ["tg://resolve?domain=evilbot", "пример.рф", "сайт evil.рф", "xn--e1afmkfd.xn--p1ai", "mailto:a@b.co", "x@evil.com", "milagpt.io.evil.net", "t.me/evil"]
+check("ссылки по форме: tg:, кириллическая зона, punycode, mailto, чужая почта, поддомен — не публикуются", all(LN.clean(x, KN) == "" for x in bad), [x for x in bad if LN.clean(x, KN)])
+fine = ["See shop.example.com", "info@shop.example.com", "Price is 3.14 USD at 10:30, e.g. today, т.е. завтра"]
+check("…из знаний, числа, время, «e.g.», «т.е.» — можно", all(LN.clean(x, KN) for x in fine), [x for x in fine if not LN.clean(x, KN)])
 p1.terminate(); p1.wait()
 # the owner's money: a person a day, and all chats together a day
 S4 = os.path.join(T, "lane4.sock"); p4 = start(S4, os.getuid(), LANE_PER_USER="2", LANE_DAY_ALL="4")
