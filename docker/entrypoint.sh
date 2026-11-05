@@ -82,7 +82,8 @@ try: categories = json.load(open(cats))
 except (OSError, ValueError): categories = {}
 json.dump({"owner_id_env": "MILA_OWNER_ID", "bot_token_env": "BOT_TOKEN", "home": home, "state_dir": state,
            "session_socket": "/run/mila-io/consent.sock", "session_socket_mode": "660", "io_socket": "/run/mila-io/consent.io.sock",
-           "ttl_min": 15, "max_attachment_mb": 20, "langs_file": langs, "default_lang": "en", "categories": categories}, sys.stdout)
+           "ttl_min": 15, "max_attachment_mb": 20, "langs_file": langs, "default_lang": "en", "categories": categories,
+           "tz": __import__("os").environ.get("MILA_TZ") or __import__("os").environ.get("TZ") or None, "quiet": [22, 8]}, sys.stdout)
 PYC
     chown root:mila-io /run/mila-io/consent.json; chmod 640 /run/mila-io/consent.json
     setpriv --reuid=mila-io --regid=mila-io --groups="$IOG" -- env -i PATH="$PATH" HOME=/run/mila-io MILA_KIT="${MILA_KIT:-/opt/mila/kit}" \

@@ -19,6 +19,13 @@ session cannot run it itself: the service keys are with the proxy, not with the 
 5. A «no» holds for a day: the same action is refused without a new card. Three «no» in a row for a kind: no more cards of that
    kind until a «yes» or a day. A card nobody answered in 15 minutes is «expired» — silence is not consent.
 
+## Night and flood
+
+- In the owner's quiet hours (22:00–08:00 in the time zone `MILA_TZ` or `TZ`; no time zone — no quiet hours) a card waits for
+  the morning: the session gets «deferred», the card goes out after 08:00 and its 15 minutes count from then. A file changed
+  overnight — the card expires instead of showing something else.
+- More than 10 cards an hour — refused: the owner is not flooded.
+
 ## Standing permissions
 
 The session may ask for a permission; the proxy draws the card with the exact terms; only the owner's press opens it.
@@ -47,11 +54,12 @@ an anchor `n:h12` kept outside the machine. `python3 consent/decisions.py verify
 |---|---|
 | the card drawn by the proxy, the exact action's hash, once, 15 min; no invisible characters | `consent/consent_proxy.py` `request()`, `hidden()`, `digest()`, `preview()`, `callback()` |
 | a «no» a day, three in a row, silence = expired | `request()` (`DECLINE_MEMORY`, the streak), `sweep()` |
+| night: cards wait for the morning; at most 10 an hour; the owner's language | `quiet()`, `flush()`, `MAX_CARDS_HOUR`, `lang()`, `W` |
 | permissions: terms, ceilings, receipts, Stop | `mandate_ask()`, `mandate_fits()`, `receipt()`, `mandate_stop()` |
 | the chain and its check | `consent/decisions.py` |
 | the press goes to the proxy | plugin `consentPress()` (`receiver.ts`), `TELEGRAM_CONSENT_IO` |
 | in the image, categories from the image, sockets | `docker/entrypoint.sh` (root step, supervisor); `consent/categories.json` |
-| checked | `consent/test_consent.py`, `test_decisions.py`, `test_mandates.py`; plugin `consent-io.test.ts`; `docker/test_docker_files.sh`; in the image build `docker/wall_probe.sh` |
+| checked | `consent/test_consent.py`, `test_decisions.py`, `test_mandates.py`, `test_night.py`; plugin `consent-io.test.ts`; `docker/test_docker_files.sh`; in the image build `docker/wall_probe.sh` |
 
 ## Not verified live yet
 
@@ -61,5 +69,4 @@ an anchor `n:h12` kept outside the machine. `python3 consent/decisions.py verify
 
 - Kinds still asked their own way, not through the proxy yet: pack installs and updates (`update.py`), sending from the
   owner's bot (`bot-send`), paid generations (`spend.py`). They move to one `request` next.
-- The notification gate (urgent / card / summary, quiet hours, a limit on cards at night) and the anchor in the evening summary.
-- The cards are in Russian only; in the owner's language — with the gate.
+- The notification gate for the rest (urgent / summary) and the anchor in the evening summary.

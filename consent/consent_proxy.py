@@ -61,6 +61,7 @@ def _emoji(ch):
 FIELDS = ("text", "targets", "when", "attachments")   # what a card shows; a category may narrow it with "fields"
 MANDATE_DAYS = 7                                       # a standing permission lives at most a week (the owner's word)
 MANDATE_USD_DAY = 10.0                                 # … and spends at most this a day, unless the owner's config says less
+MAX_CARDS_HOUR = 10                                    # the owner is not flooded: more asks than this an hour are refused
 DECLINE_MEMORY = 86400                                 # a «no» holds for a day: the same action is not asked again
 CARD_TEXT = 3000                                       # longer text goes in parts before the card (Telegram: 4096 per message)
 PART = 3500
@@ -232,6 +233,8 @@ class Proxy:
             for cid, c in cons.items():
                 if c["hash"] != h or c.get("used") or c.get("declined") or c.get("expired") or c.get("mandate"):
                     continue
+                if c.get("deferred"):
+                    return {"status": "deferred", "id": cid}
                 if c.get("granted") and now - c["granted"] <= self.ttl:
                     c["used"] = now
                     self._save("consents.json", cons)
@@ -240,16 +243,59 @@ class Proxy:
                 if not c.get("granted") and now - c["asked"] <= self.ttl:
                     return {"status": "waiting", "id": cid}
             else:
+                if len([c for c in cons.values() if not c.get("deferred") and now - c["asked"] < 3600]) >= MAX_CARDS_HOUR:
+                    self.journal({"ev": "denied", "category": category, "why": "too many cards this hour"})
+                    return {"status": "denied", "why": "too many cards to the owner this hour — try later"}
                 cid = secrets.token_hex(4)
+                if self.quiet(now):   # the owner's night: the card waits for the morning, its 15 minutes count from then
+                    cons[cid] = {"hash": h, "category": category, "asked": now, "deferred": now, "payload": payload}
+                    self._save("consents.json", cons)
+                    self.journal({"ev": "deferred", "id": cid, "category": category, "hash": h[:16]})
+                    return {"status": "deferred", "id": cid, "why": "the owner's quiet hours — the card goes in the morning"}
                 cons[cid] = {"hash": h, "category": category, "asked": now}
                 self._save("consents.json", cons)
-                msgs = self.preview(category, payload, atts)
-                ok = all(self.send(m, []) for m in msgs[:-1]) and self.send(msgs[-1], [[
-                    {"text": self.w("yes"), "callback_data": "%s%s.%s.y" % (PREFIX, cid, self.sig(cid, h))},
-                    {"text": self.w("no"), "callback_data": "%s%s.%s.n" % (PREFIX, cid, self.sig(cid, h))}]])   # a part not shown → no card, no yes
+                ok = self.show(cid, h, category, payload, atts)
                 self.journal({"ev": "asked", "id": cid, "category": category, "hash": h[:16], "card_sent": bool(ok)})
                 return {"status": "asked", "id": cid} if ok else {"status": "denied", "why": "could not show the card to the owner"}
         return self.execute(category, payload, atts, cid)
+
+    def show(self, cid, h, category, payload, atts):
+        msgs = self.preview(category, payload, atts)
+        return all(self.send(m, []) for m in msgs[:-1]) and self.send(msgs[-1], [[
+            {"text": self.w("yes"), "callback_data": "%s%s.%s.y" % (PREFIX, cid, self.sig(cid, h))},
+            {"text": self.w("no"), "callback_data": "%s%s.%s.n" % (PREFIX, cid, self.sig(cid, h))}]])   # a part not shown → no card, no yes
+
+    def quiet(self, now):
+        """the owner's quiet hours (cfg tz + quiet [from, to]); without a time zone there are none"""
+        tz = self.cfg.get("tz")
+        if not tz: return False
+        try:
+            from zoneinfo import ZoneInfo
+            import datetime as _dt
+            hour = _dt.datetime.fromtimestamp(now, ZoneInfo(tz)).hour
+        except Exception:
+            return False
+        a, b = (self.cfg.get("quiet") or [22, 8])[:2]
+        return (a <= hour or hour < b) if a > b else (a <= hour < b)
+
+    def flush(self):
+        """the morning: the night's cards go out, oldest first, at most MAX_CARDS_HOUR; a file changed since — expired"""
+        with self.lock:
+            now = self.now()
+            if self.quiet(now): return 0
+            cons = self._load("consents.json", {}); sent = 0
+            for cid, c in sorted(cons.items(), key=lambda kv: kv[1]["asked"]):
+                if not c.get("deferred") or sent >= MAX_CARDS_HOUR: continue
+                payload = c.pop("payload", {}); c.pop("deferred", None)
+                try: h, atts = self.digest(c["category"], payload)
+                except (ValueError, OSError): h, atts = "", []
+                if h != c["hash"]:
+                    c["expired"] = now; self.journal({"ev": "expired", "id": cid, "category": c["category"], "why": "changed overnight"}); continue
+                c["asked"] = now
+                ok = self.show(cid, h, c["category"], payload, atts); sent += 1
+                self.journal({"ev": "asked", "id": cid, "category": c["category"], "hash": h[:16], "card_sent": bool(ok), "after_night": True})
+            self._save("consents.json", cons)
+            return sent
 
     # ── standing permissions (mandates) ──
     def cost(self, payload):
@@ -318,7 +364,7 @@ class Proxy:
         """silence is not consent: a card nobody answered within the TTL becomes «expired», once, in the journal"""
         changed = False
         for cid, c in cons.items():
-            if not (c.get("granted") or c.get("declined") or c.get("expired")) and now - c["asked"] > self.ttl:
+            if not (c.get("granted") or c.get("declined") or c.get("expired") or c.get("deferred")) and now - c["asked"] > self.ttl:
                 c["expired"] = now; changed = True
                 self.journal({"ev": "expired", "id": cid, "category": c.get("category"), "hash": c["hash"][:16]})
         if changed: self._save("consents.json", cons)
@@ -458,6 +504,12 @@ def main(argv=None):
     a = ap.parse_args(argv)
     cfg = json.load(open(a.config, encoding="utf-8"))
     px = Proxy(cfg)
+    def mornings():
+        while True:
+            time.sleep(300)
+            try: px.flush()
+            except Exception as e: sys.stderr.write("consent: flush %s\n" % type(e).__name__)
+    threading.Thread(target=mornings, daemon=True).start()
     threading.Thread(target=serve, args=(px, cfg["io_socket"], io_handler(px), 0o600), daemon=True).start()
     serve(px, cfg["session_socket"], session_handler(px), int(str(cfg.get("session_socket_mode", "660")), 8))
     return 0
