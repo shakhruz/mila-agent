@@ -67,6 +67,28 @@ CARD_TEXT = 3000                                       # longer text goes in par
 PART = 3500
 
 
+def action_hash(category, body, att_pairs):
+    """the exact action: its kind, the canonical payload without attachments, and every attachment as (name, sha256 of content).
+    Shared with the tools that run consent-only kinds themselves (they check decisions.jsonl for a «confirmed» with this hash)."""
+    material = json.dumps({"category": category, "payload": body, "attachments": [list(p) for p in att_pairs]},
+                          ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def confirmed(decisions_path, category, h, since, used=()):
+    """a tool's check: the owner's «yes» for exactly this action, recorded by the proxy after `since`, its chain intact, its id not
+    used before by this tool. → the consent id or ''."""
+    import decisions as _d
+    ok, _, _, _ = _d.verify(decisions_path)
+    if not ok: return ""
+    try: rows = [json.loads(l) for l in open(decisions_path, encoding="utf-8") if l.strip()]
+    except (OSError, ValueError): return ""
+    for r in reversed(rows):
+        if r.get("ev") == "confirmed" and r.get("category") == category and r.get("hash") == h and r.get("ts", 0) >= since and r.get("id") not in used:
+            return r["id"]
+    return ""
+
+
 class Proxy:
     def __init__(self, cfg, send=None, run=None, now=time.time):
         self.cfg, self.now = cfg, now
@@ -149,9 +171,7 @@ class Proxy:
         """→ (hash, attachments with content). The hash covers the category, the canonical payload and every attachment's content."""
         atts = [self.attachment(a) for a in (payload.get("attachments") or [])]
         body = {k: v for k, v in payload.items() if k != "attachments"}
-        material = json.dumps({"category": category, "payload": body, "attachments": [(a["name"], a["sha256"]) for a in atts]},
-                              ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(material.encode("utf-8")).hexdigest(), atts
+        return action_hash(category, body, [(a["name"], a["sha256"]) for a in atts]), atts
 
     def lang(self):
         owner = os.environ.get(self.cfg.get("owner_id_env") or "MILA_OWNER_ID", "")
@@ -370,6 +390,12 @@ class Proxy:
         if changed: self._save("consents.json", cons)
 
     def execute(self, category, payload, atts, cid):
+        if not (self.cfg["categories"][category] or {}).get("exec"):
+            # a consent-only kind (a pack install, an update): the session's own tool runs it, after checking in decisions.jsonl
+            # that the owner said yes to exactly this (action_hash) — the proxy only records «used» with the full hash
+            h, _ = self.digest(category, payload)
+            self.journal({"ev": "confirmed", "id": cid, "category": category, "hash": h})
+            return {"status": "done", "result": {"ok": True, "confirmed": cid}}
         with tempfile.TemporaryDirectory(prefix="consent-") as td:
             files = []
             for a in atts:                                   # the executor gets the checked copies, not the session's paths
