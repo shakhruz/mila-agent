@@ -86,6 +86,13 @@ chk "дальше везде заглушка «<id бота>:…» и адре�
 OUT2=$(env -i PATH="$PATH" AUTH="$KB/auth" bash -c '. "$1"; keyd_bot; echo "T=${TELEGRAM_BOT_TOKEN:-}"' x "$KB/fn.sh")
 chk "без хранителя keyd_bot ничего не трогает" "[ \"\$OUT2\" = 'T=' ]"
 rm -rf "$KB"
+# Cards: the session's registry and the receiver's presses are one file (before: two, a press on Mila's card was «not found»)
+CK=$(mktemp -d); mkdir -p "$CK/telegram" "$CK/telegram-session"; echo '{"card_id":"old1"}' > "$CK/telegram-session/cards.jsonl"; echo '{"card_id":"r1"}' > "$CK/telegram/cards.jsonl"
+sed -n '/^if \[ -f "\$TGS\/cards.jsonl" \]/,/^ln -sfn ..\/telegram\/cards.jsonl/p' docker/entrypoint.sh > "$CK/c.sh"
+(cd "$CK" && TG="$CK/telegram" TGS="$CK/telegram-session" bash c.sh)
+chk "карточки: файл сессии — ссылка на файл приёмника, старые карточки сессии перенесены" "[ -L $CK/telegram-session/cards.jsonl ] && grep -q old1 $CK/telegram/cards.jsonl && grep -q r1 $CK/telegram/cards.jsonl && echo '{\"card_id\":\"s2\"}' >> $CK/telegram-session/cards.jsonl && grep -q s2 $CK/telegram/cards.jsonl"
+chk "сессия знает, где журналы приёмника (MILA_TG_STATE)" "grep -q '^export MILA_TG_STATE=\"\$TG\"' docker/entrypoint.sh"
+rm -rf "$CK"
 # Baraban loop, one turn: the owner from the file / access.json when OWNER_ID is empty; the error log is cut
 O1="555"'000111'; O2="555"'000222'; O3="555"'000333'
 BB=$(mktemp -d); mkdir -p "$BB/kit/install" "$BB/st" "$BB/auth" "$BB/tg"

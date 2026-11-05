@@ -1379,7 +1379,7 @@ PACKS_IN = os.path.join(STATE, "packs-in")
 CODE_FILE = re.compile(r"\.(py|sh|bash|mjs|js|ts|rb|pl)$", re.I)
 
 
-TG_STATE = os.environ.get("TELEGRAM_STATE_DIR") or os.path.join(CLAUDE, "channels", "telegram")
+TG_STATE = os.environ.get("MILA_TG_STATE") or os.environ.get("TELEGRAM_STATE_DIR") or os.path.join(CLAUDE, "channels", "telegram")   # Mila Agent: the receiver's state, not the session's bridge
 CARD_FRESH = 30 * 60   # «да» на карточку пака — не старше 30 минут
 
 

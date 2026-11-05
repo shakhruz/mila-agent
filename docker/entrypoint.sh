@@ -112,6 +112,14 @@ if [ ! -s "$TG/access.json" ]; then
   MILA_CLAUDE=true python3 "$MILA_KIT/install/onboard.py" </dev/null || log "pairing not finished — restart the container to get a new code"
 fi
 ln -sfn ../telegram/access.json "$TGS/access.json"; ln -sfn ../telegram/receiver.pid "$TGS/receiver.pid"
+# Cards with buttons: the session registers them, the receiver checks a press against them — one file for both. Before, the
+# session wrote telegram-session/cards.jsonl and the receiver read telegram/cards.jsonl: a press on Mila's own card was
+# «not found». Cards of earlier starts move into the shared file once.
+if [ -f "$TGS/cards.jsonl" ] && [ ! -L "$TGS/cards.jsonl" ]; then cat "$TGS/cards.jsonl" >> "$TG/cards.jsonl"; rm -f "$TGS/cards.jsonl"; fi
+ln -sfn ../telegram/cards.jsonl "$TGS/cards.jsonl"
+# Scripts in the session that check the owner's press or file (packs, spend) read the receiver's journals, not the session's
+# empty bridge journal.
+export MILA_TG_STATE="$TG"
 
 PIDS=()
 cleanup() { log "stop"; tmux kill-server 2>/dev/null; kill "${PIDS[@]}" 2>/dev/null; exit 0; }

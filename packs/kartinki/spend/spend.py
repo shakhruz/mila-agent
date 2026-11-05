@@ -42,7 +42,7 @@ def rows():
     return out
 def put(r): os.makedirs(HOME, exist_ok=True); open(LED, "a", encoding="utf-8").write(json.dumps(r, ensure_ascii=False) + "\n")
 def month(r): return r["ts"][:7]
-CARDS = lambda: os.environ.get("TELEGRAM_CARDS_FILE") or os.path.join(os.environ.get("TELEGRAM_STATE_DIR") or os.path.expanduser("~/.claude/channels/telegram"), "cards.jsonl")
+CARDS = lambda: os.environ.get("TELEGRAM_CARDS_FILE") or os.path.join(os.environ.get("MILA_TG_STATE") or os.environ.get("TELEGRAM_STATE_DIR") or os.path.expanduser("~/.claude/channels/telegram"), "cards.jsonl")
 
 def _t(s):
     try: return dt.datetime.fromisoformat(str(s).replace("Z", "+00:00")).timestamp()

@@ -166,5 +166,11 @@ with zipfile.ZipFile(zb2, "w") as zo:
         if name.endswith("manifest.json"): mj = json.loads(b); mj.pop("files", None); b = json.dumps(mj).encode()
         zo.writestr(it, b)
 rc, d = U("pack-plan", "--msg", send(zb2.getvalue())); check("manifest.json без списка файлов — отказ, а не установка без сверки", rc != 0 and "сумм" in d.get("error", ""), d)
+# Mila Agent: the session runs with TELEGRAM_STATE_DIR = its empty bridge dir; MILA_TG_STATE points at the receiver's journals
+EMPTY = os.path.join(T, "bridge"); os.makedirs(EMPTY)
+ENV2 = dict(ENV, TELEGRAM_STATE_DIR=EMPTY, MILA_TG_STATE=TG)
+c = card("Пак «Бизнес-помощник»\n#pack-business-assistant-0.1.0", tap_by=OWNER)
+r = subprocess.run([sys.executable, os.path.join(HERE, "update.py"), "install-pack", "business-assistant", "--card", c], env=ENV2, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+check("в контейнере (TELEGRAM_STATE_DIR — пустой мост сессии) нажатие ищется в журналах приёмника по MILA_TG_STATE", r.returncode == 0, (r.stdout + r.stderr)[-300:])
 srv.shutdown(); shutil.rmtree(T, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
