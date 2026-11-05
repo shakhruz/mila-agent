@@ -1521,7 +1521,7 @@ def manual_yes(a):
     return bool((a.yes or "").strip()) and sys.stdin.isatty() and not os.environ.get("CLAUDECODE")
 
 
-def proxy_consent(mark):
+def proxy_consent(mark, what=""):
     """Mila Agent: the owner's «yes» goes through the consent proxy — it draws the card, records the decision in its chain, and
     this tool runs only after it finds «confirmed» for exactly this pack (the mark carries the pack and its archive) there."""
     sock = os.environ.get("MILA_CONSENT_SOCKET", "")
@@ -1531,7 +1531,7 @@ def proxy_consent(mark):
         import consent_client as _cc, consent_proxy as _cp
     except ImportError:
         _refuse("посредник согласий не найден в наборе (%s)" % kit)
-    payload = {"text": "Пак: %s" % mark}
+    payload = {"text": ("%s\n%s" % (what, mark)) if what else "Пак: %s" % mark}   # the owner reads what; the mark ties it to the archive
     t0 = time.time()
     r = _cc.ask("pack", payload, sock)
     st = r.get("status")
@@ -1546,8 +1546,8 @@ def proxy_consent(mark):
     return {"consent": cid}
 
 
-def consent(a, mark):
-    if os.environ.get("MILA_CONSENT_SOCKET"): return proxy_consent(mark)
+def consent(a, mark, what=""):
+    if os.environ.get("MILA_CONSENT_SOCKET"): return proxy_consent(mark, what)
     if a.card: return {"card": a.card, "yes_by": owner_yes(a.card, mark)}
     if manual_yes(a) and a.sender: return {"yes": a.yes, "from": a.sender, "manual": True}
     _refuse("нужно нажатие хозяина: --card <id карточки с меткой %s> (строка --yes — только вручную из терминала)" % mark)
@@ -1669,7 +1669,7 @@ def cmd_pack_plan(a):
 
 def cmd_install_pack(a):
     d, m, mark = resolve_pack(a); pid = os.path.basename(d)
-    ok = consent(a, mark)
+    ok = consent(a, mark, "Поставить пак «%s»" % _clip(pack_title(m, a.lang or "ru"), 60))
     for root, _, files in os.walk(d):
         for f in files:
             if SECRET.search(os.path.join(root, f)): sys.exit(json.dumps({"error": "в паке файл с секретом: " + f}, ensure_ascii=False))
@@ -1718,7 +1718,7 @@ def cmd_remove_pack(a):
         print(json.dumps({"pack": pid, "mark": mark, "text": (t[0] % have[pid].get("title", pid)) + "\n" + mark,
                           "buttons": [[{"label": t[1], "data": "pack:yes"}, {"label": t[2], "data": "pack:later"}]],
                           "next": "после нажатия: remove-pack %s --card <card_id>" % pid}, ensure_ascii=False, indent=1)); return
-    ok = consent(a, mark)
+    ok = consent(a, mark, "Убрать пак «%s» (бэкап останется)" % _clip(have[pid].get("title", pid), 60))
     core = load_version().get("files", {})
     dsts = [os.path.join(CLAUDE, "skills", n) for n in have[pid].get("skills", []) if PACK_ID.match(n)]
     dsts = [x for x in dsts if x in have[pid].get("added", []) and x not in core]   # снимаю только то, чего до пака не было
