@@ -52,6 +52,55 @@ HERO_CSS = (".w{position:relative;height:5.5rem;margin:1rem 0 1.4rem;text-align:
               % (_in, _out, 100 / _n)
             + "@media (prefers-reduced-motion:reduce){.w span{animation:none}.w span:first-child{opacity:1}}")
 HERO = "<div class=w aria-hidden=true>%s</div>" % "".join("<span>%s</span>" % h for h in HELLOS)
+# Mila wakes up on the «done» screen — the moment she is born (SVG + CSS, no script, no outside request; reduced motion — a smile
+# at once). Made by Mila Video, checked by Quality.
+WAKE = """<style>
+.mila-wake{width:min(320px,70vw);height:auto;display:block;margin:0 auto}
+.mila-wake *{transform-box:fill-box;transform-origin:center}
+.mw-face{animation:mw-bob 2.8s ease-out both}
+.mw-open{animation:mw-open 2.8s ease-in-out both}
+.mw-blink{animation:mw-blink 6.5s 3.6s ease-in-out infinite}
+.mw-look{animation:mw-look 2.8s ease-in-out both}
+.mw-closed{opacity:0;animation:mw-closed 2.8s both}
+.mw-mark{animation:mw-mark 2.8s ease-out both}
+.mw-glow{opacity:.45;animation:mw-glow 2.8s ease-out both}
+.mw-neutral{opacity:0;animation:mw-neutral 2.8s both}
+.mw-o{opacity:0;animation:mw-o 2.8s both}
+.mw-smile{animation:mw-smile 2.8s ease-out both}
+.mw-blush{animation:mw-blush 2.8s ease-out both}
+@keyframes mw-bob{0%{transform:translateY(8px)}30%{transform:translateY(0)}84%{transform:translateY(0)}89%{transform:translateY(-6px)}100%{transform:translateY(0)}}
+@keyframes mw-open{0%,22%{transform:scaleY(.06)}31%,37%{transform:scaleY(1)}40%{transform:scaleY(.08)}44%,82%{transform:scale(1)}88%{transform:scale(1.16)}100%{transform:scale(1)}}
+@keyframes mw-blink{0%,95%,100%{transform:scaleY(1)}97.5%{transform:scaleY(.08)}}
+@keyframes mw-look{0%,46%{transform:translateX(0)}53%,61%{transform:translateX(-13px)}69%,76%{transform:translateX(13px)}82%,100%{transform:translateX(0)}}
+@keyframes mw-closed{0%,22%{opacity:1}27%,100%{opacity:0}}
+@keyframes mw-mark{0%{opacity:.25;transform:scale(.6)}24%{opacity:1;transform:scale(1.25)}34%,100%{opacity:1;transform:scale(1)}}
+@keyframes mw-glow{0%{opacity:0}24%{opacity:.9}40%,100%{opacity:.45}}
+@keyframes mw-neutral{0%,81%{opacity:1}83%,100%{opacity:0}}
+@keyframes mw-o{0%,81%{opacity:0}83%,90%{opacity:1}93%,100%{opacity:0}}
+@keyframes mw-smile{0%,90%{opacity:0;transform:scaleX(.6)}96%{opacity:1;transform:scaleX(1.08)}100%{opacity:1;transform:scaleX(1)}}
+@keyframes mw-blush{0%,82%{opacity:.35}92%,100%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.mila-wake *{animation:none!important}}
+</style>
+<svg class="mila-wake" viewBox="0 0 512 512" role="img" aria-label="Мила" xmlns="http://www.w3.org/2000/svg">
+<defs><filter id="mw-b" x="-1" y="-1" width="3" height="3"><feGaussianBlur stdDeviation="9"/></filter>
+<radialGradient id="mw-f" cx=".5" cy=".38" r=".62"><stop offset="0" stop-color="#F7F1E6"/><stop offset=".8" stop-color="#F4EDE0"/><stop offset="1" stop-color="#EBDCC4"/></radialGradient></defs>
+<g class="mw-face" stroke="#0B2420" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+ <path d="M92 262 C88 40 424 40 420 262" fill="none" stroke="#0B2420" stroke-width="30"/>
+ <path d="M92 262 C88 40 424 40 420 262" fill="none" stroke="#4FBFAE" stroke-width="14"/>
+ <circle cx="256" cy="280" r="168" fill="url(#mw-f)"/>
+ <ellipse cx="90" cy="282" rx="36" ry="66" fill="#4FBFAE"/><ellipse cx="422" cy="282" rx="36" ry="66" fill="#4FBFAE"/><path d="M70 300 Q90 336 112 300" fill="none" stroke="#3E9C8E" stroke-width="10" opacity=".7"/><path d="M400 300 Q422 336 444 300" fill="none" stroke="#3E9C8E" stroke-width="10" opacity=".7"/>
+ <circle class="mw-glow" cx="256" cy="178" r="22" fill="#2DD9C4" stroke="none" filter="url(#mw-b)"/>
+ <circle class="mw-mark" cx="256" cy="178" r="12" fill="#2DD9C4" stroke="none"/>
+ <g class="mw-closed" fill="none"><path d="M176 262 Q200 282 224 262"/><path d="M288 262 Q312 282 336 262"/></g>
+ <g class="mw-look" stroke="none">
+  <g class="mw-open"><g class="mw-blink"><ellipse cx="200" cy="262" rx="28" ry="31" fill="#0B2420"/><circle cx="210" cy="250" r="8" fill="#fff"/></g></g>
+  <g class="mw-open"><g class="mw-blink"><ellipse cx="312" cy="262" rx="28" ry="31" fill="#0B2420"/><circle cx="322" cy="250" r="8" fill="#fff"/></g></g>
+ </g>
+ <g class="mw-blush" stroke="none" fill="#F4A6A6"><ellipse cx="150" cy="322" rx="30" ry="16"/><ellipse cx="362" cy="322" rx="30" ry="16"/></g>
+ <path class="mw-neutral" d="M240 330 Q256 334 272 330" fill="none" stroke-width="8"/>
+ <ellipse class="mw-o" cx="256" cy="334" rx="13" ry="16" fill="#0B2420" stroke="none"/>
+ <path class="mw-smile" d="M222 322 Q256 352 290 322" fill="none" stroke-width="8"/>
+</g></svg>"""
 
 
 L = {
@@ -192,8 +241,8 @@ class H(http.server.BaseHTTPRequestHandler):
             S.saved = me.get("username") or ""
             link = "https://t.me/%s?start=pair_%s" % (urllib.parse.quote(S.saved), code)
             t = L[lg]
-            self.send(200, page("<h2>%s</h2><p>%s</p><a class=b href='%s'>%s</a><p><small>%s</small></p>"
-                                % (html.escape(t["ok"]), html.escape(t["ok_p"]), html.escape(link, quote=True),
+            self.send(200, page("<h2>%s</h2><p>%s</p>%s<a class=b href='%s'>%s</a><p><small>%s</small></p>"
+                                % (html.escape(t["ok"]), html.escape(t["ok_p"]), WAKE, html.escape(link, quote=True),
                                    html.escape(t["open"] % S.saved), html.escape(t["once"])), lg))
         threading.Thread(target=self.server.shutdown, daemon=True).start()
 

@@ -44,6 +44,9 @@ c, b = req(U, {"bt": OTHER}); check("Telegram не узнал токен — п�
 c, b = req(U, {"bt": GOOD}, lang="en")
 code = (re.search(r"start=pair_([A-Z2-9]{6})", b) or [None, ""])[1]
 check("верный токен — ссылка t.me/<бот>?start=pair_<код>", c == 200 and "https://t.me/mila_demo_bot?start=pair_" in b and len(code) == 6, b[-400:])
+check("экран «готово»: Мила просыпается (.mila-wake) — без <script> и без внешних адресов, кроме ссылки на бота",
+      'class="mila-wake"' in b and "<script" not in b.lower() and not [u for u in re.findall(r"https?://[^\s'\"<>]+", b) if not u.startswith(("https://t.me/", "http://www.w3.org/"))],
+      re.findall(r"https?://[^\s'\"<>]+", b))
 check("токен, код пары и метка — файлы 600, папка 700", open(os.path.join(A, "bot_token")).read().strip() == GOOD and open(os.path.join(A, "pair_code")).read().strip() == code
       and all(oct(os.stat(os.path.join(A, f)).st_mode & 0o777) == "0o600" for f in ("bot_token", "pair_code", "token_page.done")) and oct(os.stat(A).st_mode & 0o777) == "0o700")
 check("страница погасла сама, код 0", p.wait(timeout=10) == 0)
