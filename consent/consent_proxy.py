@@ -26,6 +26,31 @@ BUF = 64 * 1024
 INVISIBLE = re.compile("[​-‏‪-‮⁠-⁤⁦-⁩﻿]")
 
 
+# the cards in the owner's language (Telegram's language_code, remembered by the plugin in langs.json); Chinese waits for a
+# native speaker's check, so it is not here
+W = {
+    "ask":      {"ru": "Публикуем? · %s", "en": "Publish? · %s", "uz": "E’lon qilamizmi? · %s"},
+    "where":    {"ru": "Куда: %s", "en": "Where: %s", "uz": "Qayerga: %s"},
+    "len":      {"ru": "Текст: %d знаков", "en": "Text: %d characters", "uz": "Matn: %d belgi"},
+    "part":     {"ru": "Текст целиком, часть %d из %d:\n%s", "en": "The whole text, part %d of %d:\n%s", "uz": "Matn to‘liq, %d-qism, jami %d:\n%s"},
+    "parts":    {"ru": "Текст целиком — в %d сообщениях выше; «Да, это» одобряет ровно его.", "en": "The whole text is in the %d messages above; «Yes, this» approves exactly it.",
+                 "uz": "Matn to‘liq — yuqoridagi %d xabarda; «Ha, shu» aynan uni tasdiqlaydi."},
+    "when":     {"ru": "Когда: %s", "en": "When: %s", "uz": "Qachon: %s"},
+    "att":      {"ru": "Вложение: %s, %d КБ", "en": "Attachment: %s, %d KB", "uz": "Ilova: %s, %d KB"},
+    "yes":      {"ru": "Да, это", "en": "Yes, this", "uz": "Ha, shu"},
+    "no":       {"ru": "Нет", "en": "No", "uz": "Yo‘q"},
+    "m_card":   {"ru": "Полномочие · %s\nКуда: %s\nСрок: %g дн.\nДо %d действий в день, до $%g в день\nКаждое действие — квитанция с кнопкой «Стоп».",
+                 "en": "Standing permission · %s\nWhere: %s\nTerm: %g days\nUp to %d actions a day, up to $%g a day\nEach action — a receipt with a «Stop» button.",
+                 "uz": "Doimiy ruxsat · %s\nQayerga: %s\nMuddat: %g kun\nKuniga %d tagacha amal, kuniga $%g gacha\nHar bir amal — «To‘xtatish» tugmali kvitansiya."},
+    "m_yes":    {"ru": "Да, разрешаю", "en": "Yes, I allow it", "uz": "Ha, ruxsat beraman"},
+    "m_done":   {"ru": "Сделано по полномочию · %s · %s\nСегодня: %d из %d, $%g из $%g", "en": "Done under the permission · %s · %s\nToday: %d of %d, $%g of $%g",
+                 "uz": "Ruxsat bo‘yicha bajarildi · %s · %s\nBugun: %d / %d, $%g / $%g"},
+    "m_ok":     {"ru": "ok", "en": "ok", "uz": "ok"},
+    "m_fail":   {"ru": "не вышло", "en": "failed", "uz": "bo‘lmadi"},
+    "m_stop":   {"ru": "Стоп полномочию", "en": "Stop the permission", "uz": "Ruxsatni to‘xtatish"},
+}
+
+
 EMPTY_LETTERS = set("\u115f\u1160\u3164\uffa0\u2800\u034f\u00ad\u180e")   # letters that print as nothing
 
 
@@ -127,24 +152,33 @@ class Proxy:
                               ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(material.encode("utf-8")).hexdigest(), atts
 
+    def lang(self):
+        owner = os.environ.get(self.cfg.get("owner_id_env") or "MILA_OWNER_ID", "")
+        try: code = str(json.load(open(self.cfg["langs_file"])).get(owner) or "")[:2].lower()
+        except (KeyError, OSError, ValueError, AttributeError): code = ""
+        return code if code in ("ru", "en", "uz") else self.cfg.get("default_lang", "ru")
+
+    def w(self, key):
+        return W[key][self.lang()]
+
     def preview(self, category, payload, atts):
         """→ list of messages: the owner sees the WHOLE text (long text — in parts before the card), the card with buttons is last."""
         clean = lambda s: INVISIBLE.sub("", unicodedata.normalize("NFC", str(s or "")))
         text = clean(payload.get("text"))
         where = ", ".join(clean(x) for x in (payload.get("targets") or [])) or "—"
-        lines = ["Публикуем? · %s" % clean((self.cfg["categories"].get(category) or {}).get("title") or category),
-                 "Куда: %s" % where, "Текст: %d знаков" % len(text)]
+        lines = [self.w("ask") % clean((self.cfg["categories"].get(category) or {}).get("title") or category),
+                 self.w("where") % where, self.w("len") % len(text)]
         parts = []
         if len(text) <= CARD_TEXT:
             lines.append(text)
         else:
             parts = [text[i:i + PART] for i in range(0, len(text), PART)]
-            parts = ["Текст целиком, часть %d из %d:\n%s" % (k + 1, len(parts), t) for k, t in enumerate(parts)]
-            lines.append("Текст целиком — в %d сообщениях выше; «Да, это» одобряет ровно его." % len(parts))
+            parts = [self.w("part") % (k + 1, len(parts), t) for k, t in enumerate(parts)]
+            lines.append(self.w("parts") % len(parts))
         if payload.get("when"):
-            lines.append("Когда: %s" % clean(payload["when"]))
+            lines.append(self.w("when") % clean(payload["when"]))
         for a in atts:
-            lines.append("Вложение: %s, %d КБ" % (clean(a["name"]), max(1, a["size"] // 1024)))
+            lines.append(self.w("att") % (clean(a["name"]), max(1, a["size"] // 1024)))
         return parts + ["\n".join(lines)]
 
     def sig(self, cid, h):
@@ -211,8 +245,8 @@ class Proxy:
                 self._save("consents.json", cons)
                 msgs = self.preview(category, payload, atts)
                 ok = all(self.send(m, []) for m in msgs[:-1]) and self.send(msgs[-1], [[
-                    {"text": "Да, это", "callback_data": "%s%s.%s.y" % (PREFIX, cid, self.sig(cid, h))},
-                    {"text": "Нет", "callback_data": "%s%s.%s.n" % (PREFIX, cid, self.sig(cid, h))}]])   # a part not shown → no card, no yes
+                    {"text": self.w("yes"), "callback_data": "%s%s.%s.y" % (PREFIX, cid, self.sig(cid, h))},
+                    {"text": self.w("no"), "callback_data": "%s%s.%s.n" % (PREFIX, cid, self.sig(cid, h))}]])   # a part not shown → no card, no yes
                 self.journal({"ev": "asked", "id": cid, "category": category, "hash": h[:16], "card_sent": bool(ok)})
                 return {"status": "asked", "id": cid} if ok else {"status": "denied", "why": "could not show the card to the owner"}
         return self.execute(category, payload, atts, cid)
@@ -241,10 +275,10 @@ class Proxy:
             cons = self._load("consents.json", {}); cid = secrets.token_hex(4)
             cons[cid] = {"hash": h, "category": category, "asked": now, "mandate": terms}; self._save("consents.json", cons)
         title = (self.cfg["categories"].get(category) or {}).get("title") or category
-        text = ("Полномочие · %s\nКуда: %s\nСрок: %g дн.\nДо %d действий в день, до $%g в день\nКаждое действие — квитанция с кнопкой «Стоп»."
+        text = (self.w("m_card")
                 % (title, ", ".join(targets), days, per_day, usd_day))
-        ok = self.send(text, [[{"text": "Да, разрешаю", "callback_data": "%s%s.%s.y" % (PREFIX, cid, self.sig(cid, h))},
-                               {"text": "Нет", "callback_data": "%s%s.%s.n" % (PREFIX, cid, self.sig(cid, h))}]])
+        ok = self.send(text, [[{"text": self.w("m_yes"), "callback_data": "%s%s.%s.y" % (PREFIX, cid, self.sig(cid, h))},
+                               {"text": self.w("no"), "callback_data": "%s%s.%s.n" % (PREFIX, cid, self.sig(cid, h))}]])
         self.journal({"ev": "asked", "id": cid, "category": category, "hash": h[:16], "mandate": True, "card_sent": bool(ok)})
         return {"status": "asked", "id": cid} if ok else {"status": "denied", "why": "could not show the card to the owner"}
 
@@ -264,10 +298,10 @@ class Proxy:
         ms = self._load("mandates.json", {}); m = ms.get(mid) or {}
         h = (self._load("consents.json", {}).get(mid) or {}).get("hash", "")
         day = [u for u in m.get("uses", []) if self.now() - u[0] < 86400]
-        text = ("Сделано по полномочию · %s · %s\nСегодня: %d из %d, $%g из $%g"
-                % ((self.cfg["categories"].get(category) or {}).get("title") or category, "ok" if (res.get("result") or {}).get("ok") else "не вышло",
+        text = (self.w("m_done")
+                % ((self.cfg["categories"].get(category) or {}).get("title") or category, self.w("m_ok") if (res.get("result") or {}).get("ok") else self.w("m_fail"),
                    len(day), m.get("per_day", 0), round(sum(u[1] for u in day), 2), m.get("usd_day", 0)))
-        self.send(text, [[{"text": "Стоп полномочию", "callback_data": "%s%s.%s.s" % (PREFIX, mid, self.sig(mid, h))}]])
+        self.send(text, [[{"text": self.w("m_stop"), "callback_data": "%s%s.%s.s" % (PREFIX, mid, self.sig(mid, h))}]])
 
     def mandate_stop(self, mid, s):
         with self.lock:

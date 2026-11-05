@@ -101,6 +101,15 @@ check("невидимые по свойству (теги U+E00xx, мягкий 
 good = ["обычный текст\nвторая строка\tтаб", "\u2764\ufe0f спасибо", "\U0001F468\u200d\U0001F469\u200d\U0001F467 семья", "\U0001F44D\U0001F3FD ок", "\U0001F1FA\U0001F1FF"]
 check("обычный текст, перенос и таб, эмодзи с U+FE0F, семья через ZWJ, тон кожи, флаг — проходят к карточке",
       all(not px.hidden(t) for t in good), [repr(t) for t in good if px.hidden(t)])
+# the card in the owner's language (langs.json, written by the plugin from Telegram's language_code)
+LF = os.path.join(T, "langs.json"); open(LF, "w").write(json.dumps({OWNER: "en"}))
+CL = []; pxl = cp.Proxy(dict(CFG, langs_file=LF, default_lang="en", state_dir=os.path.join(T, "state-lang")), send=lambda text, kb: CL.append((text, kb)) or True, run=lambda *a: {"ok": True}, now=lambda: NOW[0])
+pxl.request("publish_zernio", {"text": "hello", "targets": ["a"]})
+check("владелец пишет по-английски — карточка и кнопки по-английски", CL and CL[-1][0].startswith("Publish?") and CL[-1][1][0][0]["text"] == "Yes, this", CL[-1:] )
+open(LF, "w").write(json.dumps({OWNER: "uz"})); pxl.request("publish_zernio", {"text": "salom", "targets": ["a"]})
+check("…по-узбекски — по-узбекски", CL[-1][0].startswith("E’lon qilamizmi?") and CL[-1][1][0][1]["text"] == "Yo‘q", CL[-1:])
+open(LF, "w").write(json.dumps({OWNER: "zh"})); pxl.request("publish_zernio", {"text": "ni hao", "targets": ["a"]})
+check("…китайский (ждёт носителя) или неизвестный — язык по умолчанию", CL[-1][0].startswith("Publish?"), CL[-1:])
 # attachments: only inside the home, never through a link
 KEY = os.path.join(STATE, "hmac.key"); k0 = len(CARDS)
 os.symlink(KEY, os.path.join(HOME, "work", "photo.jpg"))

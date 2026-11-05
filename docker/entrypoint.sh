@@ -75,14 +75,14 @@ if [ "$(id -u)" = 0 ]; then
     # card the proxy draws itself; the owner's decisions go to io/consent/decisions.jsonl (a hash chain the session reads).
     # Its categories come from the image, never from the session's files: the session only asks over consent.sock.
     mkdir -p "$IOD/consent"; chown mila-io:"$AU" "$IOD/consent"; chmod 2750 "$IOD/consent"
-    python3 - "$HOME" "$IOD/consent" "${MILA_KIT:-/opt/mila/kit}/consent/categories.json" > /run/mila-io/consent.json <<'PYC'
+    python3 - "$HOME" "$IOD/consent" "${MILA_KIT:-/opt/mila/kit}/consent/categories.json" "$TGd/langs.json" > /run/mila-io/consent.json <<'PYC'
 import json, sys
-home, state, cats = sys.argv[1:4]
+home, state, cats, langs = sys.argv[1:5]
 try: categories = json.load(open(cats))
 except (OSError, ValueError): categories = {}
 json.dump({"owner_id_env": "MILA_OWNER_ID", "bot_token_env": "BOT_TOKEN", "home": home, "state_dir": state,
            "session_socket": "/run/mila-io/consent.sock", "session_socket_mode": "660", "io_socket": "/run/mila-io/consent.io.sock",
-           "ttl_min": 15, "max_attachment_mb": 20, "categories": categories}, sys.stdout)
+           "ttl_min": 15, "max_attachment_mb": 20, "langs_file": langs, "default_lang": "en", "categories": categories}, sys.stdout)
 PYC
     chown root:mila-io /run/mila-io/consent.json; chmod 640 /run/mila-io/consent.json
     setpriv --reuid=mila-io --regid=mila-io --groups="$IOG" -- env -i PATH="$PATH" HOME=/run/mila-io MILA_KIT="${MILA_KIT:-/opt/mila/kit}" \
