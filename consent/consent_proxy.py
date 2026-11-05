@@ -27,6 +27,8 @@ INVISIBLE = re.compile("[​-‏‪-‮⁠-⁤⁦-⁩﻿]")
 
 
 FIELDS = ("text", "targets", "when", "attachments")   # what a card shows; a category may narrow it with "fields"
+MANDATE_DAYS = 7                                       # a standing permission lives at most a week (the owner's word)
+MANDATE_USD_DAY = 10.0                                 # … and spends at most this a day, unless the owner's config says less
 DECLINE_MEMORY = 86400                                 # a «no» holds for a day: the same action is not asked again
 CARD_TEXT = 3000                                       # longer text goes in parts before the card (Telegram: 4096 per message)
 PART = 3500
@@ -159,8 +161,16 @@ class Proxy:
             if streak >= 3 and now - tail[-1]["declined"] <= DECLINE_MEMORY:
                 self.journal({"ev": "denied", "category": category, "why": "three refusals in a row"})
                 return {"status": "denied", "why": "the owner refused this kind three times in a row — wait for the owner's word"}
+            mid = self.mandate_fits(category, payload, now)
+            if mid:
+                ms = self._load("mandates.json", {}); m = ms[mid]
+                cost = self.cost(payload); m.setdefault("uses", []).append([now, cost]); self._save("mandates.json", ms)
+                self.journal({"ev": "mandate_use", "id": mid, "category": category, "hash": h[:16], "usd": cost})
+                res = self.execute(category, payload, atts, mid)
+                self.receipt(mid, category, payload, cost, res)
+                return res
             for cid, c in cons.items():
-                if c["hash"] != h or c.get("used") or c.get("declined") or c.get("expired"):
+                if c["hash"] != h or c.get("used") or c.get("declined") or c.get("expired") or c.get("mandate"):
                     continue
                 if c.get("granted") and now - c["granted"] <= self.ttl:
                     c["used"] = now
@@ -180,6 +190,69 @@ class Proxy:
                 self.journal({"ev": "asked", "id": cid, "category": category, "hash": h[:16], "card_sent": bool(ok)})
                 return {"status": "asked", "id": cid} if ok else {"status": "denied", "why": "could not show the card to the owner"}
         return self.execute(category, payload, atts, cid)
+
+    # ── standing permissions (mandates) ──
+    def cost(self, payload):
+        try: return max(0.0, float(payload.get("cost_usd") or 0))
+        except (TypeError, ValueError): return float("inf")
+
+    def mandate_ask(self, category, targets, days, per_day, usd_day):
+        """the session may only ASK; the proxy draws the card with the exact terms, the owner's press opens it"""
+        cat = (self.cfg.get("categories") or {}).get(category) or {}
+        if not cat.get("mandate_ok") or not self.cats.get(category):
+            return {"status": "denied", "why": "no standing permission for this kind (only «every time»)"}
+        try:
+            targets = sorted({str(t)[:200] for t in targets}); days = float(days); per_day = int(per_day); usd_day = float(usd_day)
+        except (TypeError, ValueError):
+            return {"status": "denied", "why": "bad terms"}
+        cap = min(MANDATE_USD_DAY, float(self.cfg.get("mandate_usd_day", MANDATE_USD_DAY)))
+        if not targets or not 0 < days <= MANDATE_DAYS or not 0 < per_day <= 50 or not 0 <= usd_day <= cap:
+            return {"status": "denied", "why": "terms over the ceiling: up to %d days, up to $%g a day, named targets" % (MANDATE_DAYS, cap)}
+        now = self.now()
+        terms = {"category": category, "targets": targets, "until": now + days * 86400, "per_day": per_day, "usd_day": usd_day}
+        h = hashlib.sha256(json.dumps(dict(terms, kind="mandate"), sort_keys=True).encode()).hexdigest()
+        with self.lock:
+            cons = self._load("consents.json", {}); cid = secrets.token_hex(4)
+            cons[cid] = {"hash": h, "category": category, "asked": now, "mandate": terms}; self._save("consents.json", cons)
+        title = (self.cfg["categories"].get(category) or {}).get("title") or category
+        text = ("Полномочие · %s\nКуда: %s\nСрок: %g дн.\nДо %d действий в день, до $%g в день\nКаждое действие — квитанция с кнопкой «Стоп»."
+                % (title, ", ".join(targets), days, per_day, usd_day))
+        ok = self.send(text, [[{"text": "Да, разрешаю", "callback_data": "%s%s.%s.y" % (PREFIX, cid, self.sig(cid, h))},
+                               {"text": "Нет", "callback_data": "%s%s.%s.n" % (PREFIX, cid, self.sig(cid, h))}]])
+        self.journal({"ev": "asked", "id": cid, "category": category, "hash": h[:16], "mandate": True, "card_sent": bool(ok)})
+        return {"status": "asked", "id": cid} if ok else {"status": "denied", "why": "could not show the card to the owner"}
+
+    def mandate_fits(self, category, payload, now):
+        """an open, unexpired, unstopped permission of this kind whose targets cover the payload's and whose day still has room"""
+        targets = {str(t) for t in (payload.get("targets") or [])}
+        if not targets: return ""
+        cost = self.cost(payload)
+        for mid, m in self._load("mandates.json", {}).items():
+            if m.get("category") != category or m.get("stopped") or now > m["until"] or not targets <= set(m["targets"]): continue
+            day = [u for u in m.get("uses", []) if now - u[0] < 86400]
+            if len(day) < m["per_day"] and sum(u[1] for u in day) + cost <= m["usd_day"]:
+                return mid
+        return ""
+
+    def receipt(self, mid, category, payload, cost, res):
+        ms = self._load("mandates.json", {}); m = ms.get(mid) or {}
+        h = (self._load("consents.json", {}).get(mid) or {}).get("hash", "")
+        day = [u for u in m.get("uses", []) if self.now() - u[0] < 86400]
+        text = ("Сделано по полномочию · %s · %s\nСегодня: %d из %d, $%g из $%g"
+                % ((self.cfg["categories"].get(category) or {}).get("title") or category, "ok" if (res.get("result") or {}).get("ok") else "не вышло",
+                   len(day), m.get("per_day", 0), round(sum(u[1] for u in day), 2), m.get("usd_day", 0)))
+        self.send(text, [[{"text": "Стоп полномочию", "callback_data": "%s%s.%s.s" % (PREFIX, mid, self.sig(mid, h))}]])
+
+    def mandate_stop(self, mid, s):
+        with self.lock:
+            cons = self._load("consents.json", {}); c = cons.get(mid)
+            if not c or not c.get("mandate") or not hmac.compare_digest(s, self.sig(mid, c["hash"])):
+                return {"status": "ignored", "why": "unknown or forged"}
+            ms = self._load("mandates.json", {})
+            if mid not in ms or ms[mid].get("stopped"): return {"status": "ignored", "why": "not open"}
+            ms[mid]["stopped"] = self.now(); self._save("mandates.json", ms)
+        self.journal({"ev": "mandate_stop", "id": mid, "category": c["category"]})
+        return {"status": "stopped"}
 
     def sweep(self, cons, now):
         """silence is not consent: a card nobody answered within the TTL becomes «expired», once, in the journal"""
@@ -206,13 +279,15 @@ class Proxy:
     # ── io side (receiver, owner) ──
     def callback(self, data, from_id, chat_id=None):
         owner = os.environ.get(self.cfg.get("owner_id_env") or "MILA_OWNER_ID", "")
-        m = re.fullmatch(re.escape(PREFIX) + r"([0-9a-f]{8})\.([0-9a-f]{20})\.([yn])", str(data or ""))
+        m = re.fullmatch(re.escape(PREFIX) + r"([0-9a-f]{8})\.([0-9a-f]{20})\.([yns])", str(data or ""))
         if not m:
             return {"status": "ignored", "why": "not a consent button"}
         cid, s, yn = m.groups()
         if not owner or str(from_id) != owner or (chat_id is not None and str(chat_id) != owner):
             self.journal({"ev": "rejected", "id": cid, "why": "not the owner in the owner's private chat"})
             return {"status": "ignored", "why": "only the owner in a private chat"}
+        if yn == "s":
+            return self.mandate_stop(cid, s)
         with self.lock:
             cons = self._load("consents.json", {})
             c = cons.get(cid)
@@ -223,7 +298,12 @@ class Proxy:
                 return {"status": "ignored", "why": "already answered or expired"}
             c["granted" if yn == "y" else "declined"] = self.now()
             self._save("consents.json", cons)
+            if yn == "y" and c.get("mandate"):   # a standing permission opens only by this press on the proxy's own card
+                ms = self._load("mandates.json", {}); ms[cid] = dict(c["mandate"], opened=self.now(), uses=[]); self._save("mandates.json", ms)
         self.journal({"ev": "granted" if yn == "y" else "declined", "id": cid, "hash": c["hash"][:16]})
+        if yn == "y" and c.get("mandate"):
+            self.journal({"ev": "mandate_open", "id": cid, "category": c["category"], "hash": c["hash"][:16], "until": c["mandate"]["until"],
+                          "per_day": c["mandate"]["per_day"], "usd_day": c["mandate"]["usd_day"]})
         return {"status": "granted" if yn == "y" else "declined"}
 
     def category(self, name, enabled, from_id):
@@ -294,7 +374,11 @@ def serve(px, path, handler, mode):
 
 
 def session_handler(px):
-    return lambda q: px.request(q.get("category"), q.get("payload")) if q.get("op") == "request" else {"status": "denied", "why": "unknown op"}
+    def h(q):
+        if q.get("op") == "request": return px.request(q.get("category"), q.get("payload"))
+        if q.get("op") == "mandate": return px.mandate_ask(q.get("category"), q.get("targets") or [], q.get("days"), q.get("per_day"), q.get("usd_day"))
+        return {"status": "denied", "why": "unknown op"}
+    return h
 
 
 def io_handler(px):
