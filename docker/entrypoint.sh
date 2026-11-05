@@ -59,8 +59,13 @@ if [ "$(id -u)" = 0 ]; then
         if [ ! -s "$IOD/owners.json" ] && [ ! -e "$IOD/owners.pending" ]; then   # first start: the owner the sign-in paired, before any session
           O="$(head -c 32 "$TGd/receiver.go" | tr -cd 0-9)"; [ -n "$O" ] && printf "{\"owners\": [\"%s\"]}\n" "$O" > "$IOD/owners.json" && chmod 640 "$IOD/owners.json"
         fi
-        BID="$(curl -s --max-time 5 http://127.0.0.1:8790/status | python3 -c "import json,sys; print(json.load(sys.stdin).get(\"telegram_bot_id\") or \"\")")"
-        [[ "$BID" =~ ^[0-9]{5,15}$ ]] || exit 0
+        echo "$(date +%FT%T) go — starting the receiver" >> /run/mila-io/receiver.log
+        W=   # no bot token in the key keeper yet: wait for it (said once in the log), never leave silently
+        while :; do
+          BID="$(curl -s --max-time 5 http://127.0.0.1:8790/status | python3 -c "import json,sys; print(json.load(sys.stdin).get(\"telegram_bot_id\") or \"\")" 2>/dev/null)"
+          [[ "$BID" =~ ^[0-9]{5,15}$ ]] && break
+          [ -n "$W" ] || echo "$(date +%FT%T) waiting for the bot token in the key keeper" >> /run/mila-io/receiver.log; W=1; sleep 5
+        done
         touch /run/mila-io/receiver.up
         while :; do
           RECEIVER_DAEMON=1 TELEGRAM_STATE_DIR="$TGd" TELEGRAM_JOURNAL_DIR="$IOD" TELEGRAM_SHARED_GROUP=1 \

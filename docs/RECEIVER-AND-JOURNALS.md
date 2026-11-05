@@ -15,8 +15,8 @@ proxy will stand on.
 
 The entrypoint's root step creates the folders and moves journals of earlier starts into `io/`. It then starts a supervisor as
 `mila-io` that waits for the session's side to say «go» (`telegram/receiver.go`, written after the token page, pairing and the
-Claude sign-in, which read Telegram updates themselves). After that the supervisor runs the receiver and marks it as running
-(`/run/mila-io/receiver.up`).
+Claude sign-in, which read Telegram updates themselves). After that the supervisor waits until the key keeper has the bot token (the line «waiting for the bot token in the key
+keeper» in `/run/mila-io/receiver.log`, once), runs the receiver and marks it as running (`/run/mila-io/receiver.up`).
 
 ## Files
 

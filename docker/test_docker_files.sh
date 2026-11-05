@@ -125,4 +125,21 @@ head -c 70000 /dev/zero > "$BB/st/baraban.err"; turn
 chk "Барабан: журнал ошибок больше 64 КБ обрезан до 32 КБ" "[ \$(stat -c %s $BB/st/baraban.err) -le 32768 ]"
 rm -rf "$BB"
 rm -rf "$H"
+# the receiver's supervisor after «go»: no bot token in the keeper yet → waits and says so once, does not leave; token comes → receiver starts
+SV=$(mktemp -d); mkdir -p "$SV/run" "$SV/tg" "$SV/io" "$SV/bin"; printf '{}' > "$SV/status"
+PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')
+python3 -c 'import http.server,sys
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(s): b=open(sys.argv[2],"rb").read(); s.send_response(200); s.end_headers(); s.wfile.write(b)
+    def log_message(s,*a): pass
+http.server.HTTPServer(("127.0.0.1",int(sys.argv[1])),H).serve_forever()' "$PORT" "$SV/status" & SVP=$!
+printf '#!/bin/sh\necho started >> "%s/receiver.started"; sleep 30\n' "$SV" > "$SV/bin/bun"; chmod +x "$SV/bin/bun"
+BODY=$(awk "/bash -c '\$/{f=1;next} f&&/^        done' >/{exit} f" docker/entrypoint.sh | sed "s#/run/mila-io#$SV/run#g; s#127.0.0.1:8790#127.0.0.1:$PORT#g"; echo done)
+echo '555' > "$SV/tg/receiver.go"
+(TGd="$SV/tg" IOD="$SV/io" PLUG=/x MILA_KIT=/x PATH="$SV/bin:$PATH" "$PERL" -e "$TMO" 14 bash -c "$BODY" >/dev/null 2>&1 &)
+sleep 4
+chk "надзор приёмника: «go» есть, токена бота нет — ждёт, строка в журнале, не выходит и не стартует" "grep -q 'waiting for the bot token' $SV/run/receiver.log && [ \$(grep -c 'waiting for the bot token' $SV/run/receiver.log) -eq 1 ] && [ ! -e $SV/run/receiver.up ] && [ ! -e $SV/receiver.started ]"
+printf '{"telegram_bot_id": "12345678"}' > "$SV/status"; sleep 7
+chk "надзор приёмника: токен появился — receiver.up и приёмник запущен" "[ -e $SV/run/receiver.up ] && [ -e $SV/receiver.started ]"
+kill $SVP 2>/dev/null; sleep 8; rm -rf "${SV:?}"
 echo "итог $ok/$n"; [ $ok -eq $n ]
