@@ -12,7 +12,11 @@ run() { n=$((n+1)); local out td; td="$(mktemp -d "$RUN_TMP/t.XXXXXX")"; out=$(T
   if [ $rc -eq 0 ] && ! printf '%s' "$last" | grep -Eq '❌|FAIL|итог ([0-9]+)/([0-9]+)' || printf '%s' "$last" | grep -Eq 'итог ([0-9]+)/\1$|итого: ([0-9]+) из \2$'; then
     printf '✅ %-55s %s\n' "$*" "$last"
   else printf '❌ %-55s %s\n' "$*" "$last"; bad+=("$*"); fi; }
+# docker/ is the Linux container image (GNU stat and sha256sum, setpriv, /proc, a fork right after the network stack): its tests
+# are Linux-only and run in the Linux job and in the image build. On macOS they are listed as skipped, not run and not hidden.
+LINUX_ONLY='^docker/'
 while IFS= read -r t; do
+  if [ "$(uname)" = Darwin ] && printf '%s' "$t" | grep -Eq "$LINUX_ONLY"; then printf '⏭  %-55s Linux-only (the container image)\n' "$t"; continue; fi
   case "$t" in *.sh) run bash "$t" ;; *.py) run python3 "$t" ;; esac
 done < <(git ls-files | grep -E '(^|/)test_[^/]*\.(sh|py)$' | sort)
 run python3 tools/check_frontmatter.py skills templates packs
