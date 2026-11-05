@@ -38,9 +38,18 @@ if [ "$(id -u)" = 0 ]; then
       ln -sfn "$IOD/$b" "$TGd/$p"
     done
     touch "$TGd/cards.jsonl"; chown "$AU:$AU" "$TGd/cards.jsonl"; chmod 660 "$TGd/cards.jsonl"
+    # Who is an owner: the receiver's own list. From the platform's OWNER_ID / OWNERS (the owner set it; the session cannot),
+    # otherwise written once by the receiver at the first «go» (before the session ever ran). Never from access.json.
+    if [ -n "${OWNERS:-}${OWNER_ID:-}" ]; then
+      python3 -c 'import json, re, sys; json.dump({"owners": [x for x in re.split(r"[ ,;]+", sys.argv[1]) if x.isdigit()]}, open(sys.argv[2], "w"))' \
+        "${OWNERS:-$OWNER_ID}" "$IOD/owners.json" && chown mila-io:"$AU" "$IOD/owners.json" && chmod 640 "$IOD/owners.json"
+    fi
     setpriv --reuid=mila-io --regid=mila-io --groups="$AU" -- env -i PATH="$PATH" HOME=/run/mila-io MILA_KIT="${MILA_KIT:-/opt/mila/kit}" \
       TGd="$TGd" IOD="$IOD" PLUG=/opt/mila/plugin/mila-telegram bash -c '
         until [ -e "$TGd/receiver.go" ]; do sleep 2; done
+        if [ ! -s "$IOD/owners.json" ]; then   # first start: the owner the sign-in paired, before the session ever ran
+          O="$(head -c 32 "$TGd/receiver.go" | tr -cd 0-9)"; [ -n "$O" ] && printf "{\"owners\": [\"%s\"]}\n" "$O" > "$IOD/owners.json" && chmod 640 "$IOD/owners.json"
+        fi
         BID="$(curl -s --max-time 5 http://127.0.0.1:8790/status | python3 -c "import json,sys; print(json.load(sys.stdin).get(\"telegram_bot_id\") or \"\")")"
         [[ "$BID" =~ ^[0-9]{5,15}$ ]] || exit 0
         touch /run/mila-io/receiver.up
@@ -51,9 +60,9 @@ if [ "$(id -u)" = 0 ]; then
           TELEGRAM_VOICE_TRANSCRIBE_CMD="$MILA_KIT/install/transcribe-voice.sh" bun "$PLUG/receiver.ts" >> /run/mila-io/receiver.log 2>&1
           sleep 5
         done' >/dev/null 2>&1 &
-    export MILA_IO=1 MILA_TG_JOURNAL="$IOD"
+    export MILA_IO=1
   else
-    unset MILA_IO MILA_TG_JOURNAL
+    unset MILA_IO
   fi
   exec setpriv --reuid="$AU" --regid="$AU" --init-groups -- bash "$0" "$@"
 fi
@@ -164,7 +173,10 @@ trap cleanup TERM INT
 # 1. receiver daemon
 # voice: the receiver runs our script for every voice note (Groq key: GROQ_API_KEY or ~/work/secrets/groq.env, see key_page.py)
 if [ "${MILA_IO:-}" = 1 ]; then   # the receiver runs as mila-io (root step); here only «go» — after sign-in, so it does not take /start
-  chmod -R g+rwX "$TG" 2>/dev/null; : > "$TG/receiver.go"
+  chmod -R g+rwX "$TG" 2>/dev/null
+  O="${OWNER_ID:-$(head -n1 "$AUTH/owner_id" 2>/dev/null | tr -cd 0-9)}"
+  [ -n "$O" ] || O="$(python3 -c 'import json,sys; print((json.load(open(sys.argv[1])).get("allowFrom") or [""])[0])' "$TG/access.json" 2>/dev/null | tr -cd 0-9)"
+  printf '%s\n' "$O" > "$TG/receiver.go"   # «go», with the owner the sign-in paired (the receiver keeps it only on the first start)
 else
   ( while :; do RECEIVER_DAEMON=1 TELEGRAM_STATE_DIR="$TG" TELEGRAM_VOICE_TRANSCRIBE_CMD="${TELEGRAM_VOICE_TRANSCRIBE_CMD:-$MILA_KIT/install/transcribe-voice.sh}" bun "$PLUG/receiver.ts" >> "$ST/receiver.log" 2>&1; sleep 5; done ) & PIDS+=($!)
 fi

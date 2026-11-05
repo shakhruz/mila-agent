@@ -52,7 +52,7 @@ printf '#!/bin/sh\necho "setpriv $*" >> "%s/log"; env | grep -E "^(MILA_KEYD|KEY
 printf 'import os, sys\nopen("%s/log", "a").write("keyd " + " ".join(sys.argv[1:]) + "\\n")\nsys.exit(int(os.environ.get("KEYD_RC", "0")))\n' "$SB" > "$SB/keyd"; chmod +x "$SB"/*
 : > "$SB/log"; env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x GROQ_API_KEY=y "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
 chk "root: хранитель ключей запущен (boot --home --agent-uid 1001), сессии — только его адрес, переменных с токеном нет" "grep -q 'keyd boot --home $HR --agent-uid 1001' $SB/log && grep -qx MILA_KEYD $SB/log && grep -qx KEYD_SOCK $SB/log && ! grep -qx CLAUDE_CODE_OAUTH_TOKEN $SB/log && ! grep -qx GROQ_API_KEY $SB/log"
-chk "приёмник — своим пользователем mila-io (фоном, ждёт «go»), сессии — MILA_IO и путь журналов приёмника" "grep -q 'setpriv --reuid=mila-io --regid=mila-io --groups=1001' $SB/log && grep -qx MILA_IO $SB/log && grep -qx MILA_TG_JOURNAL $SB/log"
+chk "приёмник — своим пользователем mila-io (фоном, ждёт «go»), сессии — MILA_IO" "grep -q 'setpriv --reuid=mila-io --regid=mila-io --groups=1001' $SB/log && grep -qx MILA_IO $SB/log"
 : > "$SB/log"; env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" KEYD_RC=1 CLAUDE_CODE_OAUTH_TOKEN=x "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
 chk "хранитель не поднялся — без его адреса, токен как раньше (старт не ломается)" "! grep -qx MILA_KEYD $SB/log && grep -qx CLAUDE_CODE_OAUTH_TOKEN $SB/log && grep -q setpriv $SB/log"
 : > "$SB/log"; env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" MILA_KEYD=off "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1

@@ -95,14 +95,21 @@ rc, out = s("approve", i2, "--card", "tp2"); chk("метка — из текст
 i3 = plan(); card("tp3", "Видео #%s" % i3)
 open(TP, "a").write(json.dumps({"card_id": "tp3", "used_ts": iso(2), "used_by": OWNER, "data": "ok", "card_text": "Видео #%s" % i3}) + "\n")
 rc, out = s("approve", i3, "--card", "tp3"); chk("настоящее нажатие хозяина из taps.jsonl — одобрено", rc == 0, out)
-# Mila Agent: presses from the receiver's own folder (MILA_TG_JOURNAL), trusted only if owned by the receiver's OS user
-import pwd as _pwd
-JD = os.path.join(T, "io"); os.makedirs(JD); open(os.path.join(JD, "taps.jsonl"), "w").write("")
-def sj(user, *a):
-    p = subprocess.run([sys.executable, os.path.join(H, "spend.py"), *a], capture_output=True, text=True, env=dict(ENV, MILA_TG_JOURNAL=JD, MILA_IO_USER=user))
-    return p.returncode, (p.stdout + p.stderr).strip()
-i4 = plan(); card("tj1", "Видео #%s" % i4)
-open(os.path.join(JD, "taps.jsonl"), "a").write(json.dumps({"card_id": "tj1", "used_ts": iso(2), "used_by": OWNER, "data": "ok", "card_text": "Видео #%s" % i4}) + "\n")
-rc, out = sj("root", "approve", i4, "--card", "tj1"); chk("журнал нажатий не его пользователя — не одобрено", rc != 0 and "подменён" in out, out)
-rc, out = sj(_pwd.getpwuid(os.getuid()).pw_name, "approve", i4, "--card", "tj1"); chk("журнал приёмника его пользователя — одобрено", rc == 0, out)
+# Mila Agent: decided by the machine (a mila-io user in /etc/passwd), not by a variable; presses and owners only from the
+# receiver's io/, owned by mila-io. Tested in-process with io_uid() pointed at this test's user.
+import importlib.util as _iu
+os.environ["TELEGRAM_CARDS_FILE"] = CF
+_sp = _iu.spec_from_file_location("spend_mod", os.path.join(H, "spend.py")); SM = _iu.module_from_spec(_sp); _sp.loader.exec_module(SM)
+JD = os.path.join(T, "io"); os.makedirs(JD); SM.IO_DIR = JD
+open(os.path.join(JD, "taps.jsonl"), "w").write(json.dumps({"card_id": "tj1", "used_ts": iso(2), "used_by": OWNER, "data": "ok", "card_text": "Видео #abc"}) + "\n")
+json.dump({"owners": [OWNER]}, open(os.path.join(JD, "owners.json"), "w"))
+card("tj1", "Видео #abc")
+SM.io_uid = lambda: os.getuid() + 1       # the files belong to someone else than mila-io (the session made them)
+chk("в контейнере: журнал не пользователя приёмника — не нажатие (без запасного пути)", SM.tap("tj1", "#abc")[0] is None)
+chk("в контейнере: список владельцев не пользователя приёмника — пуст", SM.owners({"owners": [OWNER, STRANGER]}) == [])
+SM.io_uid = lambda: os.getuid()
+chk("в контейнере: журнал приёмника — нажатие хозяина", SM.tap("tj1", "#abc")[0] == OWNER)
+chk("в контейнере: владельцы — из io/owners.json, не из policy.json сессии", SM.owners({"owners": [STRANGER]}) == [OWNER])
+os.rename(os.path.join(JD, "taps.jsonl"), os.path.join(JD, "t.real")); os.symlink(os.path.join(JD, "t.real"), os.path.join(JD, "taps.jsonl"))
+chk("в контейнере: журнал-ссылка — не нажатие", SM.tap("tj1", "#abc")[0] is None)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

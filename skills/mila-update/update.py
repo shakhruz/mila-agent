@@ -1379,20 +1379,27 @@ PACKS_IN = os.path.join(STATE, "packs-in")
 CODE_FILE = re.compile(r"\.(py|sh|bash|mjs|js|ts|rb|pl)$", re.I)
 
 
-def receiver_journal(name, legacy):
-    """a journal only the receiver writes. Mila Agent (MILA_TG_JOURNAL): its folder and file must belong to the receiver's own
-    OS user and not be links — the session could make a folder of its own with that name, never one owned by mila-io.
-    Elsewhere: the old place."""
-    jd = os.environ.get("MILA_TG_JOURNAL")
-    if not jd: return legacy
+def io_uid():
+    """the receiver's own OS user (Mila Agent) — from /etc/passwd, not from the environment the session could change."""
     import pwd
-    try: io = pwd.getpwnam(os.environ.get("MILA_IO_USER") or "mila-io").pw_uid
-    except KeyError: _refuse("нет пользователя приёмника (mila-io) — журналу не верю")
-    for x in (jd, os.path.join(jd, name)):
+    try: return pwd.getpwnam("mila-io").pw_uid
+    except KeyError: return None
+
+
+IO_DIR = os.path.join(HOME, ".claude", "channels", "telegram", "io")
+
+
+def receiver_journal(name, legacy):
+    """a file only the receiver writes. Where the receiver has its own user (Mila Agent): only from io/, and only if the folder
+    and the file belong to that user and are not links — the session can make a folder of its own, never one owned by mila-io.
+    No fallback to the old place there (the session could unset any variable). Elsewhere: the old place."""
+    uid = io_uid()
+    if uid is None: return legacy
+    for x in (IO_DIR, os.path.join(IO_DIR, name)):
         try: st = os.lstat(x)
         except OSError: _refuse("журнала приёмника %s нет" % name)
-        if stat.S_ISLNK(st.st_mode) or st.st_uid != io: _refuse("журнал приёмника %s подменён (не его владелец или ссылка) — не верю" % name)
-    return os.path.join(jd, name)
+        if stat.S_ISLNK(st.st_mode) or st.st_uid != uid: _refuse("журнал приёмника %s подменён (не его владелец или ссылка) — не верю" % name)
+    return os.path.join(IO_DIR, name)
 
 
 TG_STATE = os.environ.get("MILA_TG_STATE") or os.environ.get("TELEGRAM_STATE_DIR") or os.path.join(CLAUDE, "channels", "telegram")   # Mila Agent: the receiver's state, not the session's bridge
@@ -1400,6 +1407,11 @@ CARD_FRESH = 30 * 60   # «да» на карточку пака — не ста
 
 
 def owner_ids():
+    """the owners. Where the receiver has its own user: only its io/owners.json (set from the platform's OWNER_ID or at the first
+    pairing, never by the session); elsewhere ~/.mila-auth/owner_id and access.json, as before."""
+    if io_uid() is not None:
+        try: return {str(x) for x in json.load(open(receiver_journal("owners.json", None), encoding="utf-8")).get("owners", []) if str(x).isdigit()}
+        except (OSError, ValueError): _refuse("список владельцев приёмника не читается")
     ids = set()
     try: ids.add(re.sub(r"\D", "", open(os.path.join(HOME, ".mila-auth", "owner_id")).read()))
     except OSError: pass

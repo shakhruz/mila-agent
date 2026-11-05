@@ -19,7 +19,30 @@ import json, os, re, stat, sys, time
 COMPANION_STATE = os.environ.get("COMPANION_STATE", os.path.expanduser("~/.mila-companion/state"))
 
 STATE = os.environ.get("TELEGRAM_STATE_DIR", os.path.expanduser("~/.claude/channels/telegram"))
-EV = os.path.join(STATE, "inbound", "events.jsonl")
+EV_LEGACY = os.path.join(STATE, "inbound", "events.jsonl")
+IO_EV = os.path.expanduser("~/.claude/channels/telegram/io/events.jsonl")
+
+
+def io_uid():
+    """the receiver's own OS user (Mila Agent) — from /etc/passwd, not from the environment."""
+    import pwd
+    try: return pwd.getpwnam("mila-io").pw_uid
+    except KeyError: return None
+
+
+def events_path():
+    """where the inbound journal is. Mila Agent: only the receiver's io/events.jsonl, and only if the folder and the file are
+    mila-io's and not links (the link inbound/events.jsonl sits in a folder the session can write). Elsewhere: as before.
+    A journal that is not the receiver's → a path that does not exist: nothing is fed."""
+    uid = io_uid()
+    if uid is None: return EV_LEGACY
+    import stat as _st
+    try:
+        if any(_st.S_ISLNK(os.lstat(x).st_mode) or os.lstat(x).st_uid != uid for x in (os.path.dirname(IO_EV), IO_EV)):
+            log_once("io-bad", "inbound journal is not the receiver's (owner or link) — not feeding", every=600); return IO_EV + ".refused"
+    except OSError:
+        return IO_EV + ".missing"
+    return IO_EV
 CUR = os.path.join(STATE, "inbound", "feeder-cursor")
 SUSP = os.path.join(STATE, "inbound", "suspicious.jsonl")
 FIFO = os.environ.get("COMPANION_FIFO", os.path.join(COMPANION_STATE, "session.in"))
@@ -491,7 +514,7 @@ def rewind_to(cursor, since, last_ok=None):
     since = max(since - REWIND_SLACK, (last_ok or 0) + 1)
     pos = 0
     try:
-        with open(EV, "rb") as f:
+        with open(events_path(), "rb") as f:
             for raw in f:
                 if pos >= cursor:
                     break
@@ -512,7 +535,7 @@ def rewind_to(cursor, since, last_ok=None):
 def channel_events_after(cursor):
     n = 0
     try:
-        with open(EV, "rb") as f:
+        with open(events_path(), "rb") as f:
             f.seek(cursor)
             for raw in f:
                 if b'"notifications/claude/channel"' in raw:
@@ -677,7 +700,7 @@ def main():
     log("feeder start, cursor=%d, pending=%d" % (cursor, len(_pending)))
     while True:
         try:
-            size = os.path.getsize(EV)
+            size = os.path.getsize(events_path())
         except OSError:
             time.sleep(1); continue
         if size < cursor:          # журнал ротирован/усечён — начинаем сначала
@@ -686,7 +709,7 @@ def main():
             if _pending:
                 check_delivery()
             time.sleep(1); continue
-        with open(EV, "rb") as f:
+        with open(events_path(), "rb") as f:
             f.seek(cursor)
             chunk = f.read(size - cursor)
         nl = chunk.rfind(b"\n")

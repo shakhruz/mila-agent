@@ -28,18 +28,29 @@ Claude sign-in, which read Telegram updates themselves). After that the supervis
 | `io/taps.jsonl` — every button press: who, which button, the card text as Telegram showed it | receiver | reads; cannot write |
 | `io/auth-log.jsonl` — group connections and their modes | receiver | reads; cannot write |
 | `io/suspicious.jsonl` — forged envelopes, someone else's press | receiver | reads; cannot write |
+| `io/owners.json` — who is an owner | root step from the platform's `OWNER_ID` / `OWNERS`, or the receiver once at the first «go» | reads; cannot write |
 | `inbound/events.jsonl`, `taps.jsonl`, `auth-log.jsonl`, `suspicious.jsonl` | links to `io/` for older readers | — |
 | `access.json`, `cards.jsonl`, `chats/`, `CHATS.md`, `langs.json`, `.env` (placeholder token) | both | reads and writes (0660) |
 
-A press counts only from `io/taps.jsonl`, and only if `io/` and the file belong to `mila-io` and are not links. The pack
-installer (`update.py`) and the spend ledger (`spend.py`) check this before they read. The card text in a press is the
+Where the machine has a `mila-io` user (decided by `/etc/passwd`, not by a variable the session could unset), the pack
+installer (`update.py`), the spend ledger (`spend.py`) and the feeder read the receiver's files only from `io/`. They read
+them only if the folder and the file belong to `mila-io` and are not links. There is no fallback to the old places. The card text in a press is the
 message Telegram showed the owner, not the session's own registry. A line the session adds to `cards.jsonl` is therefore not
 a press.
+
+## Who is an owner
+
+`io/owners.json`:
+- written by the root step from the platform's `OWNER_ID` / `OWNERS` when they are set;
+- otherwise written once by the receiver at the first «go» — the owner the sign-in paired, before the session ever ran.
+
+The receiver's `owner` mark, the pack installer and the spend ledger take owners only from it. A line the session adds to
+`access.json` or `policy.json` makes nobody an owner.
 
 ## Author of every message
 
 The receiver adds `from` to every event:
-- `owner` — one of the owners (`owners`, else `allowFrom`);
+- `owner` — one of the owners (`io/owners.json`);
 - `team` — listed in the group's `team` in `access.json`;
 - `other` — anyone else, including bots, channels and anonymous admins.
 
@@ -62,7 +73,8 @@ the calling OS user (`SO_PEERCRED`).
 | journals in `io/`, 0640, folder 2750 `mila-io:agent` | `docker/entrypoint.sh`; plugin `TELEGRAM_JOURNAL_DIR`, `JOURNAL_MODE` (`receiver.ts`) |
 | `from` by Telegram id | plugin `authorOf()` (`receiver.ts`); feeder `meta_attrs()` (`install/companion-feeder.py`) |
 | presses with Telegram's card text | plugin `TAPS_FILE` (`receiver.ts`) |
-| a press trusted only from `mila-io`'s file | `skills/mila-update/update.py` `receiver_journal()`, `packs/kartinki/spend/spend.py` |
+| a press and the owners trusted only from `mila-io`'s files; container decided by `/etc/passwd` | `skills/mila-update/update.py` `io_uid()`, `receiver_journal()`, `owner_ids()`; `packs/kartinki/spend/spend.py` `io_file()`, `owners()`; `install/companion-feeder.py` `events_path()`; plugin `ownersOf()` |
+| owners from the platform or the first «go» | `docker/entrypoint.sh` (root step, supervisor) |
 | updates only for `mila-io` | `docker/mila_keyd.py` `tg_allowed()`, `ProxyUnix` |
 | checked | `docker/test_mila_keyd.py`, `install/test_feeder_envelope.py`, `install/test_reply_required.py`, `skills/mila-update/test_packs.py`, `packs/kartinki/spend/test_spend_tap.py`, plugin `foundation.test.ts`; in the image build `docker/wall_probe.sh` |
 
@@ -74,7 +86,9 @@ the calling OS user (`SO_PEERCRED`).
 
 ## What stays open
 
-- The session (`agent`) can still change `access.json`, the card registry and chat notes — shared on purpose (pairing, Mila's
-  notes). Group modes and who is a team member will move to the receiver's side with the next step.
+- The session (`agent`) can still change `access.json` (who may write to the bot, group modes, the team list), the card
+  registry and chat notes — shared on purpose (pairing, Mila's notes). It cannot make anyone an owner. Group modes and the
+  team list move to the receiver's side with the next step.
+- A co-owner added later: set `OWNERS` on the platform and restart.
 - In the main session, what owners and team members write is read as usual. Strangers' raw text is kept away from the main
   session in the next step (the safe mode for groups).

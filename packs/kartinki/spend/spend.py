@@ -48,6 +48,35 @@ def _t(s):
     try: return dt.datetime.fromisoformat(str(s).replace("Z", "+00:00")).timestamp()
     except (TypeError, ValueError): return None
 
+def io_uid():
+    """the receiver's own OS user (Mila Agent) — from /etc/passwd, not from the environment the session could change."""
+    import pwd
+    try: return pwd.getpwnam("mila-io").pw_uid
+    except KeyError: return None
+
+
+IO_DIR = os.path.expanduser("~/.claude/channels/telegram/io")
+
+
+def io_file(name):
+    """a file only the receiver writes, if its folder and the file belong to mila-io and are not links; otherwise None."""
+    import stat as _st
+    uid = io_uid(); p = os.path.join(IO_DIR, name)
+    try:
+        if any(_st.S_ISLNK(os.lstat(x).st_mode) or os.lstat(x).st_uid != uid for x in (IO_DIR, p)): return None
+    except OSError:
+        return None
+    return p
+
+
+def owners(p):
+    """Mila Agent: owners only from the receiver's io/owners.json; elsewhere policy.json as before."""
+    if io_uid() is None: return [str(x) for x in p["owners"]]
+    f = io_file("owners.json")
+    try: return [str(x) for x in json.load(open(f)).get("owners", [])] if f else []
+    except (OSError, ValueError): return []
+
+
 def tap(card_id, mark, after=None):
     """Нажатие хозяина на карточку card_id → (кто нажал, None) или (None, причина отказа). Читает только журнал плагина."""
     card = used = None
@@ -61,16 +90,9 @@ def tap(card_id, mark, after=None):
     except OSError:
         return None, "нет журнала карточек плагина"
     taps = os.path.join(os.path.dirname(CARDS()), "taps.jsonl")   # newer plugin: presses only as Telegram delivered them
-    jd = os.environ.get("MILA_TG_JOURNAL")
-    if jd:   # Mila Agent: the receiver's own folder — owned by its OS user, not a link; otherwise not a press at all
-        import pwd, stat as _st
-        taps = os.path.join(jd, "taps.jsonl")
-        try:
-            io = pwd.getpwnam(os.environ.get("MILA_IO_USER") or "mila-io").pw_uid
-            if any(_st.S_ISLNK(os.lstat(x).st_mode) or os.lstat(x).st_uid != io for x in (jd, taps)):
-                return None, "журнал нажатий подменён — не верю"
-        except (KeyError, OSError):
-            return None, "нет журнала нажатий приёмника"
+    if io_uid() is not None:   # Mila Agent: only the receiver's own journal; no fallback the session could arrange
+        taps = io_file("taps.jsonl")
+        if not taps: return None, "журнал нажатий приёмника подменён или его нет — не верю"
     if os.path.exists(taps):
         t = None
         for l in open(taps, encoding="utf-8"):
@@ -133,7 +155,7 @@ def main():
             by, why = tap(o.card, "#" + r["id"], r["ts"])
             if not by: sys.exit("не одобрено: " + why)
             if o.by and str(o.by) != by: sys.exit(f"--by {o.by} не тот, кто нажал ({by})")
-            owner = by in map(str, p["owners"])
+            owner = by in owners(p)
             budget = float(p["budgets"].get(by, 0)); mine = spent(rs, m, by)
             if not owner and not (by == str(r["by"]) and mine + r["est"] <= budget):
                 sys.exit(f"не может одобрить: не владелец и бюджет {by} ${budget} (потрачено ${mine:.2f})")
@@ -161,7 +183,7 @@ def main():
             if card_spent(rs, o.card): sys.exit("эта карточка уже использована")
             by, why = tap(o.card, mark)
             if not by: sys.exit("не изменено: " + why)
-            if by not in map(str, p["owners"]): sys.exit("меняет только владелец (нажал %s)" % by)
+            if by not in owners(p): sys.exit("меняет только владелец (нажал %s)" % by)
             p["cards"] = (p.get("cards") or []) + [o.card]
         if cmd == "owner": p["owners"] = sorted(set(map(str, p["owners"])) | {o.x[0]})
         elif cmd == "limit": p["monthly_limit_usd"] = float(o.x[0])

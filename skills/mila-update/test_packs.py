@@ -186,26 +186,23 @@ rc, d = U("install-pack", "business-assistant", "--card", c); check("метка 
 c = card("Пак\n" + MK); tap(c, "Пак\n" + MK)
 rc, d = U("install-pack", "business-assistant", "--card", c); check("настоящее нажатие из taps.jsonl — пак ставится", rc == 0, d)
 os.remove(TAPS)
-# Mila Agent: MILA_TG_JOURNAL — the receiver's own folder; trusted only if it and the file belong to the receiver's OS user
-import pwd as _pwd
-ME = _pwd.getpwuid(os.getuid()).pw_name
-JD = os.path.join(T, "io"); os.makedirs(JD); TJ = os.path.join(JD, "taps.jsonl"); open(TJ, "w").write("")
-def tapj(cid, text):
-    open(TJ, "a").write(json.dumps({"card_id": cid, "used_ts": iso(), "used_by": OWNER, "data": "pack:yes", "chat_id": OWNER, "card_text": text}) + "\n")
-U("remove-pack", "business-assistant", "--card", card(U("remove-pack", "business-assistant")[1].get("text", "x"), tap_by=OWNER, write_data=True))
-def Uj(user, *a):
-    r = subprocess.run([sys.executable, os.path.join(HERE, "update.py")] + list(a), env=dict(ENV, MILA_TG_JOURNAL=JD, MILA_IO_USER=user),
-                       capture_output=True, text=True, stdin=subprocess.DEVNULL)
-    try: return r.returncode, json.loads(r.stdout or r.stderr or "{}")
-    except ValueError: return r.returncode, {"raw": r.stdout + r.stderr}
-c = card("Пак\n#pack-business-assistant-0.1.0"); tapj(c, "Пак\n#pack-business-assistant-0.1.0")
-rc, d = Uj("root", "install-pack", "business-assistant", "--card", c)
-check("журнал приёмника не принадлежит его пользователю (сессия сделала свой) — отказ", rc != 0 and "подменён" in d.get("error", ""), d)
-os.rename(TJ, TJ + ".real"); os.symlink(TJ + ".real", TJ)
-rc, d = Uj(ME, "install-pack", "business-assistant", "--card", c)
-check("журнал приёмника — ссылка — отказ", rc != 0 and "подменён" in d.get("error", ""), d)
-os.remove(TJ); os.rename(TJ + ".real", TJ)
-rc, d = Uj(ME, "install-pack", "business-assistant", "--card", c)
-check("журнал приёмника его пользователя — нажатие из него, пак ставится", rc == 0, d)
+# Mila Agent: decided by the machine (a mila-io user), not by a variable the session could unset; presses and owners only from
+# the receiver's io/ owned by mila-io. In-process, with io_uid() pointed at this test's user.
+import importlib.util as _iu
+for k in ("HOME", "CLAUDE_CONFIG_DIR", "MILA_WORK"): os.environ[k] = ENV[k]
+_sp = _iu.spec_from_file_location("upd", os.path.join(HERE, "update.py")); UP = _iu.module_from_spec(_sp); _sp.loader.exec_module(UP)
+JD = os.path.join(T, "io2"); os.makedirs(JD); UP.IO_DIR = JD
+json.dump({"owners": [OWNER]}, open(os.path.join(JD, "owners.json"), "w")); open(os.path.join(JD, "taps.jsonl"), "w").write("")
+def refused(f, *a):
+    try: f(*a); return None
+    except SystemExit as e: return str(e)
+UP.io_uid = lambda: os.getuid() + 1
+check("в контейнере: журнал не пользователя приёмника — отказ, без запасного пути к старому месту", "подменён" in (refused(UP.receiver_journal, "taps.jsonl", os.path.join(TG, "taps.jsonl")) or ""))
+UP.io_uid = lambda: os.getuid()
+check("в контейнере: журнал приёмника — путь в io/", UP.receiver_journal("taps.jsonl", "legacy") == os.path.join(JD, "taps.jsonl"))
+acc = json.load(open(os.path.join(TG, "access.json"))); acc["owners"] = [OWNER, STRANGER]; json.dump(acc, open(os.path.join(TG, "access.json"), "w"))
+check("в контейнере: владельцы — только из io/owners.json (чужой, дописанный сессией в access.json, — не владелец)", UP.owner_ids() == {OWNER})
+os.rename(os.path.join(JD, "owners.json"), os.path.join(JD, "o.real")); os.symlink(os.path.join(JD, "o.real"), os.path.join(JD, "owners.json"))
+check("в контейнере: owners.json-ссылка — отказ", "подменён" in (refused(UP.owner_ids) or ""))
 srv.shutdown(); shutil.rmtree(T, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
