@@ -11,7 +11,6 @@ STATE="${TELEGRAM_STATE_DIR:-$HOME/.claude/channels/telegram}"
 # Service names are configurable: whoever installs this names their own
 # launchd/systemd units. Defaults match the ones the installer suggests.
 DAEMON_UNIT="${MILA_DAEMON_UNIT:-com.milacore.telegram-receiver}"
-SENDER_UNIT="${MILA_SENDER_UNIT:-com.milacore.telegram-sender}"
 
 c_ok=$'\033[32m'; c_bad=$'\033[31m'; c_dim=$'\033[2m'; c_off=$'\033[0m'
 
@@ -24,8 +23,6 @@ ensure_daemon() {
       || launchctl load "$HOME/Library/LaunchAgents/$DAEMON_UNIT.plist" 2>/dev/null
     sleep 2
   fi
-  pgrep -f "sender-daemon" >/dev/null 2>&1 || \
-    launchctl kickstart -k "gui/$(id -u)/$SENDER_UNIT" 2>/dev/null
 }
 
 status() {
@@ -38,11 +35,6 @@ status() {
   else
     echo "  receiver   ${c_bad}DOWN${c_off}   inbound messages are being lost"
   fi
-  if pgrep -f "sender-daemon" >/dev/null 2>&1; then
-    echo "  sender     ${c_ok}up${c_off}"
-  else
-    echo "  sender     ${c_bad}DOWN${c_off}   replies are piling up in the outbox"
-  fi
   if pgrep -f "bun server.ts" >/dev/null 2>&1; then
     echo "  bridge     ${c_ok}up${c_off}"
   else
@@ -54,15 +46,12 @@ status() {
   else
     echo "  journal    ${c_bad}${behind} B not replayed${c_off} (cursor ${cur} / ${sz})"
   fi
-  q=$(ls "$STATE/outbox" 2>/dev/null | wc -l | tr -d ' ')
-  if [ "$q" != "0" ]; then echo "  outbox     ${c_bad}${q} pending${c_off}"; else echo "  outbox     ${c_ok}empty${c_off}"; fi
 }
 
 case "${1:-continue}" in
   status|st)   status ;;
   fix)         launchctl kickstart -k "gui/$(id -u)/$DAEMON_UNIT" 2>/dev/null
-               launchctl kickstart -k "gui/$(id -u)/$SENDER_UNIT" 2>/dev/null
-               sleep 2; status ;;
+                          sleep 2; status ;;
   new|n)       ensure_daemon; shift; exec claude $FLAG "$PLUGIN" "$@" ;;
   pick|p)      ensure_daemon; shift; exec claude $FLAG "$PLUGIN" --resume "$@" ;;
   help|-h|--help)
@@ -70,8 +59,8 @@ case "${1:-continue}" in
 mila            resume the last session with the plugin (--continue)
 mila new        start a fresh session
 mila pick       choose a session from the list (--resume)
-mila status     channel health: receiver, sender, bridge, journal, outbox
-mila fix        restart receiver and sender (leaves the session alone)
+mila status     channel health: receiver, bridge, journal
+mila fix        restart the receiver (leaves the session alone)
 
 Anything after the command is passed to claude as-is:  mila new --model opus
 HELP

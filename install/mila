@@ -29,23 +29,20 @@ PLUGIN="${MILA_PLUGIN_REF:-$(detect_plugin_ref)}"
 FLAG="--dangerously-load-development-channels"
 STATE="${TELEGRAM_STATE_DIR:-$HOME/.claude/channels/telegram}"
 DAEMON_UNIT="com.milagpt.telegram-receiver"
-SENDER_UNIT="com.milagpt.telegram-sender"
 # Linux (plan 17.10 item 1): deploy/bootstrap.sh installs the receiver as a systemd --user unit; launchctl is macOS only.
 SD_RECEIVER="${MILA_SD_RECEIVER:-mila-telegram-receiver}"
-SD_SENDER="${MILA_SD_SENDER:-mila-telegram-sender}"
-# svc receiver|sender — (re)start the daemon the way this OS runs it; silent if there is no such unit.
+# svc receiver — (re)start the receiver daemon the way this OS runs it; silent if there is no such unit.
 svc() {
   if [ "$(uname -s)" = "Darwin" ]; then
-    local u="$DAEMON_UNIT"; [ "$1" = sender ] && u="$SENDER_UNIT"
+    local u="$DAEMON_UNIT"
     launchctl kickstart -k "gui/$(id -u)/$u" 2>/dev/null \
       || { [ "$1" = receiver ] && launchctl load "$HOME/Library/LaunchAgents/$u.plist" 2>/dev/null; }
   elif command -v systemctl >/dev/null 2>&1; then
-    local u="$SD_RECEIVER"; [ "$1" = sender ] && u="$SD_SENDER"
+    local u="$SD_RECEIVER"
     systemctl --user cat "$u" >/dev/null 2>&1 && systemctl --user restart "$u" 2>/dev/null
   fi
   return 0
 }
-svc_hint() { if [ "$(uname -s)" = "Darwin" ]; then echo "launchctl kickstart -k gui/\$(id -u)/$SENDER_UNIT"; else echo "systemctl --user restart $SD_SENDER  (or: mila fix)"; fi; }
 
 c_ok=$'\033[32m'; c_bad=$'\033[31m'; c_dim=$'\033[2m'; c_off=$'\033[0m'
 
@@ -57,7 +54,6 @@ ensure_daemon() {
     svc receiver
     sleep 2
   fi
-  pgrep -f "sender-daemon" >/dev/null 2>&1 || svc sender
 }
 
 status() {
@@ -78,11 +74,6 @@ status() {
   else
     echo "  receiver   ${c_bad}DOWN${c_off}   inbound messages are being lost"
   fi
-  if pgrep -f "sender-daemon" >/dev/null 2>&1; then
-    echo "  sender     ${c_ok}up${c_off}"
-  else
-    echo "  sender     ${c_bad}DOWN${c_off}   replies are piling up in the outbox"
-  fi
   if pgrep -f "bun server.ts" >/dev/null 2>&1; then
     echo "  bridge     ${c_ok}up${c_off}"
   else
@@ -90,8 +81,6 @@ status() {
   fi
   if [ -z "$sz" ]; then
     echo "  journal    ${c_dim}empty${c_off}  the bot has not received anything yet"
-    q=$(ls "$STATE/outbox" 2>/dev/null | wc -l | tr -d ' ')
-    if [ "$q" != "0" ]; then echo "  outbox     ${c_bad}${q} pending${c_off}"; else echo "  outbox     ${c_ok}empty${c_off}"; fi
     return 0
   fi
   behind=$(( sz - cur ))
@@ -100,63 +89,6 @@ status() {
   else
     echo "  journal    ${c_bad}${behind} B not replayed${c_off} (cursor ${cur} / ${sz})"
   fi
-  q=$(ls "$STATE/outbox" 2>/dev/null | wc -l | tr -d ' ')
-  if [ "$q" != "0" ]; then echo "  outbox     ${c_bad}${q} pending${c_off}"; else echo "  outbox     ${c_ok}empty${c_off}"; fi
-}
-
-
-# Send without the MCP bridge.
-#
-# The bridge lives inside the session: while the session is busy or restarting,
-# it delivers nothing, and the assistant goes mute mid-conversation. Measured on
-# this machine over two days: 646 minutes with messages arriving and none
-# delivered. Inbound survives that — the daemon keeps writing the journal and
-# the hook reads it directly — so the only thing actually broken is the ability
-# to answer.
-#
-# The sender daemon already watches a directory and does not care about the
-# session at all. Writing a file there is the escape hatch: bridge down is then
-# a loss of live notifications, not a loss of speech.
-#
-#   mila say <chat_id> "text"
-#   mila say <chat_id> "caption" --file /abs/path.png --reply-to 123
-say_out() {
-  local chat="${1:-}" text="${2:-}"; shift 2 2>/dev/null || true
-  if [ -z "$chat" ] || [ -z "$text" ]; then
-    echo "usage: mila say <chat_id> \"text\" [--file PATH] [--reply-to ID]" >&2
-    return 2
-  fi
-  local file="" reply=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --file)     file="${2:-}"; shift 2 ;;
-      --reply-to) reply="${2:-}"; shift 2 ;;
-      *) echo "unknown option: $1" >&2; return 2 ;;
-    esac
-  done
-  if ! pgrep -f "sender-daemon" >/dev/null 2>&1; then
-    echo "${c_bad}sender daemon is down — the message would sit in the queue${c_off}" >&2
-    echo "start it:  $(svc_hint)" >&2
-  fi
-  CHAT="$chat" TEXT="$text" FILE="$file" REPLY="$reply" OUT="$STATE/outbox" python3 - <<'PY'
-import json, os, time
-out = os.environ["OUT"]
-os.makedirs(out, mode=0o700, exist_ok=True)
-job = {"chat_id": int(os.environ["CHAT"]), "text": os.environ["TEXT"]}
-if os.environ.get("FILE"):
-    job["file"] = os.path.abspath(os.environ["FILE"])
-if os.environ.get("REPLY"):
-    job["reply_to"] = int(os.environ["REPLY"])
-name = "mila-%d-%d.json" % (int(time.time() * 1000), os.getpid())
-tmp = os.path.join(out, name + ".tmp")
-# Пишем во временный файл и переименовываем: отправитель сканирует каталог
-# каждые две секунды и может подхватить недописанный файл.
-with open(tmp, "w", encoding="utf-8") as f:
-    json.dump(job, f, ensure_ascii=False)
-os.chmod(tmp, 0o600)
-os.replace(tmp, os.path.join(out, name))
-print("queued: %s" % name)
-PY
 }
 
 
@@ -212,7 +144,6 @@ PY
 case "${1:-continue}" in
   status|st)   status ;;
   inbox|in)    shift; inbox "${1:-20}" ;;
-  say)         shift; say_out "$@" ;;
   usage|u)     shift
                # Собиратель лежит рядом со скиллом; если кит поставлен
                # установщиком, он в hooks/ рядом с хуком входящих.
@@ -284,7 +215,7 @@ case "${1:-continue}" in
                  [ -f "$c" ] && exec python3 "$c" "$cmd" "$@"
                done
                echo "mila-export skill not found — reinstall the kit" >&2; exit 1 ;;
-  fix)         svc receiver; svc sender
+  fix)         svc receiver
                sleep 2; status ;;
   new|n)       ensure_daemon; shift; exec claude $FLAG "$PLUGIN" "$@" ;;
   pick|p)      ensure_daemon; shift; exec claude $FLAG "$PLUGIN" --resume "$@" ;;
@@ -293,11 +224,11 @@ case "${1:-continue}" in
 mila            resume the last session with the plugin (--continue)
 mila new        start a fresh session
 mila pick       choose a session from the list (--resume)
-mila status     channel health: receiver, sender, bridge, journal, outbox
+mila status     channel health: receiver, bridge, journal
 mila onboard    first setup in three checked steps: bot token, Claude sign-in, pair with your bot (--check)
 mila doctor     full diagnosis: token, privacy mode, access, daemon, permissions
 mila inbox      show unread inbound messages and mark them seen
-mila fix        restart receiver and sender (leaves the session alone)
+mila fix        restart the receiver (leaves the session alone)
 mila usage      token spend by day and model (--days 7 --by-model)
 mila turns      collect turns from the transcripts into conversations.db
 mila records    show turns | external | check — the ledgers (see docs/accounting.md)

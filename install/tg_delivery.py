@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Журнал доставки для скриптов ядра, которые шлют в Telegram сами, мимо плагина (heartbeat, bot_send, limit_watch, subscription_watch).
-Тот же формат, файл и соль, что у плагина mila-telegram (delivery.mjs): $TELEGRAM_STATE_DIR (по умолчанию ~/.claude/channels/telegram)/
+Свой журнал ядра (плагин mila-telegram его не пишет): $TELEGRAM_STATE_DIR (по умолчанию ~/.claude/channels/telegram)/
 delivery.jsonl (600), чат — HMAC с солью delivery.salt (600, вне журнала), без текста; delivery-status.json — счёт по классам за сутки.
-Сигнал хозяину о сбое шлёт плагин; здесь только запись — скрипт не должен будить хозяина сам.
+Здесь только запись — скрипт не должен будить хозяина сам.
     from tg_delivery import record, call
     ok = call(urlopen_request_fn, "sendMessage", chat_id)   # или record(method, chat_id, ok, code, desc)"""
 import datetime as dt, hashlib, hmac, json, os, re, secrets, urllib.error
