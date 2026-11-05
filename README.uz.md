@@ -18,7 +18,7 @@ Mila — biznesingiz uchun hamkasb: Telegramda siz va jamoangiz bilan ishlaydi, 
 
 - Mila oddiy, o‘zgartirilmagan Claude Code’da ishlaydi — Anthropic chiqargan holida.
 - Siz o‘zingiz, faqat Anthropic sahifasida kirasiz: o‘z Claude rejangiz yoki o‘z Anthropic API kalitingiz bilan. Mila kirish ma’lumotlari va tokenni nusxalamaydi va saqlamaydi; OAuth-tokenni o‘zingiz ham hech qayerga nusxalamang.
-- Rejangiz — o‘zingiz uchun. Botingizga yozgan mijoz va mehmonlarga API kalit orqali, kalit egasi hisobidan xizmat ko‘rsatiladi.
+- Rejangiz — o‘zingiz uchun. Botingizga yozgan mijoz va mehmonlarga faqat API kalit orqali, kalit egasi hisobidan javob berish mumkin. Bu versiyada bot begonalarga shaxsiy yozishmada hozircha javob bermaydi.
 - Milani sizga sozlab beradigan hamkor sizni o‘z obunasida yuritmaydi, Claude uchun to‘lamaydi, uni qayta sotmaydi va kirish ma’lumotlarini yig‘maydi.
 
 Manba: [Claude Code — legal and compliance](https://code.claude.com/docs/en/legal-and-compliance).
