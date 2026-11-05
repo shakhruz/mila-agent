@@ -7,7 +7,7 @@
 <p align="center"><b>Turn Claude Code into an employee that lives in Telegram.</b><br>
 Free, open source, Apache-2.0. Made with ❤️ in Uzbekistan.</p>
 
-<p align="center">She answers your customers on Telegram and remembers every promise. A send-guard stops accidental leaks; your keys stay with a key keeper she uses but cannot read. Ordinary replies in chats you connected go without asking.</p>
+<p align="center">She answers your customers on Telegram and remembers every promise. A send-guard stops accidental leaks; in the container (Mila Agent) your keys stay with a key keeper she uses but cannot read. Ordinary replies in chats you connected go without asking.</p>
 
 <p align="center">
   <a href="#quick-start"><b>Install</b></a> ·
