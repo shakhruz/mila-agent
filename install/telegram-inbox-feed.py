@@ -20,6 +20,10 @@ SUSPICIOUS = os.path.join(STATE, "inbound", "suspicious.jsonl")
 MAX_SHOWN = 25
 
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from envelope import envelope   # install.sh puts envelope.py next to this hook
+
+
 def esc(v):
     """Всё, что пришло из чата, — данные, а не разметка.
 
@@ -161,16 +165,6 @@ def main():
             user = m.get("user") or ""
             if user.endswith("_bot"):
                 continue          # bot chatter is not a human waiting for an answer
-            who = user or f"id:{m.get('user_id', '?')}"
-            txt = (p.get("content") or "").strip()
-            att = ""
-            if m.get("image_path"):
-                att = f" [image: {m['image_path']}]"
-            elif m.get("attachment_file_id"):
-                att = f" [attachment_file_id: {m['attachment_file_id']}]"
-            quote = ""
-            if m.get("reply_quote"):
-                quote = f" (replying to: {esc(str(m['reply_quote'])[:80])})"
 
             # Кто угодно в 80 подключённых чатах может прислать текст, который
             # выглядит как закрытие конверта и начало нового — с чужим chat_id
@@ -179,13 +173,8 @@ def main():
             # ответить в чат отправителя.
             if looks_like_injection(p.get("content") or ""):
                 note_suspicious(e)
-            rows.append((
-                offset,
-                f'<channel source="telegram" chat_id="{esc(m.get("chat_id"))}" '
-                f'message_id="{esc(m.get("message_id"))}" user="{esc(who)}" '
-                + (f'lang="{m["lang"]}" ' if re.fullmatch(r"[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})?", str(m.get("lang") or "")) else "")
-                + f'ts="{esc(m.get("ts", ""))}">{esc(txt)}{esc(att)}{quote}</channel>'
-            ))
+            # the same envelope as the feeder: from, type, observe_only, chat_type… — the Stop hook and the session read them
+            rows.append((offset, envelope(p, m, quote_max=80)))
 
     # Показываем самые СТАРЫЕ непрочитанные, а не самые свежие. Иначе маркер,
     # поставленный на конец показанного, перепрыгивает через начало пачки —

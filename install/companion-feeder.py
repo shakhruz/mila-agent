@@ -90,46 +90,18 @@ def log_once(key, msg, every=60):
         log(msg)
 
 
-def esc(v):
-    return (str("" if v is None else v).replace("&", "&amp;").replace("<", "&lt;")
-            .replace(">", "&gt;").replace('"', "&quot;"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from envelope import ATTRS, esc, meta_attrs, envelope as _envelope   # one envelope for the feeder and the hook
 
 
 def envelope(p, m):
-    user = m.get("user") or ""
-    who = user or "id:%s" % m.get("user_id", "?")
-    txt = (p.get("content") or "").strip()
-    att = ""
-    if m.get("image_path"):
-        att = " [image: %s]" % m["image_path"]
-    elif m.get("attachment_file_id"):
-        att = " [attachment_file_id: %s]" % m["attachment_file_id"]
-    quote = ""
-    if m.get("reply_quote"):
-        quote = " (replying to: %s)" % esc(str(m["reply_quote"])[:3000])
     if any(k in (p.get("content") or "").lower() for k in INJECTION_MARKS):
         try:
             with open(SUSP, "a", encoding="utf-8") as f:
                 f.write(json.dumps({"ts": time.time(), "by": "feeder", "meta": m}, ensure_ascii=False) + "\n")
         except Exception:
             pass
-    lang = m.get("lang") if re.fullmatch(r"[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})?", str(m.get("lang") or "")) else ""
-    return ('<channel source="telegram" chat_id="%s" message_id="%s" user="%s"%s ts="%s"%s>%s%s%s</channel>'
-            % (esc(m.get("chat_id")), esc(m.get("message_id")), esc(who), (' lang="%s"' % lang) if lang else "", esc(m.get("ts", "")),
-               meta_attrs(m), esc(txt), esc(att), quote))
-
-
-ATTRS = (("user_id", r"[0-9]{1,15}"), ("from", r"owner|team|other"), ("type", r"reaction|callback"), ("observe_only", r"true"),
-         ("chat_type", r"private|group|supergroup|channel"), ("guests_since_last", r"[0-9]{1,6}"))
-
-
-def meta_attrs(m):
-    """what the receiver knows and the session needs: the author by Telegram id (from = owner/team/other), the event type, the
-    observer mark, the chat's title and kind, how many strangers wrote since (a number). Only known values (patterns) — never free text in an attribute."""
-    out = "".join(' %s="%s"' % (k, m[k]) for k, pat in ATTRS if re.fullmatch(pat, str(m.get(k) or "")))
-    if m.get("chat_title"):
-        out += ' chat_title="%s"' % esc(str(m["chat_title"])[:128])
-    return out
+    return _envelope(p, m)
 
 
 def feed(text):

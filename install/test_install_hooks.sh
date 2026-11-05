@@ -18,6 +18,7 @@ print(" ".join(miss))
 PY
 )
 chk "все хуки из settings.json лежат файлами" "[ -z \"$miss\" ]"
+chk "envelope.py рядом с хуком входящих (хук строит им конверт)" "[ -f $T/home/.claude/hooks/envelope.py ]"
 chk "Stop: reply-required.py установлен" "[ -x $T/home/.claude/hooks/reply-required.py ]"
 chk "PostToolUse: pd-mask.py установлен" "[ -x $T/home/.claude/hooks/pd-mask.py ]"
 chk "ключ хранилища ПДн создан, 600" "python3 -c \"import os,sys; sys.exit(0 if os.stat(sys.argv[1]).st_mode & 0o777 == 0o600 else 1)\" $T/home/.config/mila/pd.key"

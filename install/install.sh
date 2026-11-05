@@ -116,6 +116,7 @@ echo
 echo "Inbox hook"
 HOOK_DIR="$CLAUDE_DIR/hooks"
 run mkdir -p "$HOOK_DIR"
+install_file "$HERE/envelope.py" "$HOOK_DIR/envelope.py" "envelope.py"   # the hook builds its envelope with it
 install_file "$HERE/telegram-inbox-feed.py" "$HOOK_DIR/telegram-inbox-feed.py" "telegram-inbox-feed.py"
 run chmod 755 "$HOOK_DIR/telegram-inbox-feed.py"
 say "hook → $HOOK_DIR/telegram-inbox-feed.py"
