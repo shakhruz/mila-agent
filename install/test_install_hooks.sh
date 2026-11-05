@@ -34,6 +34,12 @@ chk "SG-ONFAIL: установка пишет send-guard с onFailure: block" "s
 python3 -c "import json,sys; d=json.load(open(sys.argv[1])); [h.pop('onFailure',None) for e in d['hooks']['PreToolUse'] for h in e['hooks']]; json.dump(d,open(sys.argv[1],'w'))" "$S"
 HOME=$T/home CLAUDE_CONFIG_DIR=$T/home/.claude MILA_OWNER_ID=$OID PATH=/usr/bin:/bin:/usr/local/bin bash "$REPO/install/install.sh" >/dev/null 2>&1
 chk "SG-ONFAIL: повторная установка дописывает ключ старой записи (без дубля хука)" "sgok && [ \$(grep -c 'send-guard.py' $S) -eq 1 ]"
+# a topic's name is checked too: a new install has __topic in the guard's matcher; a home from before gets it on the next install
+sgtopic() { python3 -c "import json,sys; d=json.load(open(sys.argv[1])); m=[e.get('matcher','') for e in d['hooks']['PreToolUse'] if 'send-guard.py' in json.dumps(e)]; sys.exit(0 if m and all('telegram__topic' in x for x in m) else 1)" "$S"; }
+chk "SG-TOPIC: сторож отправки смотрит и название темы (matcher с __topic)" "sgtopic"
+python3 -c "import json,sys; d=json.load(open(sys.argv[1])); [e.__setitem__('matcher', e['matcher'].replace('|mcp__plugin_(mila-)?telegram_telegram__topic','')) for e in d['hooks']['PreToolUse'] if 'send-guard.py' in json.dumps(e)]; json.dump(d,open(sys.argv[1],'w'))" "$S"
+HOME=$T/home CLAUDE_CONFIG_DIR=$T/home/.claude MILA_OWNER_ID=$OID PATH=/usr/bin:/bin:/usr/local/bin bash "$REPO/install/install.sh" >/dev/null 2>&1
+chk "SG-TOPIC: старая запись (только reply|edit_message) — повторная установка дописывает __topic, без дубля" "sgtopic && [ \$(grep -c 'send-guard.py' $S) -eq 1 ]"
 T2="$(mktemp -d)"; mkdir -p "$T2/home/.claude"
 MILA_CC_VERSION=2.1.200 HOME="$T2/home" CLAUDE_CONFIG_DIR="$T2/home/.claude" PATH=/usr/bin:/bin:/usr/local/bin bash "$REPO/install/install.sh" > "$T2/out" 2>&1
 chk "SG-ONFAIL: старая CC (2.1.200) — хук сторожа есть, ключа нет, строка «пропущен»" "grep -q 'send-guard.py' $T2/home/.claude/settings.json && ! grep -q onFailure $T2/home/.claude/settings.json && ! grep -q PostToolUseFailure $T2/home/.claude/settings.json && grep -q 'onFailure пропущен' $T2/out"

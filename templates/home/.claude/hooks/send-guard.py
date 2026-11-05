@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""send-guard.py — a PreToolUse hook on reply / edit_message: the last check before a message leaves.
+"""send-guard.py — a PreToolUse hook on reply / edit_message / topic: the last check before a message or a topic name leaves.
 It sits on the send path because a rule in the prompt does not fix a text that is already written.
 Blocks: a recipient who is not the owner or a connected chat · keys and tokens · ids of other chats · internals (server paths,
 container names, raw provider errors) · markdown without format=markdownv2. Prints no secrets.
@@ -27,10 +27,13 @@ try:
 except Exception:
     _block("вход сторожа не читается — не отправляю непроверенное")
 tool = p.get("tool_name") or ""
-if not (tool.endswith("__reply") or tool.endswith("__edit_message")):
+TOPIC = tool.endswith("__topic")   # a forum topic's name (create / rename) is seen by everyone in the group
+if not (tool.endswith("__reply") or tool.endswith("__edit_message") or TOPIC):
     sys.exit(0)
 args = p.get("tool_input") or {}
-_body = str(args.get("text") or "")
+if TOPIC and not str(args.get("name") or "").strip():
+    sys.exit(0)   # list / close / reopen: no text leaves
+_body = str(args.get("name") if TOPIC else args.get("text") or "")
 _cap = str(args.get("caption") or "")   # a photo/album caption goes to Telegram too — checked with the text
 text = (_body + "\n" + _cap).strip() if _cap else _body
 chat_id = str(args.get("chat_id") or "").strip()
@@ -129,7 +132,7 @@ def mask_cards(t):
         t = t[:a] + "****" + d[-4:] + t[b:]
     return t
 _card_hits = _cards(text)
-if _card_hits and chat_id.startswith("-"):
+if _card_hits and (chat_id.startswith("-") or TOPIC):
     why.append("в тексте номер банковской карты — в группу не отправляю; перепиши без номера (если нужно — только ****%s)" % _card_hits[0][2][-4:])
 if re.search(r"(?<!\d)-100\d{10}(?!\d)", text):
     why.append("в тексте id чата (-100…) — внутренние номера наружу не показываем, называй чат по имени")
@@ -147,12 +150,12 @@ for rx, name in KITCHEN:
 # apologies and excuses do not go out — neither to a client nor to the owner (constitution, law 7: fact · conclusion · step,
 # not «sorry»). Exception: the development chat and a text with a defect number (D-0xxx) — that is a report.
 _APOLOGY = re.compile(r"(?:\bизвин\w*|\bпрост(?:и|ите)\b|прошу прощения|\bмо[яй] (?:ошибк|вин|дыр)\w*|\bвиноват\w*|с опозданием|\bоправд\w*|к сожалению,? (?:я )?не (?:успел|смогл)\w*|\bsorry\b|\bapolog\w*)", re.I)
-if chat_id != os.environ.get("MILA_DEV_CHAT", "") and not re.search(r"\bD-0\d{3}\b", text):
+if not TOPIC and chat_id != os.environ.get("MILA_DEV_CHAT", "") and not re.search(r"\bD-0\d{3}\b", text):
     _m = _APOLOGY.search(text)
     if _m:
         why.append("извинение/оправдание («%s») — в чат не уходит: человеку только дело и следующий шаг (закон 7)" % _m.group(0))
 
-if fmt != "markdownv2":
+if fmt != "markdownv2" and not TOPIC:
     marks = []
     if re.search(r"\*\*[^*\n]+\*\*", text): marks.append("**жирный**")
     if re.search(r"(?m)^\s*[-*] ", text): marks.append("списки через - или *")

@@ -35,6 +35,14 @@ chk_closed("вход — не объект JSON — блок (exit 2)", "[1, 2]"
 chk_closed("ошибка внутри сторожа (tool_input — список) — блок (exit 2), не пропуск", {"tool_name": R, "tool_input": ["x"]})
 code, dec, out = run({"tool_name": "Bash", "tool_input": {"command": "ls"}}); n += 1; ok += code == 0 and not out.strip()
 print(("✅ " if code == 0 and not out.strip() else "❌ ") + "не наш инструмент — exit 0, без решения")
+# a forum topic's name is seen by the whole group: checked for keys and chats like a message; no name (list/close) — nothing leaves
+TP = "mcp__plugin_mila-telegram_telegram__topic"
+chk("тема с ключом в названии — стоп", {"tool_name": TP, "tool_input": {"chat_id": "-1001", "action": "create", "name": "Релиз " + "sk-" + "abcdefghijklmnopqrstuv"}}, "deny")
+chk("переименование темы с серверным путём — стоп", {"tool_name": TP, "tool_input": {"chat_id": "-1001", "action": "rename", "thread_id": "7", "name": "логи /srv/x"}}, "deny")
+chk("тема в неподключённом чате — стоп", {"tool_name": TP, "tool_input": {"chat_id": "999", "action": "create", "name": "Запуск"}}, "deny")
+chk("обычное название темы — уходит", {"tool_name": TP, "tool_input": {"chat_id": "-1001", "action": "create", "name": "Запуск сайта"}}, "pass")
+code, dec, out = run({"tool_name": TP, "tool_input": {"chat_id": "-1001", "action": "list"}}); n += 1; ok += code == 0 and not out.strip()
+print(("✅ " if code == 0 and not out.strip() else "❌ ") + "topic list (без названия) — exit 0, без решения")
 # чаты одного дела (агентство: группа клиента Acme → рабочий чат)
 ev = os.path.join(home, ".claude/channels/telegram/inbound"); os.makedirs(ev, exist_ok=True)
 with open(os.path.join(ev, "events.jsonl"), "w") as f:

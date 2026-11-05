@@ -41,7 +41,7 @@ as its own user, signing its lines.
 
 ## What the send-guard is — and is not
 
-The send-guard (`templates/home/.claude/hooks/send-guard.py`, a `PreToolUse` hook on `reply`/`edit_message`) catches the
+The send-guard (`templates/home/.claude/hooks/send-guard.py`, a `PreToolUse` hook on `reply`/`edit_message` and on a forum topic's name in `topic`) catches the
 model's mistakes: a message to a chat the owner did not connect, a key or token in the text, server paths, one client's
 matters in another client's chat. It fails closed by itself: if it cannot read its input or hits any error, it exits with
 code 2 and a deny, so the unchecked message is not sent (the `onFailure: "block"` setting is an extra layer where Claude
