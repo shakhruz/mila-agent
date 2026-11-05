@@ -105,6 +105,12 @@ n1 = len(SEEN)
 check("Telegram: setWebhook, logOut, close — 403 (бот не уходит чужому адресу), к Telegram не ходим",
       req("POST", "/telegram/bot%s/setWebhook" % PH, b"{}")[0] == 403 and req("POST", "/telegram/bot%s/logOut" % PH, b"{}")[0] == 403
       and req("GET", "/telegram/bot%s/close" % PH)[0] == 403 and len(SEEN) == n1)
+n2 = len(SEEN)
+codes = [req("POST", "/telegram/bot%s/%s" % (PH, m_), b"{}")[0] for m_ in ("setwebhook", "SETWEBHOOK", "SetWebhook", "logout", "LogOut", "Close", "getWebhookInfo", "setMyName")]
+check("Telegram: методы без учёта регистра — setwebhook, SETWEBHOOK, LogOut, Close и всё не из списка — 403, к Telegram не ходим", codes == [403] * 8 and len(SEEN) == n2, codes)
+check("Telegram: законные closeForumTopic и closeGeneralForumTopic проходят", req("POST", "/telegram/bot%s/closeForumTopic" % PH, b"{}")[0] == 200 and req("POST", "/telegram/bot%s/closeGeneralForumTopic" % PH, b"{}")[0] == 200)
+n3 = len(SEEN)
+check("Telegram: «..» в пути файла — 403", req("GET", "/telegram/file/bot%s/../../x" % PH)[0] == 403 and req("GET", "/telegram/file/bot%s/documents/../x" % PH)[0] == 403 and len(SEEN) == n3)
 p.terminate(); p.wait(); LOG.close(); logtxt = open(os.path.join(T, "keyd.log")).read()
 check("в журнале нет ни ключей, ни заголовков — только метод, маршрут, код", all(k not in logtxt for k in (OAT, API, DG, GQ, OAT2, GQ2, BOT, "T" * 35, "dummy", "Bearer")) and "POST anthropic/v1/messages → 200" in logtxt, logtxt[-300:])
 up.shutdown(); shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

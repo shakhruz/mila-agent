@@ -29,10 +29,23 @@ FORMAT = {"anthropic": r"^" + ANT + r"[A-Za-z0-9_-]{20,300}$", "deepgram": r"^[A
 ALLOW = {"anthropic": [("POST", r"/v1/messages"), ("POST", r"/v1/messages/count_tokens"), ("GET", r"/v1/models"), ("HEAD", r"/api/hello"), ("GET", r"/api/hello")],
          "deepgram": [("POST", r"/v1/listen")],
          "groq": [("POST", r"/openai/v1/audio/transcriptions"), ("GET", r"/openai/v1/models")],
-         # the bot: any Bot API method and file download, the token in the path is the keeper's; not the ones that hand the bot
-         # to someone else (a webhook to another address, logging the bot out of the cloud API)
-         "telegram": [("GET", r"/bot[^/]+/(?!setWebhook|logOut|close)[A-Za-z]+"), ("POST", r"/bot[^/]+/(?!setWebhook|logOut|close)[A-Za-z]+"),
-                      ("GET", r"/file/bot[^/]+/[A-Za-z0-9_./-]+")]}
+         # the bot: a list of methods (Bot API method names are case-insensitive — compared in lower case), and file downloads
+         "telegram": []}
+TG_METHODS = {m.lower() for m in """getMe getUpdates deleteWebhook getFile getChat getChatMember getStickerSet getMyCommands
+    sendMessage sendPhoto sendDocument sendVideo sendAudio sendVoice sendAnimation sendVideoNote sendMediaGroup sendSticker sendPoll
+    sendRichMessage sendChatAction copyMessage forwardMessage editMessageText editMessageCaption editMessageMedia
+    editMessageReplyMarkup deleteMessage deleteMessages answerCallbackQuery setMessageReaction setMyCommands pinChatMessage
+    unpinChatMessage unpinAllChatMessages createForumTopic editForumTopic closeForumTopic reopenForumTopic
+    closeGeneralForumTopic reopenGeneralForumTopic unpinAllForumTopicMessages leaveChat""".split()}   # not setWebhook, logOut, close
+
+
+def tg_allowed(method, rest):
+    m = re.fullmatch(r"/bot[^/]+/([A-Za-z]+)", rest)
+    if m: return method in ("GET", "POST") and m.group(1).lower() in TG_METHODS
+    m = re.fullmatch(r"/file/bot[^/]+/([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)", rest)
+    return bool(m) and method == "GET" and ".." not in m.group(1).split("/")
+
+
 CHECK = {"anthropic": "/v1/models", "deepgram": "/v1/projects", "groq": "/openai/v1/models", "telegram": "/bot{key}/getMe"}   # «is this key alive» — the keeper's own call
 HOP = {"host", "connection", "keep-alive", "proxy-authorization", "proxy-connection", "te", "trailer", "transfer-encoding", "upgrade",
        "authorization", "x-api-key", "content-length", "accept-encoding", "cookie"}
@@ -141,7 +154,8 @@ class Proxy(http.server.BaseHTTPRequestHandler):
         if not m: return self.plain(404, {"error": "unknown route"})
         kind, rest = m.group(1), m.group(2)
         shown = re.sub(r"bot[^/]+/", "bot…/", rest.split("?")[0])[:80]   # the journal never shows a token, real or placeholder
-        if not any(self.command == meth and re.fullmatch(pat, rest.split("?")[0]) for meth, pat in ALLOW[kind]):
+        if not (tg_allowed(self.command, rest.split("?")[0]) if kind == "telegram"
+                else any(self.command == meth and re.fullmatch(pat, rest.split("?")[0]) for meth, pat in ALLOW[kind])):
             log("%s %s%s → 403 (not on the list)" % (self.command, kind, shown))
             return self.plain(403, {"error": "not allowed through the key keeper"})
         k = key(kind)
