@@ -31,6 +31,7 @@ if [ "$(id -u)" = 0 ]; then
     chmod 2770 "$TGd" "$TGd/inbound"; chmod g+rwX -R "$TGd" 2>/dev/null; rm -f "$TGd/receiver.go"
     chmod 750 "$HOME" "$HOME/.claude" "$HOME/.claude/channels"
     chown mila-io:"$AU" "$IOD" /run/mila-io; chmod 2750 "$IOD"; chmod 755 /run/mila-io
+    UPGRADED=; [ -s "$TGd/inbound/events.jsonl" ] && [ ! -L "$TGd/inbound/events.jsonl" ] && UPGRADED=1   # a home from before mila-io
     for p in inbound/events.jsonl taps.jsonl auth-log.jsonl suspicious.jsonl; do   # journals of earlier starts move in once
       b="${p##*/}"
       if [ -f "$TGd/$p" ] && [ ! -L "$TGd/$p" ]; then cat "$TGd/$p" >> "$IOD/$b"; rm -f "$TGd/$p"; fi
@@ -43,11 +44,17 @@ if [ "$(id -u)" = 0 ]; then
     if [ -n "${OWNERS:-}${OWNER_ID:-}" ]; then
       python3 -c 'import json, re, sys; json.dump({"owners": [x for x in re.split(r"[ ,;]+", sys.argv[1]) if x.isdigit()]}, open(sys.argv[2], "w"))' \
         "${OWNERS:-$OWNER_ID}" "$IOD/owners.json" && chown mila-io:"$AU" "$IOD/owners.json" && chmod 640 "$IOD/owners.json"
+      rm -f "$IOD/owners.pending"
+    elif [ ! -s "$IOD/owners.json" ] && [ -n "$UPGRADED" ]; then
+      # An updated home: the session has run here before and could have changed the files the sign-in left. The owner is
+      # taken only from the platform then — until OWNER_ID is set, nobody counts as the owner for presses and group decisions.
+      touch "$IOD/owners.pending"; chown mila-io:"$AU" "$IOD/owners.pending"
+      echo "mila-agent: set OWNER_ID (your Telegram id) in the platform's variables and restart — until then owner-only buttons do not work"
     fi
     setpriv --reuid=mila-io --regid=mila-io --groups="$AU" -- env -i PATH="$PATH" HOME=/run/mila-io MILA_KIT="${MILA_KIT:-/opt/mila/kit}" \
       TGd="$TGd" IOD="$IOD" PLUG=/opt/mila/plugin/mila-telegram bash -c '
         until [ -e "$TGd/receiver.go" ]; do sleep 2; done
-        if [ ! -s "$IOD/owners.json" ]; then   # first start: the owner the sign-in paired, before the session ever ran
+        if [ ! -s "$IOD/owners.json" ] && [ ! -e "$IOD/owners.pending" ]; then   # first start: the owner the sign-in paired, before any session
           O="$(head -c 32 "$TGd/receiver.go" | tr -cd 0-9)"; [ -n "$O" ] && printf "{\"owners\": [\"%s\"]}\n" "$O" > "$IOD/owners.json" && chmod 640 "$IOD/owners.json"
         fi
         BID="$(curl -s --max-time 5 http://127.0.0.1:8790/status | python3 -c "import json,sys; print(json.load(sys.stdin).get(\"telegram_bot_id\") or \"\")")"
