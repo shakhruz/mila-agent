@@ -14,6 +14,8 @@ Owners and the team reach the Claude session, which has all of Mila's tools. Str
 - No typing indicator, no 👀, no answer, and the files they send are not downloaded.
 - The session learns only how many strangers wrote since it last heard from the chat: the next message from an owner or
   the team carries `guests_since_last="N"`. The number, never the text.
+- When an owner or a team member replies to a stranger's message, the session gets a placeholder instead of the quote:
+  «a stranger's message, N characters — not shown to the session». The stranger's words stay in the guests' journal.
 - The response mode of the group (run the chat, by mention, observer, only me) applies to owners and the team.
 
 Answering strangers — a separate lane with no tools, on an Anthropic API key held by the key keeper — is not in this version.
@@ -38,6 +40,7 @@ Without it, strangers in a group get no answer.
 |---|---|
 | author by id: owner / team / stranger | plugin `authorOf()` (`receiver.ts`, `server.ts`); `teamOf()` (`team.mjs`) |
 | a stranger's message → `guests.jsonl` 0600, not to the session; no typing, ack, download | plugin `guestEvent()` and the branch at the start of `handleInbound()` (`receiver.ts`, `server.ts`) |
+| a reply to a stranger: a placeholder, not their words | plugin `strangerQuoted()` (`receiver.ts`, `server.ts`) |
 | `guests_since_last` — a number only | plugin `GUESTS_SINCE` (`receiver.ts`, `server.ts`); feeder `ATTRS` (`install/companion-feeder.py`) |
 | the card, its limits, no card for bots/channels/anonymous admins | plugin `askTeam()`; `askOnce()` (`team.mjs`); strings `team.*` (`i18n.mjs`) |
 | only the owner's press in a private chat changes the team | plugin callback `team:add|skip|del` (`receiver.ts`, `server.ts`); `setTeam()` (`team.mjs`) |
@@ -52,5 +55,7 @@ Without it, strangers in a group get no answer.
 ## What stays open
 
 - A stranger's reaction (an emoji, no text) still reaches the session as before.
+- An owner's forward of a stranger's message, or an owner's own quote of their words typed into a message, reaches the session:
+  that is the owner's choice, the code does not cut it.
 - Group response modes are still in `access.json`, which the session can write.
 - The strangers' lane (answers with no tools, on an API key) — the next part of this step.
