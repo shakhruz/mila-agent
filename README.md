@@ -7,7 +7,7 @@
 <p align="center"><b>Turn Claude Code into an employee that lives in Telegram.</b><br>
 Free, open source, Apache-2.0. Made with ❤️ in Uzbekistan.</p>
 
-<p align="center">She answers your customers on Telegram and remembers every promise. A send-guard stops accidental leaks; outward actions go through a consent proxy (publishing today). Ordinary replies in chats you connected go without asking.</p>
+<p align="center">She answers your customers on Telegram and remembers every promise. A send-guard stops accidental leaks; your keys stay with a key keeper she uses but cannot read. Ordinary replies in chats you connected go without asking.</p>
 
 <p align="center">
   <a href="#quick-start"><b>Install</b></a> ·
@@ -47,7 +47,7 @@ Mila is built the other way round — **a colleague with a job.**
 
 - **Answers your customers on Telegram** — day and night, in the language they write in.
 - **Remembers your business** — every client, conversation and promise; one short summary for you every morning.
-- **Asks before the big steps** — a send-guard stops leaks between chats; broadcasts and paid work above your limit wait for your ✅; messages to a chat you have not connected are stopped.
+- **Asks before the big steps** — a send-guard stops leaks between chats and messages to a chat you have not connected; with the Manager and Images packs, broadcasts and paid generations ask for your ✅ (a skill rule, not a lock — see SECURITY).
 - **Yours, 100%** — your files stay in your home folder; `mila export` / `mila restore` moves her to any machine.
 
 ```
@@ -68,7 +68,7 @@ OpenClaw, NanoClaw and Hermes Agent are excellent open agents — universal assi
 | Engine | [Claude Code](https://code.claude.com/docs/en/overview) | [own agent loop, models as plugins](https://github.com/openclaw/openclaw) | [Claude Agent SDK](https://github.com/nanocoai/nanoclaw) | [own agent loop, any model](https://hermes-agent.nousresearch.com/docs) |
 | Channels | Telegram: DMs, groups, your public bot ([mila-telegram](https://github.com/shakhruz/mila-telegram)) | [20+ (WhatsApp, Telegram, Slack...)](https://docs.openclaw.ai/channels) | [many, each added by a skill](https://github.com/nanocoai/nanoclaw) | [Telegram, Discord, Slack, WhatsApp...](https://hermes-agent.nousresearch.com/docs) |
 | Business skills | in the core: [promises and tasks](skills/tasks-discipline/SKILL.md), [owner cards](skills/cards/SKILL.md), [weekly rhythm](canon/WEEK-RHYTHM.md); as [packs](skills/packs/SKILL.md) by the owner's «yes»: [CRM of dialogs](packs/manager/crm-dialogs/SKILL.md), [mailings](packs/manager/bot-send/SKILL.md) | [general skills (ClawHub)](https://clawhub.ai) | [general skills](https://github.com/nanocoai/nanoclaw) | [self-written skills](https://hermes-agent.nousresearch.com/docs) |
-| What waits for the owner's yes | partly: [send-guard](templates/home/.claude/hooks/send-guard.py) stops messages to chats the owner didn't connect, keys and internals; broadcasts from your bot and paid work above the limit wait for the owner's ✅ ([`bot-send`](packs/manager/bot-send/SKILL.md), [`spend`](packs/kartinki/spend/SKILL.md)); ordinary replies in connected chats are not gated | [exec approvals, Team preset](https://docs.openclaw.ai/tools/exec-approvals) | [approval for credential use, self-modification and new chats; ordinary messages are not gated](https://docs.nanoclaw.dev/concepts/security) | [approval for dangerous shell commands (fail-closed); no approval step for sending messages](https://hermes-agent.nousresearch.com/docs/user-guide/security) |
+| What waits for the owner's yes | partly: [send-guard](templates/home/.claude/hooks/send-guard.py) stops messages to chats the owner didn't connect, keys and internals; with packs, broadcasts and paid generations ask for the owner's ✅ by skill rule ([`bot-send`](packs/manager/bot-send/SKILL.md), [`spend`](packs/kartinki/spend/SKILL.md)); ordinary replies in connected chats are not gated | [exec approvals, Team preset](https://docs.openclaw.ai/tools/exec-approvals) | [approval for credential use, self-modification and new chats; ordinary messages are not gated](https://docs.nanoclaw.dev/concepts/security) | [approval for dangerous shell commands (fail-closed); no approval step for sending messages](https://hermes-agent.nousresearch.com/docs/user-guide/security) |
 | License | [Apache-2.0](LICENSE) | [MIT](https://github.com/openclaw/openclaw/blob/main/LICENSE) | [MIT](https://github.com/nanocoai/nanoclaw/blob/main/LICENSE) | [MIT](https://github.com/NousResearch/hermes-agent/blob/main/LICENSE) |
 
 **Mila's honest minuses.** Telegram only: no WhatsApp, Slack or Discord. It needs Claude Code, signed in with your own Claude plan
@@ -171,7 +171,7 @@ Then start Mila with `mila`. `mila onboard --check` shows the three steps withou
 **Why `mila` starts Claude Code with `--dangerously-load-development-channels`.** Channels are a research preview in
 Claude Code: the plain `--channels` flag accepts only plugins on Anthropic's approved list, and `mila-telegram` is not on it
 yet. The development flag lets this one plugin, named in the command, push messages into your session; it does not
-skip permission prompts and does not load anything else. Messages still reach Mila only from people you paired or allowed.
+skip permission prompts and does not load anything else. In private chats Mila hears only people you paired or allowed; in a group you connected she reads what its mode lets through — in «Run the chat» and «Observer» that is every member.
 The plugin is not listed in Anthropic's plugin marketplace yet; once it is, `mila` will switch to plain `--channels`. Details:
 [Claude Code — channels](https://code.claude.com/docs/en/channels#research-preview), [SECURITY.md](SECURITY.md#the-development-channels-flag),
 [threat model](docs/THREAT-MODEL.md).
@@ -230,12 +230,12 @@ Details: [skills/mila-export](skills/mila-export/SKILL.md). To save the memory o
 
 The send-guard hook catches the model's mistakes — a message that would leak one conversation into another or expose
 server paths; if the guard itself fails, nothing is sent. It is a safety net, not a security boundary: who may write to
-Mila (pairing, allowlist), permission prompts and the consent proxy for outward actions are. See [SECURITY.md](SECURITY.md)
-and the [threat model](docs/THREAT-MODEL.md): who can write to Mila, what she can do, where the limits are.
+Mila (pairing, allowlist, the group mode) is; on a laptop, permission prompts too — in the container (Mila Agent) they are off
+and the container is the boundary. See [SECURITY.md](SECURITY.md) and the [threat model](docs/THREAT-MODEL.md): who can write
+to Mila, what she can do, where the limits are.
 
-In the one-container setup the model can technically read your Claude token: a hook and deny rules stop it from doing so by
-accident, not on purpose. The full fence (`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`) is waiting for a probe on Railway — see the
-threat model.
+In the container your Claude token, bot token and voice keys are with the key keeper — a separate user Mila goes through but
+cannot read (checked by an attack probe in the image build; a live run on Railway is still ahead).
 
 ## Who builds Mila
 

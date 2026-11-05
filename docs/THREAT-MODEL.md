@@ -10,7 +10,7 @@ connect a bot to it.
 |---|---|---|
 | The owner | Private chat with the bot, after pairing (`/mila-telegram:access pair <code>`) | allowed |
 | People the owner allowed | `allowFrom` in `access.json` | only those listed |
-| Groups the owner connected | `groups` in `access.json`, mode «on mention», «answer everyone» or «read only» | only connected groups; in «answer everyone» and «read only» the session gets every member's text (in «read only» it cannot answer) |
+| Groups the owner connected | `groups` in `access.json`, mode «Run the chat», «By mention», «Observer» or «Only me» (older groups may still be «Listen only») | only connected groups; in «Run the chat» and «Observer» the session gets every member's text; in «By mention» only messages addressed to the bot; in «Only me» only the owners' |
 | Strangers in a private chat | Anyone who finds the bot | `dmPolicy: pairing` (default): the bot answers with a 6-character pairing code (at most 3 pending, the code repeated at most twice); the session never sees them until the owner approves the code. `allowlist`: dropped; with `strangerGreeting` they get a static greeting |
 | Guests of a public bot (optional) | A separate guest circuit with its own prompt and settings | off unless configured |
 | Forwarded text, files, links | Arrive inside an allowed message | treated as data |
@@ -39,10 +39,12 @@ image and voice generation, payment links). Keys for those services are the main
 ## Where the limits are
 
 1. **Who may write at all** — pairing and the allowlist (plugin). An unknown person never reaches the session.
-2. **Permission prompts** — `install/permission_policy.ts` with `default: ask`: rules decide routine tools, anything else asks the
-   owner on a card with a deadline; a broken policy file turns everything into `ask`, never `allow`; a storm limit stops card floods.
+2. **Permission prompts** (on a laptop; off in the container, see below) — `install/permission_policy.ts` with `default: ask`:
+   rules decide routine tools, anything else asks the owner on a card with a deadline; a broken policy file turns everything into
+   `ask`, never `allow`; a storm limit stops card floods. The owner's press is not written to the decision log yet.
    The policy is evaluated in the plugin (the `mila-telegram` repository), the rules live here.
-3. **Outward actions in the cloud — the consent proxy** (`consent/`, rolling out; today one category — publishing). The keys of
+3. **Outward actions in the cloud — the consent proxy** (`consent/`; in the code, not installed by `install.sh` or the image yet;
+   one category — publishing). The keys of
    consent categories live only with a separate OS user (`mila-io`); the session asks the proxy, the proxy shows the owner a card it signs itself, and executes only with a fresh,
    single-use consent for the hash of that exact payload (text, targets, attachment contents). A changed text or a swapped file
    needs a new yes. Unclear input, a silent proxy, a forged or foreign button — no action.
@@ -102,9 +104,8 @@ image and voice generation, payment links). Keys for those services are the main
 ## The one-container setup
 
 `docker-compose.yml` runs Mila in one container (Claude Code, the kit, the plugin). There the session runs with
-`--dangerously-skip-permissions`: layer 2 (permission prompts) is off, and the boundary is the container. The bot token,
-the Claude token (`CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`) and any optional key are environment variables the session
-can read. What still holds: pairing / allowlist (layer 1), the send-guard (layer 4), no open ports. Mount nothing into the
+`--dangerously-skip-permissions`: layer 2 (permission prompts) is off, and the boundary is the container. What holds: pairing /
+allowlist and the group mode (layer 1), the key keeper below, the send-guard (layer 4), no open ports. Mount nothing into the
 container you would not hand to the session.
 
 The Claude token and the voice keys are with the key keeper (`docker/mila_keyd.py`, user `mila-keys`, `~/.keys` 700): the

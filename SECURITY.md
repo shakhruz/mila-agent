@@ -47,9 +47,11 @@ matters in another client's chat. It fails closed by itself: if it cannot read i
 code 2 and a deny, so the unchecked message is not sent (the `onFailure: "block"` setting is an extra layer where Claude
 Code supports it, not the only one).
 It is pattern matching, so it is **not** a security boundary against a hostile sender: a determined party can split or encode
-text, or use another tool. The boundaries are who may write to the session (pairing and allowlist), permission prompts
-(`default: ask`), and, for outward actions in the cloud, the consent proxy (`consent/`: keys held by a separate OS user,
-single-use consent for the exact payload).
+text, or use another tool. The boundaries are who may write to the session (pairing, allowlist, the group mode) and the
+key keeper for keys. Permission prompts (`default: ask`) are a boundary only on a laptop; in the container (Mila Agent) the
+session runs with `--dangerously-skip-permissions` and the container is the boundary. A consent proxy for outward actions
+(`consent/`: keys held by a separate OS user, single-use consent for the exact payload) exists in the code but is not installed
+by `install.sh` or the image yet.
 
 ## The development-channels flag
 
