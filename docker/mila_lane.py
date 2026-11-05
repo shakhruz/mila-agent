@@ -132,7 +132,12 @@ class Server(socketserver.ThreadingUnixStreamServer):
 
 def serve(sock, know_dir):
     if os.path.exists(sock): os.unlink(sock)
-    srv = Server(sock, Handler); srv.limits = Limits(); srv.know_dir = know_dir
+    # the socket is born 0660: with the caller's umask (022 from root) it would first appear 0755, and a receiver connecting in
+    # that moment is refused (a unix socket needs write permission) — the race the image probe hit
+    old = os.umask(0o117)
+    try: srv = Server(sock, Handler)
+    finally: os.umask(old)
+    srv.limits = Limits(); srv.know_dir = know_dir
     os.chmod(sock, 0o660)   # the lane's group: the receiver's user is in it, the session's user is not
     sys.stderr.write("mila-lane: listening on %s\n" % sock); sys.stderr.flush()
     srv.serve_forever()

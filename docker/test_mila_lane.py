@@ -85,4 +85,17 @@ os.remove(FAKE); open(FAKE, "w").write("#!/bin/sh\nexit 1\n"); os.chmod(FAKE, 0o
 S3 = os.path.join(T, "lane3.sock"); p3 = start(S3, os.getuid())
 check("claude упал — «no answer», без текста", ask(S3, {"chat_id": "-600", "text": "hi"}) == {"ok": False, "reason": "no answer"})
 p3.terminate(); p3.wait()
+# the socket is 0660 the moment it appears, not only after the chmod that follows (the probe connects as soon as it exists)
+import threading as _th
+sys.path.insert(0, H); import mila_lane as _ml
+S5 = os.path.join(T, "lane5.sock"); _chmod = os.chmod; os.chmod = lambda *a, **k: None; _old = os.umask(0o022)
+try:
+    _t = _th.Thread(target=_ml.serve, args=(S5, KD), daemon=True); _t.start()
+    for _ in range(50):
+        if os.path.exists(S5): break
+        time.sleep(0.05)
+    mode = oct(os.stat(S5).st_mode & 0o777)
+finally:
+    os.chmod = _chmod; os.umask(_old)
+check("сокет полосы рождается 0660 (до chmod, при umask 022 вызывающего) — приёмник не ловит отказ в первые мгновения", mode == "0o660", mode)
 shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
