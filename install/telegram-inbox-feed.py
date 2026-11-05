@@ -21,7 +21,19 @@ MAX_SHOWN = 25
 
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from envelope import envelope   # install.sh puts envelope.py next to this hook
+try:
+    from envelope import envelope   # install.sh puts envelope.py next to this hook
+except ImportError:
+    # an update brought this hook but not envelope.py (a plain install updated by hand): messages must still come through —
+    # the plain envelope, as before, and one line saying what is missing
+    sys.stderr.write("telegram-inbox-feed: envelope.py is not next to the hook — run install.sh again; plain envelopes for now\n")
+
+    def envelope(p, m, quote_max=80):
+        who = m.get("user") or "id:%s" % m.get("user_id", "?")
+        att = (" [image: %s]" % m["image_path"]) if m.get("image_path") else (" [attachment_file_id: %s]" % m["attachment_file_id"]) if m.get("attachment_file_id") else ""
+        quote = " (replying to: %s)" % esc(str(m["reply_quote"])[:quote_max]) if m.get("reply_quote") else ""
+        return ('<channel source="telegram" chat_id="%s" message_id="%s" user="%s" ts="%s">%s%s%s</channel>'
+                % (esc(m.get("chat_id")), esc(m.get("message_id")), esc(who), esc(m.get("ts", "")), esc((p.get("content") or "").strip()), esc(att), quote))
 
 
 def esc(v):

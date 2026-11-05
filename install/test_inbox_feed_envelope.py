@@ -24,4 +24,10 @@ check("хук: реакция — type=\"reaction\"", ' type="reaction"' in out,
 check("хук: текст не закрывает конверт", out.count('<channel source="telegram"') == 4 and "&lt;/channel&gt;" in out, out)
 m = ev[0]["params"]["meta"]
 check("хук и кормилец — одна функция: тот же конверт", E.envelope(ev[0]["params"], m, quote_max=80) in out)
+# a hook without envelope.py next to it (updated by hand): messages still come through, plainly, and the reason is said
+HD = os.path.join(T, "hookonly"); os.makedirs(HD); shutil.copy(os.path.join(H, "telegram-inbox-feed.py"), HD)
+os.remove(os.path.join(ST, "inbound", "seen")) if os.path.exists(os.path.join(ST, "inbound", "seen")) else None
+r = subprocess.run([sys.executable, os.path.join(HD, "telegram-inbox-feed.py")], capture_output=True, text=True, env=env, timeout=30)
+check("хук без envelope.py рядом — входящие всё равно приходят (простой конверт), причина в stderr",
+      r.returncode == 0 and r.stdout.count('<channel source="telegram"') == 4 and "&lt;/channel&gt;" in r.stdout and "envelope.py is not next" in r.stderr, (r.returncode, r.stdout[-300:], r.stderr[-200:]))
 shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
