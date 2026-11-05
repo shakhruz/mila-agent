@@ -31,5 +31,17 @@
    "cost_usd"
   ],
   "mandate_ok": true
+ },
+ "send_as_owner": {
+  "enabled": true,
+  "title": "сообщение от бота владельца",
+  "fields": [
+   "text",
+   "targets"
+  ],
+  "exec": [
+   "python3",
+   "/opt/mila/kit/consent/executors/tg_send.py"
+  ]
  }
 }
