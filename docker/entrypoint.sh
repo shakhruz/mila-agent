@@ -30,7 +30,7 @@ if [ "$(id -u)" = 0 ]; then
     chown "$AU:$AU" "$HOME/.claude" "$HOME/.claude/channels" "$TGd" "$TGd/inbound"
     chmod 2770 "$TGd" "$TGd/inbound"; chmod g+rwX -R "$TGd" 2>/dev/null; rm -f "$TGd/receiver.go"
     chmod 750 "$HOME" "$HOME/.claude" "$HOME/.claude/channels"
-    chown mila-io:"$AU" "$IOD" /run/mila-io; chmod 2750 "$IOD"; chmod 755 /run/mila-io
+    chown mila-io:"$AU" "$IOD" /run/mila-io; chmod 2750 "$IOD"; chmod 2755 /run/mila-io   # setgid: sockets there belong to the session's group
     UPGRADED=; [ -s "$TGd/inbound/events.jsonl" ] && [ ! -L "$TGd/inbound/events.jsonl" ] && UPGRADED=1   # a home from before mila-io
     # …or any home where a session has already run (its transcripts), even if the receiver never kept a journal there
     [ -n "$(find "$HOME/.claude/projects" -name '*.jsonl' -print -quit 2>/dev/null)" ] && UPGRADED=1
@@ -71,6 +71,20 @@ if [ "$(id -u)" = 0 ]; then
     else
       echo "mila-agent: no strangers' key (ANTHROPIC_GUEST_API_KEY) — strangers in groups get no answer"
     fi
+    # The consent proxy (mila-io): an outside action — post, spend, send as the owner — runs only after the owner's press on a
+    # card the proxy draws itself; the owner's decisions go to io/consent/decisions.jsonl (a hash chain the session reads).
+    # Its categories come from the image, never from the session's files: the session only asks over consent.sock.
+    mkdir -p "$IOD/consent"; chown mila-io:"$AU" "$IOD/consent"; chmod 2750 "$IOD/consent"
+    python3 - "$HOME" "$IOD/consent" "${MILA_KIT:-/opt/mila/kit}/consent/categories.json" > /run/mila-io/consent.json <<'PYC'
+import json, sys
+home, state, cats = sys.argv[1:4]
+try: categories = json.load(open(cats))
+except (OSError, ValueError): categories = {}
+json.dump({"owner_id_env": "MILA_OWNER_ID", "bot_token_env": "BOT_TOKEN", "home": home, "state_dir": state,
+           "session_socket": "/run/mila-io/consent.sock", "session_socket_mode": "660", "io_socket": "/run/mila-io/consent.io.sock",
+           "ttl_min": 15, "max_attachment_mb": 20, "categories": categories}, sys.stdout)
+PYC
+    chown root:mila-io /run/mila-io/consent.json; chmod 640 /run/mila-io/consent.json
     setpriv --reuid=mila-io --regid=mila-io --groups="$IOG" -- env -i PATH="$PATH" HOME=/run/mila-io MILA_KIT="${MILA_KIT:-/opt/mila/kit}" \
       TGd="$TGd" IOD="$IOD" PLUG=/opt/mila/plugin/mila-telegram LANE="$LANE" bash -c '
         until [ -e "$TGd/receiver.go" ]; do sleep 2; done
@@ -86,14 +100,22 @@ if [ "$(id -u)" = 0 ]; then
           [ -n "$W" ] || say "receiver waits for the bot token in the key keeper"; W=1; sleep 5
         done
         touch /run/mila-io/receiver.up
+        OWN="$(python3 -c "import json,sys; o=json.load(open(sys.argv[1])).get(\"owners\") or [\"\"]; print(o[0])" "$IOD/owners.json" 2>/dev/null)"
+        if [[ "$OWN" =~ ^[0-9]{3,15}$ ]]; then   # no owner yet (owners.pending) — no proxy: nobody to ask
+          ( umask 027; while :; do MILA_OWNER_ID="$OWN" BOT_TOKEN="$BID:mila-keyd-placeholder-not-a-token" TELEGRAM_API_ROOT=http://127.0.0.1:8790/telegram \
+              python3 "$MILA_KIT/consent/consent_proxy.py" serve --config /run/mila-io/consent.json >> /run/mila-io/consent.log 2>&1; sleep 5; done ) &
+          CIO=/run/mila-io/consent.io.sock
+        else
+          CIO=; say "no owner yet — the consent proxy waits (set OWNER_ID)"
+        fi
         while :; do
           RECEIVER_DAEMON=1 TELEGRAM_STATE_DIR="$TGd" TELEGRAM_JOURNAL_DIR="$IOD" TELEGRAM_SHARED_GROUP=1 \
           TELEGRAM_BOT_TOKEN="$BID:mila-keyd-placeholder-not-a-token" TELEGRAM_API_ROOT=http://keeper/telegram \
           TELEGRAM_API_UNIX=/run/mila-keyd/api.sock MILA_KEYD=http://127.0.0.1:8790 \
-          TELEGRAM_GUEST_LANE="$LANE" TELEGRAM_VOICE_TRANSCRIBE_CMD="$MILA_KIT/install/transcribe-voice.sh" bun "$PLUG/receiver.ts" >> /run/mila-io/receiver.log 2>&1
+          TELEGRAM_GUEST_LANE="$LANE" TELEGRAM_CONSENT_IO="$CIO" TELEGRAM_VOICE_TRANSCRIBE_CMD="$MILA_KIT/install/transcribe-voice.sh" bun "$PLUG/receiver.ts" >> /run/mila-io/receiver.log 2>&1
           sleep 5
         done' 2>/dev/null &
-    export MILA_IO=1
+    export MILA_IO=1 MILA_CONSENT_SOCKET=/run/mila-io/consent.sock
   else
     unset MILA_IO
   fi

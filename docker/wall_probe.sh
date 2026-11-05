@@ -40,4 +40,13 @@ LANE_TRY='import socket,sys; s=socket.socket(socket.AF_UNIX); s.settimeout(5); s
 chk "сокет полосы: сессия (agent) подключиться не может" "! AS \"python3 -c '\$LANE_TRY'\""
 chk "сокет полосы: приёмник (mila-io) подключается и получает ответ" "setpriv --reuid=mila-io --regid=mila-io --init-groups -- python3 -c '\$LANE_TRY' | grep -q empty"
 kill $LP 2>/dev/null
+# the consent proxy: the session asks on consent.sock, only the receiver's user reaches consent.io.sock (the owner's presses)
+CS=/tmp/wall-consent; mkdir -p "$CS/state"; chown -R mila-io:agent "$CS"; chmod 2750 "$CS"
+printf '{"owner_id_env":"MILA_OWNER_ID","home":"/home/agent","state_dir":"%s/state","session_socket":"%s/c.sock","session_socket_mode":"660","io_socket":"%s/io.sock","categories":{}}' "$CS" "$CS" "$CS" > "$CS/cfg.json"
+setpriv --reuid=mila-io --regid=mila-io --groups=agent -- env MILA_OWNER_ID=1 python3 /opt/mila/kit/consent/consent_proxy.py serve --config "$CS/cfg.json" >/dev/null 2>&1 &
+CP=$!; for _ in $(seq 1 30); do [ -S "$CS/io.sock" ] && [ -S "$CS/c.sock" ] && break; sleep 0.2; done
+TRY='import socket,sys; s=socket.socket(socket.AF_UNIX); s.settimeout(5); s.connect(sys.argv[1]); s.sendall(b"{\"op\": \"x\"}\n"); print(s.recv(200).decode())'
+chk "посредник согласий: сессия просит через consent.sock" "AS \"python3 -c '\$TRY' $CS/c.sock\" | grep -q status"
+chk "посредник согласий: io-сокет (нажатия владельца) сессии недоступен" "! AS \"python3 -c '\$TRY' $CS/io.sock\""
+kill $CP 2>/dev/null
 echo "итог $ok/$n"; [ $ok -eq $n ]

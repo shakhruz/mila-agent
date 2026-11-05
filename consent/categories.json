@@ -1,0 +1,3 @@
+{
+ "publish_zernio": {"enabled": false, "title": "публикация в соцсетях (Zernio)", "exec": ["python3", "/opt/mila/kit/consent/executors/zernio_post.py"]}
+}
