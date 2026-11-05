@@ -394,8 +394,9 @@ class Proxy:
             # a consent-only kind (a pack install, an update): the session's own tool runs it, after checking in decisions.jsonl
             # that the owner said yes to exactly this (action_hash) — the proxy only records «used» with the full hash
             h, _ = self.digest(category, payload)
-            self.journal({"ev": "confirmed", "id": cid, "category": category, "hash": h})
-            return {"status": "done", "result": {"ok": True, "confirmed": cid}}
+            uid = "%s.%s" % (cid, secrets.token_hex(3))   # one id per use: a standing permission is used many times
+            self.journal({"ev": "confirmed", "id": uid, "category": category, "hash": h})
+            return {"status": "done", "result": {"ok": True, "confirmed": uid}}
         with tempfile.TemporaryDirectory(prefix="consent-") as td:
             files = []
             for a in atts:                                   # the executor gets the checked copies, not the session's paths

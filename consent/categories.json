@@ -1,5 +1,35 @@
 {
- "publish_zernio": {"enabled": false, "title": "публикация в соцсетях (Zernio)", "exec": ["python3", "/opt/mila/kit/consent/executors/zernio_post.py"]},
- "pack": {"enabled": true, "title": "пак: поставить или убрать", "fields": ["text", "attachments"]},
- "update": {"enabled": true, "title": "обновление ядра", "fields": ["text"]}
+ "publish_zernio": {
+  "enabled": false,
+  "title": "публикация в соцсетях (Zernio)",
+  "exec": [
+   "python3",
+   "/opt/mila/kit/consent/executors/zernio_post.py"
+  ]
+ },
+ "pack": {
+  "enabled": true,
+  "title": "пак: поставить или убрать",
+  "fields": [
+   "text",
+   "attachments"
+  ]
+ },
+ "update": {
+  "enabled": true,
+  "title": "обновление ядра",
+  "fields": [
+   "text"
+  ]
+ },
+ "spend": {
+  "enabled": true,
+  "title": "платная генерация",
+  "fields": [
+   "text",
+   "targets",
+   "cost_usd"
+  ],
+  "mandate_ok": true
+ }
 }

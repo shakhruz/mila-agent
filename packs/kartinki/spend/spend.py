@@ -69,6 +69,31 @@ def io_file(name):
     return p
 
 
+def proxy_approve(r):
+    """Mila Agent: a paid generation is approved by the owner through the consent proxy — a card with what, where and the
+    forecast; or within a standing permission the owner opened there (up to 7 days and $10 a day). → (consent id, why)."""
+    import time as _time
+    sys.path.insert(0, os.path.join(os.environ.get("MILA_KIT") or "/opt/mila/kit", "consent"))
+    try:
+        import consent_client as _cc, consent_proxy as _cp
+    except ImportError:
+        return "", "посредник согласий не найден в наборе"
+    payload = {"text": "Платная генерация: %s · %s · ~$%.2f\n#%s" % (r.get("what") or "", r.get("service") or "", r["est"], r["id"]),
+               "targets": [str(r.get("service") or "")], "cost_usd": r["est"]}
+    t0 = _time.time()
+    q = _cc.ask("spend", payload, os.environ["MILA_CONSENT_SOCKET"])
+    st = q.get("status")
+    if st in ("asked", "waiting", "deferred"): return "", "карточка у владельца (%s); после его «да» — approve %s ещё раз" % (st, r["id"])
+    if st != "done": return "", "посредник: " + str(q.get("why") or st)[:200]
+    res = q.get("result") or {}
+    cid = str(res.get("confirmed") or "")
+    if cid:   # a card «yes»: the proxy recorded «confirmed» for exactly this generation
+        got = _cp.confirmed(os.path.join(IO_DIR, "consent", "decisions.jsonl"), "spend", _cp.action_hash("spend", payload, []), t0 - 60,
+                            {str(x.get("consent")) for x in rows().values() if x.get("consent")})
+        return (cid, "") if got == cid else ("", "в журнале решений нет «да» владельца на эту трату")
+    return "", "посредник не подтвердил"
+
+
 def owners(p):
     """Mila Agent: owners only from the receiver's io/owners.json; elsewhere policy.json as before."""
     if io_uid() is None: return [str(x) for x in p["owners"]]
@@ -149,6 +174,11 @@ def main():
                        "over_limit": "месячный потолок — спроси владельца поднять лимит"}[r["status"]]}, ensure_ascii=False))
     elif cmd in ("approve", "reject"):
         r = rs[o.x[0]]
+        if cmd == "approve" and os.environ.get("MILA_CONSENT_SOCKET"):
+            cid, why = proxy_approve(r)
+            if not cid: sys.exit("не одобрено: " + why)
+            put({"id": r["id"], "status": "approved", "approved_by": "owner", "consent": cid, "approved_ts": NOW()})
+            print("ok"); return
         if cmd == "approve":
             if not o.card: sys.exit("одобрение — только по нажатию: --card <id карточки>")
             if card_spent(rs, o.card): sys.exit("эта карточка уже одобрила трату — одна карточка, одно одобрение")
