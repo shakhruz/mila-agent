@@ -1521,7 +1521,33 @@ def manual_yes(a):
     return bool((a.yes or "").strip()) and sys.stdin.isatty() and not os.environ.get("CLAUDECODE")
 
 
+def proxy_consent(mark):
+    """Mila Agent: the owner's «yes» goes through the consent proxy — it draws the card, records the decision in its chain, and
+    this tool runs only after it finds «confirmed» for exactly this pack (the mark carries the pack and its archive) there."""
+    sock = os.environ.get("MILA_CONSENT_SOCKET", "")
+    kit = os.path.join(os.environ.get("MILA_KIT") or "/opt/mila/kit", "consent")
+    sys.path.insert(0, kit)
+    try:
+        import consent_client as _cc, consent_proxy as _cp
+    except ImportError:
+        _refuse("посредник согласий не найден в наборе (%s)" % kit)
+    payload = {"text": "Пак: %s" % mark}
+    t0 = time.time()
+    r = _cc.ask("pack", payload, sock)
+    st = r.get("status")
+    if st in ("asked", "waiting", "deferred"):
+        jlog({"event": "pack-asked", "mark": mark, "status": st})
+        sys.exit(json.dumps({"waiting": st, "mark": mark, "next": "карточка у владельца; после его «Да» — та же команда ещё раз"}, ensure_ascii=False))
+    if st != "done": _refuse("посредник согласий: " + str(r.get("why") or st)[:200])
+    cid = str((r.get("result") or {}).get("confirmed") or "")
+    used = {str(x.get("consent")) for x in _jsonl(JOURNAL) if x.get("consent")}
+    got = _cp.confirmed(os.path.join(IO_DIR, "consent", "decisions.jsonl"), "pack", _cp.action_hash("pack", payload, []), t0 - 60, used)
+    if not cid or got != cid: _refuse("в журнале решений нет «да» владельца на этот пак")
+    return {"consent": cid}
+
+
 def consent(a, mark):
+    if os.environ.get("MILA_CONSENT_SOCKET"): return proxy_consent(mark)
     if a.card: return {"card": a.card, "yes_by": owner_yes(a.card, mark)}
     if manual_yes(a) and a.sender: return {"yes": a.yes, "from": a.sender, "manual": True}
     _refuse("нужно нажатие хозяина: --card <id карточки с меткой %s> (строка --yes — только вручную из терминала)" % mark)
@@ -1685,7 +1711,7 @@ def cmd_remove_pack(a):
         except SystemExit: pid = None
     if not pid or pid not in have: sys.exit(json.dumps({"error": "такой пак не стоит: " + q[:60], "stoyat": sorted(have)}, ensure_ascii=False))
     mark = "#unpack-" + pid
-    if not a.card and not manual_yes(a):   # без нажатия — карточка для хозяина, ничего не снято
+    if not a.card and not manual_yes(a) and not os.environ.get("MILA_CONSENT_SOCKET"):   # без нажатия — карточка для хозяина, ничего не снято
         t = {"ru": ("Убрать пак «%s»? Его навыки уйдут, бэкап останется; вернуть — поставить заново.", "🗑 Убрать", "Оставить"),
              "en": ("Remove the «%s» pack? Its skills go, a backup stays; to return it — install it again.", "🗑 Remove", "Keep"),
              "uz": ("«%s» paketini olib tashlaymi? Ko‘nikmalari ketadi, zaxira qoladi.", "🗑 Olib tashlash", "Qoldirish")}[a.lang if a.lang in ("ru", "en", "uz") else "ru"]
