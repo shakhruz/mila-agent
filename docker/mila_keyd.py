@@ -148,11 +148,37 @@ def present(kind, base=None):
         return False
 
 
+def guest_user_exists():
+    try:
+        import pwd; pwd.getpwuid(GUEST_UID); return True
+    except (KeyError, ImportError):
+        return False
+
+
+def tcp_peer(client, server, tables=("/proc/net/tcp", "/proc/net/tcp6")):
+    """who opened this TCP connection to the keeper: the uid column of the kernel's socket table (as identd does). The lane's
+    user on TCP is the lane — it gets only its own route there too. Not found while the lane's user exists → «unknown», refused."""
+    cport, sport = "%04X" % client[1], "%04X" % server[1]
+    for t in tables:
+        try: rows = open(t).read().splitlines()[1:]
+        except OSError: continue
+        for row in rows:
+            f = row.split()
+            if len(f) > 7 and f[1].endswith(":" + cport) and f[2].endswith(":" + sport):
+                return "guest" if f[7] == str(GUEST_UID) else "tcp"
+    return "unknown" if guest_user_exists() else "tcp"
+
+
 class Proxy(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "mila-keyd"
 
     def log_message(self, *a): pass
+
+    def setup(self):
+        super().setup()
+        if isinstance(self.client_address, tuple) and len(self.client_address) >= 2 and self.client_address[0] != "unix":
+            self.peer = tcp_peer(self.client_address, self.server.server_address)
 
     def plain(self, code, obj):
         b = json.dumps(obj).encode()
@@ -170,6 +196,9 @@ class Proxy(http.server.BaseHTTPRequestHandler):
         kind, rest = m.group(1), m.group(2)
         shown = re.sub(r"bot[^/]+/", "bot…/", rest.split("?")[0])[:80]   # the journal never shows a token, real or placeholder
         peer = getattr(self, "peer", "tcp")
+        if peer == "unknown":
+            log("%s %s → 403 (caller not known)" % (self.command, kind))
+            return self.plain(403, {"error": "not allowed through the key keeper"})
         if (kind == "guest") != (peer == "guest"):   # the lane reaches only its own key; nobody else reaches that key
             log("%s %s%s → 403 (route not for this caller)" % (self.command, kind, shown))
             return self.plain(403, {"error": "not allowed through the key keeper"})

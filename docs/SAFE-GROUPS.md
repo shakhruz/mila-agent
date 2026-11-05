@@ -21,8 +21,9 @@ Owners and the team reach the Claude session, which has all of Mila's tools. Str
 Answering strangers — a separate lane with no tools — is not in this version. Without it, strangers in a group get no answer.
 What is already there for it: the key keeper holds a separate key for strangers (`ANTHROPIC_GUEST_API_KEY`, an Anthropic API
 key — a subscription token is refused, the owner's plan is not for serving other people). Its route `/guest/v1/messages` is
-open only to the lane's own OS user (uid `MILA_GUEST_UID`, 1004 by default, known on the unix socket); that user reaches
-nothing else — not the owner's Claude, not Telegram, not voice.
+open only to the lane's own OS user (uid `MILA_GUEST_UID`, 1004 by default — known on the unix socket by its credentials and
+on TCP 127.0.0.1 by the kernel's socket table); that user reaches nothing else — not the owner's Claude, not Telegram, not
+voice, on either. A TCP caller the keeper cannot place while that user exists is refused.
 
 ## The team
 
@@ -48,7 +49,7 @@ nothing else — not the owner's Claude, not Telegram, not voice.
 | the card, its limits, no card for bots/channels/anonymous admins | plugin `askTeam()`; `askOnce()` (`team.mjs`); strings `team.*` (`i18n.mjs`) |
 | only the owner's press in a private chat changes the team | plugin callback `team:add|skip|del` (`receiver.ts`, `server.ts`); `setTeam()` (`team.mjs`) |
 | in Mila Agent the team from the receiver's file only | plugin `teamOf(…, trustAccess = !TELEGRAM_JOURNAL_DIR)` |
-| the strangers' key: an API key only, its route only for the lane's OS user, that user nowhere else | `docker/mila_keyd.py` (`guest` route, `GUEST_UID`, the check in `handle_any`) |
+| the strangers' key: an API key only, its route only for the lane's OS user, that user nowhere else | `docker/mila_keyd.py` (`guest` route, `GUEST_UID`, `tcp_peer()`, the check in `handle_any`) |
 | checked | plugin `safe-route.test.ts`, `foundation.test.ts`, `i18n.test.ts`; `install/test_feeder_envelope.py`; `docker/test_mila_keyd.py` |
 
 ## Not verified live yet

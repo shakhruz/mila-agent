@@ -133,6 +133,16 @@ check("приёмник поднят: getUpdates и deleteWebhook по TCP (се
       req("POST", "/telegram/bot%s/getUpdates" % PH, b"{}")[0] == 403 and req("POST", "/telegram/bot%s/deletewebhook" % PH, b"{}")[0] == 403 and len(SEEN) == n5)
 check("приёмник (его пользователь, unix-сокет) — getUpdates проходит", ureq("/telegram/bot%s/getUpdates" % PH) == 200)
 check("обычные методы по TCP при поднятом приёмнике — как раньше", req("POST", "/telegram/bot%s/sendMessage" % PH, b"{}")[0] == 200)
+# who is on a TCP connection: the uid column of the socket table; not found while the lane's user exists — refused
+TB = os.path.join(T, "tcp"); open(TB, "w").write("  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid\n"
+    "   0: 0100007F:D431 0100007F:2056 01 00000000:00000000 00:00000000 00000000  1004        0 1 1\n")
+check("таблица сокетов: соединение пользователя полосы — guest", mila_keyd.tcp_peer(("127.0.0.1", 0xD431), ("127.0.0.1", 0x2056), (TB,)) == "guest")
+check("таблица сокетов: другой пользователь — tcp", mila_keyd.tcp_peer(("127.0.0.1", 0xD431), ("127.0.0.1", 0x2057), (TB,)) in ("tcp", "unknown"))
+_g = mila_keyd.guest_user_exists; mila_keyd.guest_user_exists = lambda: True
+check("таблица сокетов: соединение не нашлось, а пользователь полосы есть — unknown (отказ)", mila_keyd.tcp_peer(("127.0.0.1", 1), ("127.0.0.1", 2), (TB,)) == "unknown")
+mila_keyd.guest_user_exists = lambda: False
+check("…пользователя полосы нет (обычная машина) — tcp, как раньше", mila_keyd.tcp_peer(("127.0.0.1", 1), ("127.0.0.1", 2), (TB,)) == "tcp")
+mila_keyd.guest_user_exists = _g
 # strangers' lane: an Anthropic API key (never a subscription token) reachable only by the lane's own OS user
 GK_ = "sk-" + "ant-" + "api03-" + "G" * 40
 check("ключ для чужих: токен подписки — отказ (подписка не для чужих)", not mila_keyd.put_remote("guest", OAT, SOCK))
@@ -159,6 +169,12 @@ n7 = len(SEEN)
 check("пользователь полосы: подписка владельца, Telegram, голос — 403", greq("/anthropic/v1/messages") == 403 and greq("/telegram/bot%s/sendMessage" % PH) == 403
       and greq("/groq/openai/v1/models") == 403 and len(SEEN) == n7)
 check("пользователь полосы: только сообщения — список моделей и прочее 403", greq("/guest/v1/models") == 403 and len(SEEN) == n7)
+def treq(method, path):   # the lane's user over TCP 127.0.0.1 — the kernel's socket table tells the keeper who it is
+    c = http.client.HTTPConnection("127.0.0.1", P2, timeout=20); c.request(method, path, body=b"{}"); r = c.getresponse(); r.read(); return r.status
+n8 = len(SEEN)
+check("пользователь полосы по TCP: подписка владельца и Telegram — 403 (uid соединения из /proc/net/tcp)",
+      treq("POST", "/anthropic/v1/messages") == 403 and treq("POST", "/telegram/bot%s/sendMessage" % PH) == 403 and treq("POST", "/groq/openai/v1/audio/transcriptions") == 403 and len(SEEN) == n8)
+check("пользователь полосы по TCP: свой маршрут — проходит", treq("POST", "/guest/v1/messages") == 200)
 p2.terminate(); p2.wait(); LOG2.close(); shutil.rmtree(T2, ignore_errors=True)
 p.terminate(); p.wait(); LOG.close(); logtxt = open(os.path.join(T, "keyd.log")).read()
 check("в журнале нет ни ключей, ни заголовков, ни трассировок — только метод, маршрут, код", all(k not in logtxt for k in (OAT, API, DG, GQ, OAT2, GQ2, BOT, GK_, "T" * 35, "dummy", "Bearer")) and "Traceback" not in logtxt and "POST anthropic/v1/messages → 200" in logtxt, logtxt[-300:])
