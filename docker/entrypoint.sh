@@ -53,8 +53,26 @@ if [ "$(id -u)" = 0 ]; then
       touch "$IOD/owners.pending"; chown mila-io:"$AU" "$IOD/owners.pending"
       echo "mila-agent: set OWNER_ID (your Telegram id) in the platform's variables and restart — until then owner-only buttons do not work"
     fi
-    setpriv --reuid=mila-io --regid=mila-io --groups="$AU" -- env -i PATH="$PATH" HOME=/run/mila-io MILA_KIT="${MILA_KIT:-/opt/mila/kit}" \
-      TGd="$TGd" IOD="$IOD" PLUG=/opt/mila/plugin/mila-telegram bash -c '
+    # The strangers' lane (mila-guest): answers strangers who address the bot, with no tools, on the strangers' key (an
+    # Anthropic API key with the keeper). No such key — no lane, and strangers in groups get no answer. What it may tell
+    # people: the files the owner put in ~/work/knowledge-for-people (regular .md/.txt, copied here; empty by default).
+    LANE=; IOG="$AU"
+    if id -u mila-guest >/dev/null 2>&1 && curl -s --max-time 5 http://127.0.0.1:8790/status | grep -q '"guest": true'; then
+      LD=/run/mila-lane; rm -rf "${LD:?}/knowledge"; mkdir -p "$LD/knowledge"
+      KD="$HOME/work/knowledge-for-people"
+      if [ -d "$KD" ] && [ ! -L "$KD" ]; then   # root reads the owner's home: regular files only, no links, no hard links, small
+        find "$KD" -maxdepth 1 -type f -links 1 \( -name '*.md' -o -name '*.txt' \) -size -64k -exec cp --no-dereference -t "$LD/knowledge" {} + 2>/dev/null
+      fi
+      chown mila-guest:mila-guest "$LD"; chmod 2750 "$LD"; chown -R root:mila-guest "$LD/knowledge"; chmod -R u=rwX,g=rX,o= "$LD/knowledge"
+      setpriv --reuid=mila-guest --regid=mila-guest --clear-groups -- env -i PATH="$PATH" HOME="$LD" MILA_KEYD=http://127.0.0.1:8790 \
+        bash -c 'while :; do python3 /usr/local/bin/mila_lane.py serve --sock /run/mila-lane/lane.sock --knowledge /run/mila-lane/knowledge >> /run/mila-lane/lane.log 2>&1; sleep 5; done' >/dev/null 2>&1 &
+      LANE="$LD/lane.sock"; IOG="$AU,$(id -g mila-guest)"
+      echo "mila-agent: the strangers' lane is on — strangers who address the bot in a group get short answers with no tools"
+    else
+      echo "mila-agent: no strangers' key (ANTHROPIC_GUEST_API_KEY) — strangers in groups get no answer"
+    fi
+    setpriv --reuid=mila-io --regid=mila-io --groups="$IOG" -- env -i PATH="$PATH" HOME=/run/mila-io MILA_KIT="${MILA_KIT:-/opt/mila/kit}" \
+      TGd="$TGd" IOD="$IOD" PLUG=/opt/mila/plugin/mila-telegram LANE="$LANE" bash -c '
         until [ -e "$TGd/receiver.go" ]; do sleep 2; done
         if [ ! -s "$IOD/owners.json" ] && [ ! -e "$IOD/owners.pending" ]; then   # first start: the owner the sign-in paired, before any session
           O="$(head -c 32 "$TGd/receiver.go" | tr -cd 0-9)"; [ -n "$O" ] && printf "{\"owners\": [\"%s\"]}\n" "$O" > "$IOD/owners.json" && chmod 640 "$IOD/owners.json"
@@ -72,7 +90,7 @@ if [ "$(id -u)" = 0 ]; then
           RECEIVER_DAEMON=1 TELEGRAM_STATE_DIR="$TGd" TELEGRAM_JOURNAL_DIR="$IOD" TELEGRAM_SHARED_GROUP=1 \
           TELEGRAM_BOT_TOKEN="$BID:mila-keyd-placeholder-not-a-token" TELEGRAM_API_ROOT=http://keeper/telegram \
           TELEGRAM_API_UNIX=/run/mila-keyd/api.sock MILA_KEYD=http://127.0.0.1:8790 \
-          TELEGRAM_VOICE_TRANSCRIBE_CMD="$MILA_KIT/install/transcribe-voice.sh" bun "$PLUG/receiver.ts" >> /run/mila-io/receiver.log 2>&1
+          TELEGRAM_GUEST_LANE="$LANE" TELEGRAM_VOICE_TRANSCRIBE_CMD="$MILA_KIT/install/transcribe-voice.sh" bun "$PLUG/receiver.ts" >> /run/mila-io/receiver.log 2>&1
           sleep 5
         done' 2>/dev/null &
     export MILA_IO=1

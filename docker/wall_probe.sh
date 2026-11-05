@@ -29,4 +29,15 @@ chk "под agent: getUpdates через хранителя при поднят�
 # the receiver's journals: owned by mila-io in io/, the session's user reads and cannot write
 IOD=/tmp/wall-io; mkdir -p "$IOD"; touch "$IOD/taps.jsonl"; chown mila-io:agent "$IOD" "$IOD/taps.jsonl"; chmod 2750 "$IOD"; chmod 640 "$IOD/taps.jsonl"
 chk "под agent: журнал нажатий приёмника — читается, не пишется, папку не подменить" "AS 'cat $IOD/taps.jsonl' >/dev/null && ! AS 'echo x >> $IOD/taps.jsonl' && ! AS 'touch $IOD/new'"
+# the strangers' lane: its user reaches only its own route (socket and TCP); the session's own calls are not cut by that wall
+GS() { setpriv --reuid=mila-guest --regid=mila-guest --clear-groups -- env -i PATH=/usr/local/bin:/usr/bin:/bin bash -c "$1" 2>&1; }
+chk "пользователь полосы по TCP: подписка владельца и бот — 403" "[ \"\$(GS 'curl -s -o /dev/null -w %{http_code} -X POST http://127.0.0.1:8790/anthropic/v1/messages')\" = 403 ] && [ \"\$(GS 'curl -s -o /dev/null -w %{http_code} -X POST http://127.0.0.1:8790/telegram/bot1:x/sendMessage')\" = 403 ]"
+chk "сессия по TCP при существующем пользователе полосы — свои маршруты не 403 (стена не режет своих)" "[ \"\$(AS 'curl -s -o /dev/null -w %{http_code} --max-time 20 -X POST http://127.0.0.1:8790/telegram/bot1:x/getMe')\" != 403 ] && [ \"\$(AS 'curl -s -o /dev/null -w %{http_code} --max-time 20 -X POST http://127.0.0.1:8790/anthropic/v1/messages')\" != 403 ]"
+mkdir -p /run/mila-lane/knowledge; chown mila-guest:mila-guest /run/mila-lane; chmod 2750 /run/mila-lane
+setpriv --reuid=mila-guest --regid=mila-guest --clear-groups -- python3 /usr/local/bin/mila_lane.py serve --sock /run/mila-lane/lane.sock --knowledge /run/mila-lane/knowledge >/dev/null 2>&1 &
+LP=$!; for _ in $(seq 1 30); do [ -S /run/mila-lane/lane.sock ] && break; sleep 0.2; done
+LANE_TRY='import socket,sys; s=socket.socket(socket.AF_UNIX); s.settimeout(5); s.connect("/run/mila-lane/lane.sock"); s.sendall(b"{}\n"); print(s.recv(200).decode())'
+chk "сокет полосы: сессия (agent) подключиться не может" "! AS \"python3 -c '\$LANE_TRY'\""
+chk "сокет полосы: приёмник (mila-io) подключается и получает ответ" "setpriv --reuid=mila-io --regid=mila-io --init-groups -- python3 -c '\$LANE_TRY' | grep -q empty"
+kill $LP 2>/dev/null
 echo "итог $ok/$n"; [ $ok -eq $n ]

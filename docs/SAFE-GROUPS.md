@@ -18,12 +18,25 @@ Owners and the team reach the Claude session, which has all of Mila's tools. Str
   «a stranger's message, N characters — not shown to the session». The stranger's words stay in the guests' journal.
 - The response mode of the group (run the chat, by mention, observer, only me) applies to owners and the team.
 
-Answering strangers — a separate lane with no tools — is not in this version. Without it, strangers in a group get no answer.
-What is already there for it: the key keeper holds a separate key for strangers (`ANTHROPIC_GUEST_API_KEY`, an Anthropic API
-key — a subscription token is refused, the owner's plan is not for serving other people). Its route `/guest/v1/messages` is
-open only to the lane's own OS user (uid `MILA_GUEST_UID`, 1004 by default — known on the unix socket by its credentials and
-on TCP 127.0.0.1 by the kernel's socket table); that user reaches nothing else — not the owner's Claude, not Telegram, not
-voice, on either. A TCP caller the keeper cannot place while that user exists is refused.
+## The strangers' lane
+
+A stranger who addresses the bot (a mention or a reply to it) can get a short answer from a separate lane:
+- **its own OS user** `mila-guest` (uid 1004). The receiver's user is in its group, the session's user is not: only the
+  receiver can hand it work (the socket `/run/mila-lane/lane.sock`, 0660, and the lane checks the caller's uid);
+- **no tools:** each answer is one `claude -p --tools "" --strict-mcp-config --setting-sources ""`, no MCP servers, no
+  settings or hooks, no saved session, in an empty temporary folder that is removed after;
+- **its own key:** the key keeper's strangers' key (`ANTHROPIC_GUEST_API_KEY`, an Anthropic API key — a subscription token is
+  refused: the owner's plan is not for serving other people). Its route `/guest/v1/messages` is open only to `mila-guest`,
+  known on the unix socket by its credentials and on TCP 127.0.0.1 by the kernel's socket table; `mila-guest` reaches nothing
+  else — not the owner's Claude, not Telegram, not voice. A TCP caller the keeper cannot place while `mila-guest` exists is
+  refused;
+- **what it knows:** only the files the owner put in `~/work/knowledge-for-people` — small regular `.md`/`.txt` files, copied
+  at start (no links, no hard links). Empty by default: then it says it will pass the question to the owner. The stranger's
+  text is the input, never part of the instructions;
+- **limits:** 3 answers per chat a minute, 100 a day; input up to 2000 characters, an answer up to 1500;
+- **the receiver sends** the answer: text only, as a reply, to the same chat (and topic). The lane sends nothing itself.
+
+No strangers' key — no lane: the start log says «no strangers' key», and strangers in groups get no answer.
 
 ## The team
 
@@ -50,12 +63,16 @@ voice, on either. A TCP caller the keeper cannot place while that user exists is
 | only the owner's press in a private chat changes the team | plugin callback `team:add|skip|del` (`receiver.ts`, `server.ts`); `setTeam()` (`team.mjs`) |
 | in Mila Agent the team from the receiver's file only | plugin `teamOf(…, trustAccess = !TELEGRAM_JOURNAL_DIR)` |
 | the strangers' key: an API key only, its route only for the lane's OS user, that user nowhere else | `docker/mila_keyd.py` (`guest` route, `GUEST_UID`, `tcp_peer()`, the check in `handle_any`) |
-| checked | plugin `safe-route.test.ts`, `foundation.test.ts`, `i18n.test.ts`; `install/test_feeder_envelope.py`; `docker/test_mila_keyd.py` |
+| the lane: own user, no tools, own key, knowledge only from the folder, limits; only the receiver may call it | `docker/mila_lane.py`; `docker/entrypoint.sh` (root step: `mila-guest`, the copy, `TELEGRAM_GUEST_LANE`); `docker/Dockerfile` |
+| an addressed stranger → the lane → an answer in the same chat | plugin `laneAnswer()` (`receiver.ts`) |
+| checked | plugin `safe-route.test.ts`, `foundation.test.ts`, `i18n.test.ts`; `install/test_feeder_envelope.py`; `docker/test_mila_keyd.py`, `docker/test_mila_lane.py`, `docker/test_docker_files.sh`; plugin `lane.test.ts`; in the image build `docker/wall_probe.sh` |
 
 ## Not verified live yet
 
 - A real group with two people (the owner and a stranger) on a stand: the stranger's message not in the session, the card in
   the owner's private chat, the press, the next message in the session.
+- The lane with a real strangers' key: a mention from a stranger → a short answer in the chat; a prompt injection in it →
+  no tool, nothing about the owner.
 
 ## What stays open
 
@@ -63,4 +80,5 @@ voice, on either. A TCP caller the keeper cannot place while that user exists is
 - An owner's forward of a stranger's message, or an owner's own quote of their words typed into a message, reaches the session:
   that is the owner's choice, the code does not cut it.
 - Group response modes are still in `access.json`, which the session can write.
-- The strangers' lane (answers with no tools, on an API key) — the next part of this step.
+- The lane answers only strangers who address the bot; «run the chat» does not make it answer every stranger.
+- On a plain install (no Mila Agent image) there is no lane: strangers get no answer.

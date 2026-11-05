@@ -142,4 +142,13 @@ chk "надзор приёмника: «go» есть, токена бота н�
 printf '{"telegram_bot_id": "12345678"}' > "$SV/status"; sleep 7
 chk "надзор приёмника: токен появился — receiver.up и приёмник запущен" "[ -e $SV/run/receiver.up ] && [ -e $SV/receiver.started ]"
 kill $SVP 2>/dev/null; sleep 8; rm -rf "${SV:?}"
+# the strangers' lane: without the strangers' key it is off and the start log says so; the knowledge copy takes only small regular
+# .md/.txt files from the owner's folder — no links, no hard links (root reads the owner's home)
+chk "без ключа для чужих — полоса не запускается, строка в журнале старта" "printf '%s' \"\$OUT_UP\" | grep -q \"no strangers' key\""
+KQ=$(mktemp -d); mkdir -p "$KQ/src" "$KQ/dst"; echo price > "$KQ/src/prices.md"; echo faq > "$KQ/src/faq.txt"; echo x > "$KQ/src/run.sh"
+echo secret > "$KQ/secret"; ln -s "$KQ/secret" "$KQ/src/link.md"; ln "$KQ/src/faq.txt" "$KQ/hard.txt"; head -c 70000 /dev/zero > "$KQ/src/big.md"
+CP=$(grep -o "find \"\$KD\" -maxdepth 1 .*2>/dev/null" docker/entrypoint.sh | sed "s#\"\$KD\"#$KQ/src#; s#\"\$LD/knowledge\"#$KQ/dst#; s#\\\\\\\\#\\\\#g")
+eval "$CP"
+chk "знания для людей: копируются только обычные небольшие .md/.txt — не ссылка, не жёсткая ссылка, не большой, не .sh" "[ \"\$(ls $KQ/dst | tr '\n' ' ')\" = 'prices.md ' ]"
+rm -rf "${KQ:?}"
 echo "итог $ok/$n"; [ $ok -eq $n ]

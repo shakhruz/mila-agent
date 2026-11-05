@@ -9,7 +9,7 @@ ARG CLAUDE_CODE_VERSION=2.1.305   # the version README says Mila is tested on; r
 ARG BUN_VERSION=1.2.21
 ARG PLUGIN_REPO=https://github.com/shakhruz/mila-telegram.git
 # The plugin is pinned to a reviewed commit: a push to the plugin's main does not change this image until the pin moves here.
-ARG PLUGIN_REF=4566a88926169bfcc7cf40396c86c387c79ef994
+ARG PLUGIN_REF=de231212f8e55a875d23b952857c046285e06721
 
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -28,10 +28,12 @@ RUN git clone "${PLUGIN_REPO}" /opt/mila/plugin/mila-telegram && git -C /opt/mil
 
 RUN useradd -m -u 1001 -s /bin/bash agent \
  && useradd -M -u 1002 -d /nonexistent -s /usr/sbin/nologin mila-keys \
- && useradd -M -u 1003 -d /nonexistent -s /usr/sbin/nologin -G agent mila-io
+ && useradd -M -u 1003 -d /nonexistent -s /usr/sbin/nologin -G agent mila-io \
+ && groupadd -g 1004 mila-guest && useradd -M -u 1004 -g mila-guest -d /nonexistent -s /usr/sbin/nologin mila-guest \
+ && usermod -aG mila-guest mila-io
 COPY . /opt/mila/kit
-COPY docker/entrypoint.sh docker/healthcheck.sh docker/claude_login.py docker/birth_claim.py docker/token_page.py docker/key_page.py docker/mila_keyd.py docker/mila-face.webp /usr/local/bin/
-RUN chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh /usr/local/bin/claude_login.py /usr/local/bin/birth_claim.py /usr/local/bin/token_page.py /usr/local/bin/key_page.py /usr/local/bin/mila_keyd.py /opt/mila/kit/install/transcribe-voice.sh \
+COPY docker/entrypoint.sh docker/healthcheck.sh docker/claude_login.py docker/birth_claim.py docker/token_page.py docker/key_page.py docker/mila_keyd.py docker/mila_lane.py docker/mila-face.webp /usr/local/bin/
+RUN chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh /usr/local/bin/claude_login.py /usr/local/bin/birth_claim.py /usr/local/bin/token_page.py /usr/local/bin/key_page.py /usr/local/bin/mila_keyd.py /usr/local/bin/mila_lane.py /opt/mila/kit/install/transcribe-voice.sh \
  && chown -R agent:agent /opt/mila/plugin /opt/mila/marketplace
 
 ENV HOME=/home/agent MILA_KIT=/opt/mila/kit \
