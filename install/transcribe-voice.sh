@@ -25,8 +25,9 @@ fi
 [ -n "$DG$KEY" ] || { echo "[нет ключа распознавания: ни Deepgram, ни Groq — ни в env, ни в сейфе]" >&2; exit 1; }
 DG_TEXT=""
 if [ -n "$DG" ]; then
-  DG_RAW=$(curl -s --max-time 90 -w '\n%{http_code}' -X POST "${DEEPGRAM_API:-https://api.deepgram.com}/v1/listen?model=nova-3&language=multi&smart_format=true" \
-    -H "Authorization: Token $DG" -H "Content-Type: audio/ogg" --data-binary "@$SRC")
+  # the key goes in a header read from stdin (-H @-), not in curl's arguments — those are visible to other processes (ps)
+  DG_RAW=$(printf 'Authorization: Token %s\n' "$DG" | curl -s --max-time 90 -w '\n%{http_code}' -X POST "${DEEPGRAM_API:-https://api.deepgram.com}/v1/listen?model=nova-3&language=multi&smart_format=true" \
+    -H @- -H "Content-Type: audio/ogg" --data-binary "@$SRC")
   DG_CODE="${DG_RAW##*$'\n'}"; DG_BODY="${DG_RAW%$'\n'*}"
   case "$DG_CODE" in   # the reason goes to stderr (the receiver's log), never the key
     401|403) echo "[Deepgram: ключ не принят (HTTP $DG_CODE) — нужен новый ключ]" >&2 ;;
@@ -58,9 +59,9 @@ case "$SRC" in
 esac
 ask() {
   if [ -n "${2:-}" ]; then
-    curl -s --max-time 90 -X POST "$API" -H "Authorization: Bearer $KEY" -F "file=@$1" -F "model=whisper-large-v3" -F "language=$2" -F "response_format=verbose_json"
+    printf 'Authorization: Bearer %s\n' "$KEY" | curl -s --max-time 90 -X POST "$API" -H @- -F "file=@$1" -F "model=whisper-large-v3" -F "language=$2" -F "response_format=verbose_json"
   else
-    curl -s --max-time 90 -X POST "$API" -H "Authorization: Bearer $KEY" -F "file=@$1" -F "model=whisper-large-v3" -F "response_format=verbose_json"
+    printf 'Authorization: Bearer %s\n' "$KEY" | curl -s --max-time 90 -X POST "$API" -H @- -F "file=@$1" -F "model=whisper-large-v3" -F "response_format=verbose_json"
   fi
 }
 pick() { python3 -c '

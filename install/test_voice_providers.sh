@@ -6,7 +6,8 @@ ok=0; n=0; chk(){ n=$((n+1)); if eval "$2" >/dev/null 2>&1; then ok=$((ok+1)); e
 mkdir -p "$T/bin" "$T/sec"
 cat > "$T/bin/curl" <<'C'
 #!/bin/bash
-for a in "$@"; do case "$a" in Authorization:*) printf '%s\n' "$a" >> "$CURL_LOG";; http*) printf 'URL %s\n' "$a" >> "$CURL_LOG";; esac; done
+printf '%s\n' "$*" >> "$CURL_LOG.argv"   # what other processes would see in ps
+for a in "$@"; do case "$a" in Authorization:*) printf '%s\n' "$a" >> "$CURL_LOG";; @-) grep '^Authorization:' >> "$CURL_LOG";; http*) printf 'URL %s\n' "$a" >> "$CURL_LOG";; esac; done
 case "$*" in
   */status*) echo "${KEYD_STATUS:-}";;
   *listen*) if [ "${DG_CODE:-200}" = 200 ]; then echo "{\"results\":{\"channels\":[{\"alternatives\":[{\"transcript\":\"$DG_SAYS\",\"confidence\":$DG_CONF}]}]}}"; else echo '{"err_code":"INVALID_AUTH"}'; fi
@@ -26,6 +27,7 @@ o=$(DG_SAYS="salom" DG_CONF=0.31 run); chk "Deepgram не уверен и ест
 : > "$T/auth.log"; o=$(DG_SAYS="привет мир" DG_CONF=0.93 run); chk "Deepgram уверен — Groq не зовём, даже если его ключ есть" '[ "$o" = "привет мир" ] && ! grep -q Bearer "$T/auth.log"' 'echo "$o"'
 rm "$T/sec/groq.env"
 o=$(DG_CODE=401 run); rc=$?; chk "Deepgram 401 (неверный ключ), Groq нет — код ≠ 0 (приёмник скажет «не расшифровано»), причина в журнал" 'echo "$o" | grep -q "ключ не принят (HTTP 401)" && ! echo "$o" | grep -q "$DK"' 'echo "$o"'
+chk "ключи Deepgram и Groq — не в аргументах curl (их видит ps), а заголовком из stdin" '! grep -q -e "$DK" -e "$GK" "$T/auth.log.argv" && grep -q -- "-H @-" "$T/auth.log.argv"' 'cat "$T/auth.log.argv"'
 o=$(DG_CODE=402 run); chk "Deepgram 402 — «кончился кредит»" 'echo "$o" | grep -q "кончился кредит"' 'echo "$o"'
 o=$(DG_CODE=429 run); chk "Deepgram 429 — «лимит запросов»" 'echo "$o" | grep -q "лимит запросов"' 'echo "$o"'
 printf "GROQ_API_KEY='%s'\n" "$GK" > "$T/sec/groq.env"

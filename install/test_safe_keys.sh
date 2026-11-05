@@ -6,7 +6,7 @@ ok=0; n=0; chk(){ n=$((n+1)); if eval "$2" >/dev/null 2>&1; then ok=$((ok+1)); e
 mkdir -p "$T/bin" "$T/sec"
 cat > "$T/bin/curl" <<'C'
 #!/bin/bash
-for a in "$@"; do case "$a" in Authorization:*) printf '%s\n' "$a" >> "$CURL_LOG";; esac; done
+for a in "$@"; do case "$a" in Authorization:*) printf '%s\n' "$a" >> "$CURL_LOG";; @-) grep '^Authorization:' >> "$CURL_LOG";; esac; done   # the key comes on stdin (-H @-)
 case "$*" in *transcriptions*) echo '{"language":"russian","text":"привет"}';; *) echo '{"data":{"limit":5,"usage":1}}';; esac
 C
 chmod +x "$T/bin/curl"; export PATH="$T/bin:$PATH" SAFE_DIR="$T/sec" CURL_LOG="$T/auth.log" HOME="$T"
