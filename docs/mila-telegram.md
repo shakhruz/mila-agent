@@ -82,6 +82,8 @@ outside the session), schedules and skills.
 - **Telegram Business chats:** not in the open plugin.
 - **Journal limits.** The journal has no size limit or expiry yet, and keeps message text as it came (keys and tokens are
   masked); downloaded files are not deleted automatically. See [PRIVACY](https://github.com/shakhruz/mila-telegram/blob/main/PRIVACY.md).
+- **Voice notes are transcribed before the sender check** — also from people who are not allowed (the text is then dropped); being
+  fixed.
 - **Messages are untrusted input.** Someone allowed to write can try to instruct the assistant. In «Run the chat» and «Observer»
   that is every member of the group.
 
