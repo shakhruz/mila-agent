@@ -33,7 +33,12 @@ A stranger who addresses the bot (a mention or a reply to it) can get a short an
 - **what it knows:** only the files the owner put in `~/work/knowledge-for-people` — small regular `.md`/`.txt` files, copied
   at start (no links, no hard links). Empty by default: then it says it will pass the question to the owner. The stranger's
   text is the input, never part of the instructions;
-- **limits:** 3 answers per chat a minute, 100 a day; input up to 2000 characters, an answer up to 1500;
+- **the owner's money:** the strangers' key is paid by the owner, so the lane uses the cheap model (`haiku`, `LANE_MODEL` to
+  change) and has limits: 3 answers per chat a minute and 100 a day, 20 per person a day, 300 for all chats together a day
+  (`LANE_PER_MIN`, `LANE_PER_DAY`, `LANE_PER_USER`, `LANE_DAY_ALL`). Over the ceiling — silence in the groups and one line to
+  the owner that day. Input up to 2000 characters, an answer up to 1500;
+- **what it may publish:** an answer with an @mention, or a link that is not in the owner's knowledge, is not sent; the stranger
+  gets «I will pass your question to the owner» instead;
 - **the receiver sends** the answer: text only, as a reply, to the same chat (and topic). The lane sends nothing itself.
 
 No strangers' key — no lane: the start log says «no strangers' key», and strangers in groups get no answer.
@@ -63,8 +68,8 @@ No strangers' key — no lane: the start log says «no strangers' key», and str
 | only the owner's press in a private chat changes the team | plugin callback `team:add|skip|del` (`receiver.ts`, `server.ts`); `setTeam()` (`team.mjs`) |
 | in Mila Agent the team from the receiver's file only | plugin `teamOf(…, trustAccess = !TELEGRAM_JOURNAL_DIR)` |
 | the strangers' key: an API key only, its route only for the lane's OS user, that user nowhere else | `docker/mila_keyd.py` (`guest` route, `GUEST_UID`, `tcp_peer()`, the check in `handle_any`) |
-| the lane: own user, no tools, own key, knowledge only from the folder, limits; only the receiver may call it | `docker/mila_lane.py`; `docker/entrypoint.sh` (root step: `mila-guest`, the copy, `TELEGRAM_GUEST_LANE`); `docker/Dockerfile` |
-| an addressed stranger → the lane → an answer in the same chat | plugin `laneAnswer()` (`receiver.ts`) |
+| the lane: own user, no tools, own key, knowledge only from the folder, limits and the day's ceiling, the cheap model, links and @mentions filtered; only the receiver may call it | `docker/mila_lane.py` (`Limits`, `clean()`, `MODEL`); `docker/entrypoint.sh` (root step: `mila-guest`, the copy, `TELEGRAM_GUEST_LANE`); `docker/Dockerfile` |
+| an addressed stranger → the lane → an answer in the same chat; filtered → «I'll pass it on»; the ceiling → a line to the owner | plugin `laneAnswer()`, `laneCapNotice()` (`receiver.ts`); strings `lane.*` (`i18n.mjs`) |
 | checked | plugin `safe-route.test.ts`, `foundation.test.ts`, `i18n.test.ts`; `install/test_feeder_envelope.py`; `docker/test_mila_keyd.py`, `docker/test_mila_lane.py`, `docker/test_docker_files.sh`; plugin `lane.test.ts`; in the image build `docker/wall_probe.sh` |
 
 ## Not verified live yet

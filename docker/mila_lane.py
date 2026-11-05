@@ -9,12 +9,16 @@ opened for people (empty by default — then it says it will pass the question o
 
   mila_lane.py serve --sock /run/mila-lane/lane.sock --knowledge /run/mila-lane/knowledge
 Env: MILA_IO_UID (the only caller, default 1003), MILA_KEYD (default http://127.0.0.1:8790), LANE_CLAUDE (default claude),
-LANE_PER_MIN (3), LANE_PER_DAY (100) — answers per chat; LANE_MODEL (optional)."""
-import json, os, socket, socketserver, struct, subprocess, sys, tempfile, threading, time
+LANE_PER_MIN (3), LANE_PER_DAY (100) — answers per chat; LANE_PER_USER (20) — per person a day; LANE_DAY_ALL (300) — all chats
+a day, the owner's money ceiling; LANE_MODEL (haiku)."""
+import json, os, re, socket, socketserver, struct, subprocess, sys, tempfile, threading, time
 
 IO_UID = int(os.environ.get("MILA_IO_UID") or 1003)
 PER_MIN = int(os.environ.get("LANE_PER_MIN") or 3)
 PER_DAY = int(os.environ.get("LANE_PER_DAY") or 100)
+PER_USER = int(os.environ.get("LANE_PER_USER") or 20)
+DAY_ALL = int(os.environ.get("LANE_DAY_ALL") or 300)
+MODEL = os.environ.get("LANE_MODEL") or "haiku"   # the strangers' key is the owner's money: the cheap model unless he says otherwise
 IN_MAX, OUT_MAX, KNOW_MAX = 2000, 1500, 20000
 
 BASE = """You are Mila, an assistant of the owner of this group, answering a participant who is not on the owner's team.
@@ -44,14 +48,35 @@ def system_prompt(know):
 
 
 class Limits:
-    def __init__(self): self.seen = {}; self.lock = threading.Lock()
-    def take(self, chat, now=None):
-        now = now or time.time()
+    """per chat (a minute, a day), per person (a day) and for all chats together (a day — the ceiling on the owner's key)."""
+    def __init__(self): self.chat = {}; self.user = {}; self.all = []; self.lock = threading.Lock()
+    def take(self, chat, user="", now=None):
+        """'' — go; 'limit' — this chat or person is over; 'cap' — the whole lane is over for today."""
+        now = now or time.time(); day = lambda ts: [t for t in ts if now - t < 86400]
         with self.lock:
-            ts = [t for t in self.seen.get(chat, []) if now - t < 86400]
-            if len(ts) >= PER_DAY or len([t for t in ts if now - t < 60]) >= PER_MIN:
-                self.seen[chat] = ts; return False
-            ts.append(now); self.seen[chat] = ts; return True
+            self.all = day(self.all)
+            if len(self.all) >= DAY_ALL: return "cap"
+            c = day(self.chat.get(chat, [])); u = day(self.user.get(user, [])) if user else []
+            self.chat[chat] = c
+            if user: self.user[user] = u
+            if len(c) >= PER_DAY or len([t for t in c if now - t < 60]) >= PER_MIN or (user and len(u) >= PER_USER): return "limit"
+            c.append(now); self.all.append(now)
+            if user: u.append(now)
+            return ""
+
+
+URL = re.compile(r"(?i)\b(?:https?://|www\.)[^\s<>\"')]+|\b(?:[a-z0-9-]+\.)+(?:com|net|org|io|ru|uz|me|app|dev|info|biz|co|xyz|site|online|shop|store|link|ly|gg|to|tk|su|kz|tj|kg|ua|by|uk|de|tr|cn|in|ai|pro|top|club|space|tech|cc|tv|fm)\b")
+
+
+def clean(out, know):
+    """what the lane may publish in the owner's group: no @mentions, links only those in the owner's knowledge. Else ''."""
+    if re.search(r"(?<![\w.])@[A-Za-z][A-Za-z0-9_]{3,}", out): return ""
+    k = know.lower()
+    for m in URL.finditer(out):
+        u = m.group(0).lower().rstrip(".,;:!?")
+        host = re.sub(r"^(?:https?://)?(?:www\.)?", "", u).split("/")[0]
+        if host not in k and u not in k: return ""
+    return out
 
 
 def answer(text, know, claude=None, keyd=None, timeout=90):
@@ -63,7 +88,7 @@ def answer(text, know, claude=None, keyd=None, timeout=90):
                "ANTHROPIC_API_KEY": "mila-keyd-placeholder", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1", "DISABLE_AUTOUPDATER": "1"}
         cmd = [claude, "-p", "--tools", "", "--strict-mcp-config", "--mcp-config", '{"mcpServers": {}}', "--setting-sources", "",
                "--no-session-persistence", "--system-prompt", system_prompt(know), "--output-format", "text"]
-        if os.environ.get("LANE_MODEL"): cmd += ["--model", os.environ["LANE_MODEL"]]
+        cmd += ["--model", MODEL]
         try:
             r = subprocess.run(cmd, input=text[:IN_MAX], capture_output=True, text=True, timeout=timeout, cwd=tmp, env=env)
         except (OSError, subprocess.TimeoutExpired):
@@ -78,11 +103,15 @@ class Handler(socketserver.StreamRequestHandler):
         if uid != IO_UID: return   # only the receiver hands work in; the session and anyone else get nothing
         try: d = json.loads(self.rfile.readline(16384).decode("utf-8"))
         except (ValueError, UnicodeDecodeError): return
-        chat, text = str(d.get("chat_id") or ""), str(d.get("text") or "").strip()
+        chat, text, user = str(d.get("chat_id") or ""), str(d.get("text") or "").strip(), str(d.get("user_id") or "")
         if not chat or not text: return self.reply({"ok": False, "reason": "empty"})
-        if not self.server.limits.take(chat): return self.reply({"ok": False, "reason": "limit"})
-        out = answer(text, knowledge(self.server.know_dir))
-        self.reply({"ok": bool(out), "text": out} if out else {"ok": False, "reason": "no answer"})
+        why = self.server.limits.take(chat, user)
+        if why: return self.reply({"ok": False, "reason": why})
+        know = knowledge(self.server.know_dir)
+        out = answer(text, know)
+        if not out: return self.reply({"ok": False, "reason": "no answer"})
+        if not clean(out, know): return self.reply({"ok": False, "reason": "filtered"})   # the receiver says «I'll pass it on» instead
+        self.reply({"ok": True, "text": out})
 
     def reply(self, obj):
         self.wfile.write((json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8"))

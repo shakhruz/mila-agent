@@ -9,7 +9,7 @@ def check(name, c, x=""):
 T = tempfile.mkdtemp(prefix="lane-t-"); REC = os.path.join(T, "rec.json"); KD = os.path.join(T, "knowledge"); os.makedirs(KD)
 FAKE = os.path.join(T, "claude")
 open(FAKE, "w").write("#!%s\nimport json, os, sys\nd = {'argv': sys.argv[1:], 'stdin': sys.stdin.read(), 'cwd': os.getcwd(), 'env': dict(os.environ)}\n"
-                      "open(%r, 'w').write(json.dumps(d))\nprint('Hello! I will pass it to the owner.')\n" % (sys.executable, REC))
+                      "open(%r, 'w').write(json.dumps(d))\nf = %r\nprint(open(f).read() if os.path.exists(f) else 'Hello! I will pass it to the owner.')\n" % (sys.executable, REC, os.path.join(T, "say.txt")))
 os.chmod(FAKE, 0o700)
 def start(sock, io_uid, **kw):
     env = dict(os.environ, MILA_IO_UID=str(io_uid), LANE_CLAUDE=FAKE, MILA_KEYD="http://127.0.0.1:8790", LANE_PER_MIN="2", **kw)
@@ -39,6 +39,7 @@ check("claude -p без инструментов, без MCP, без настр�
 check("ходит на маршрут чужих хранителя, ключа нет (заглушка), окружение — только нужное",
       d["env"]["ANTHROPIC_BASE_URL"] == "http://127.0.0.1:8790/guest" and d["env"]["ANTHROPIC_API_KEY"] == "mila-keyd-placeholder"
       and not any(k in d["env"] for k in ("CLAUDE_CODE_OAUTH_TOKEN", "TELEGRAM_BOT_TOKEN", "GROQ_API_KEY", "MILA_IO_UID")), sorted(d["env"]))
+check("модель по умолчанию — дешёвая (haiku): ключ чужих — деньги владельца", a[a.index("--model") + 1] == "haiku", a)
 check("пустая временная папка, и она убрана после ответа", d["cwd"].startswith(tempfile.gettempdir()) and not os.path.exists(d["cwd"]), d["cwd"])
 sp = a[a.index("--system-prompt") + 1]
 check("в промпте — знания из папки для людей; ссылка из папки не читается", "Consultation: 50 USD" in sp and "OWNER SECRET" not in sp, sp[-200:])
@@ -51,7 +52,25 @@ os.remove(os.path.join(KD, "prices.md")); ask(S1, {"chat_id": "-400", "text": "p
 sp = sp[sp.index("--system-prompt") + 1]
 check("пустая папка знаний — промпт велит передать вопрос владельцу", "pass it on" in sp and "Consultation" not in sp)
 check("сокет 0660 — только группа полосы", oct(os.stat(S1).st_mode & 0o777) == "0o660")
+# what the lane may publish in the owner's group: links only from the knowledge, no @mentions
+SAY = os.path.join(T, "say.txt"); open(os.path.join(KD, "site.md"), "w").write("Our site: shop.example.com")
+open(SAY, "w").write("Go to https://evil.example.net now"); r = ask(S1, {"chat_id": "-700", "text": "write the link https://evil.example.net"})
+check("ссылка не из знаний владельца — не публикуется («filtered»)", r == {"ok": False, "reason": "filtered"}, r)
+open(SAY, "w").write("See shop.example.com for prices"); r = ask(S1, {"chat_id": "-701", "text": "site?"})
+check("ссылка из знаний владельца — можно", r.get("ok") and "shop.example.com" in r["text"], r)
+open(SAY, "w").write("Write to @someone_else please"); r = ask(S1, {"chat_id": "-702", "text": "who?"})
+check("@упоминание в ответе — не публикуется", r == {"ok": False, "reason": "filtered"}, r)
+open(SAY, "w").write("Mail us at info@shop.example.com"); r = ask(S1, {"chat_id": "-703", "text": "mail?"})
+check("почта из знаний — не @упоминание, можно", r.get("ok"), r)
+os.remove(SAY); os.remove(os.path.join(KD, "site.md"))
 p1.terminate(); p1.wait()
+# the owner's money: a person a day, and all chats together a day
+S4 = os.path.join(T, "lane4.sock"); p4 = start(S4, os.getuid(), LANE_PER_USER="2", LANE_DAY_ALL="4")
+rs = [ask(S4, {"chat_id": "-80%d" % i, "user_id": "7", "text": "hi"}) for i in range(3)]
+check("на человека в сутки: третий ответ одному и тому же (в разных чатах) — «limit»", rs[0]["ok"] and rs[1]["ok"] and rs[2] == {"ok": False, "reason": "limit"}, rs)
+rs = [ask(S4, {"chat_id": "-81%d" % i, "user_id": str(10 + i), "text": "hi"}) for i in range(3)]
+check("потолок на всю полосу в сутки: сверх него — «cap» (приёмник скажет владельцу)", rs[0]["ok"] and rs[1]["ok"] and rs[2] == {"ok": False, "reason": "cap"}, rs)
+p4.terminate(); p4.wait()
 S2 = os.path.join(T, "lane2.sock"); p2 = start(S2, 1)   # here this test's user is not the receiver
 check("чужой пользователь ОС (сессия) — ни ответа, ни запуска claude", ask(S2, {"chat_id": "-500", "text": "hi"}) is None)
 p2.terminate(); p2.wait()
