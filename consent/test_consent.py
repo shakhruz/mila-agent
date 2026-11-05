@@ -47,12 +47,26 @@ check("после истечения — новая карточка", r["status
 px.callback(btn(), OWNER, OWNER); NOW[0] += 16 * 60
 check("согласие старше 15 мин — не исполняет, спрашивает снова", px.request("publish_zernio", dict(P, text=P["text"] + "!"))["status"] == "asked" and len(RUNS) == 1)
 px.callback(btn(yes=False), OWNER, OWNER)
-check("«Нет» — declined, повтор того же — новая карточка, не исполнено", px.request("publish_zernio", dict(P, text=P["text"] + "!"))["status"] == "asked" and len(RUNS) == 1)
+nc = len(CARDS); r = px.request("publish_zernio", dict(P, text=P["text"] + "!"))
+check("«Нет» помнится: то же действие в течение суток — denied без новой карточки, не исполнено", r["status"] == "denied" and len(CARDS) == nc and len(RUNS) == 1, r)
+NOW[0] += 86400 + 60
+check("…через сутки — снова карточка", px.request("publish_zernio", dict(P, text=P["text"] + "!"))["status"] == "asked")
 # a decided card stays decided
 r = px.request("publish_zernio", {"text": "решено один раз", "targets": ["a"]}); no_btn, yes_btn = btn(yes=False), btn()
 check("«Нет», потом «Да» на той же карточке — второе ignored, не исполнено",
       px.callback(no_btn, OWNER, OWNER)["status"] == "declined" and px.callback(yes_btn, OWNER, OWNER)["status"] == "ignored"
-      and px.request("publish_zernio", {"text": "решено один раз", "targets": ["a"]})["status"] == "asked")
+      and px.request("publish_zernio", {"text": "решено один раз", "targets": ["a"]})["status"] == "denied")
+# three «no» in a row for a kind: no new cards of it until a «yes» or a day; silence is not consent — «expired» in the journal
+NOW[0] += 86400 + 60
+for i in range(3):
+    px.request("publish_zernio", {"text": "отказ %d" % i, "targets": ["a"]}); px.callback(btn(yes=False), OWNER, OWNER)
+nc = len(CARDS); r = px.request("publish_zernio", {"text": "четвёртый, другой", "targets": ["a"]})
+check("три «нет» подряд по виду — новый запрос того же вида denied без карточки", r["status"] == "denied" and "three times" in r["why"] and len(CARDS) == nc, r)
+NOW[0] += 86400 + 60
+r = px.request("publish_zernio", {"text": "молчание", "targets": ["a"]}); NOW[0] += 16 * 60
+px.request("publish_zernio", {"text": "ещё что-то", "targets": ["a"]})
+check("через сутки — снова можно; карточку без ответа 15 мин — «expired» в журнале решений",
+      r["status"] == "asked" and '"ev": "expired"' in open(os.path.join(STATE, "decisions.jsonl")).read() and r["id"] in open(os.path.join(STATE, "decisions.jsonl")).read(), r)
 r = px.request("publish_zernio", {"text": "один раз", "targets": ["a"]}); y = btn(); px.callback(y, OWNER, OWNER); k = len(RUNS)
 px.request("publish_zernio", {"text": "один раз", "targets": ["a"]})
 check("повторное «Да» после исполнения — ignored, повтор не исполняется", px.callback(y, OWNER, OWNER)["status"] == "ignored"

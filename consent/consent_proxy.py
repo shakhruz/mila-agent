@@ -27,6 +27,7 @@ INVISIBLE = re.compile("[​-‏‪-‮⁠-⁤⁦-⁩﻿]")
 
 
 FIELDS = ("text", "targets", "when", "attachments")   # what a card shows; a category may narrow it with "fields"
+DECLINE_MEMORY = 86400                                 # a «no» holds for a day: the same action is not asked again
 CARD_TEXT = 3000                                       # longer text goes in parts before the card (Telegram: 4096 per message)
 PART = 3500
 
@@ -144,8 +145,22 @@ class Proxy:
         with self.lock:
             cons = self._load("consents.json", {})
             now = self.now()
+            self.sweep(cons, now)
+            # a «no» is remembered: the same exact action is refused for a day without a new card
+            if any(c["hash"] == h and c.get("declined") and now - c["declined"] <= DECLINE_MEMORY for c in cons.values()):
+                self.journal({"ev": "denied", "category": category, "hash": h[:16], "why": "declined within a day"})
+                return {"status": "denied", "why": "the owner said no to this exact action within the last day"}
+            # three «no» in a row for a kind: no more cards of that kind until the owner says otherwise (a grant or a day)
+            tail = [c for c in sorted(cons.values(), key=lambda c: c["asked"]) if c.get("category") == category and (c.get("declined") or c.get("granted"))]
+            streak = 0
+            for c in reversed(tail):
+                if not c.get("declined"): break
+                streak += 1
+            if streak >= 3 and now - tail[-1]["declined"] <= DECLINE_MEMORY:
+                self.journal({"ev": "denied", "category": category, "why": "three refusals in a row"})
+                return {"status": "denied", "why": "the owner refused this kind three times in a row — wait for the owner's word"}
             for cid, c in cons.items():
-                if c["hash"] != h or c.get("used") or c.get("declined"):
+                if c["hash"] != h or c.get("used") or c.get("declined") or c.get("expired"):
                     continue
                 if c.get("granted") and now - c["granted"] <= self.ttl:
                     c["used"] = now
@@ -165,6 +180,15 @@ class Proxy:
                 self.journal({"ev": "asked", "id": cid, "category": category, "hash": h[:16], "card_sent": bool(ok)})
                 return {"status": "asked", "id": cid} if ok else {"status": "denied", "why": "could not show the card to the owner"}
         return self.execute(category, payload, atts, cid)
+
+    def sweep(self, cons, now):
+        """silence is not consent: a card nobody answered within the TTL becomes «expired», once, in the journal"""
+        changed = False
+        for cid, c in cons.items():
+            if not (c.get("granted") or c.get("declined") or c.get("expired")) and now - c["asked"] > self.ttl:
+                c["expired"] = now; changed = True
+                self.journal({"ev": "expired", "id": cid, "category": c.get("category"), "hash": c["hash"][:16]})
+        if changed: self._save("consents.json", cons)
 
     def execute(self, category, payload, atts, cid):
         with tempfile.TemporaryDirectory(prefix="consent-") as td:
