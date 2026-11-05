@@ -111,6 +111,13 @@ check("Telegram: методы без учёта регистра — setwebhook,
 check("Telegram: законные closeForumTopic и closeGeneralForumTopic проходят", req("POST", "/telegram/bot%s/closeForumTopic" % PH, b"{}")[0] == 200 and req("POST", "/telegram/bot%s/closeGeneralForumTopic" % PH, b"{}")[0] == 200)
 n3 = len(SEEN)
 check("Telegram: «..» в пути файла — 403", req("GET", "/telegram/file/bot%s/../../x" % PH)[0] == 403 and req("GET", "/telegram/file/bot%s/documents/../x" % PH)[0] == 403 and len(SEEN) == n3)
+# boot forks the keeper: the child must let go of the caller's pipe, or the entrypoint (… | sed) waits forever — an empty log
+SCRIPT = ("import os, sys, time; sys.path.insert(0, sys.argv[1]); import mila_keyd\n"
+          "if os.fork() == 0:\n    os.setsid(); mila_keyd.detach_stdio(sys.argv[2]); print('child'); time.sleep(6); os._exit(0)\n"
+          "print('up', flush=True)\n")
+t0 = time.time(); r = subprocess.run([sys.executable, "-c", SCRIPT, H, os.path.join(T, "child.log")], capture_output=True, text=True, timeout=20)
+check("старт хранителя отпускает трубу entrypoint: вызывающий получает вывод сразу, не ждёт живого хранителя",
+      time.time() - t0 < 3 and r.stdout.strip() == "up", (round(time.time() - t0, 1), r.stdout))
 p.terminate(); p.wait(); LOG.close(); logtxt = open(os.path.join(T, "keyd.log")).read()
 check("в журнале нет ни ключей, ни заголовков — только метод, маршрут, код", all(k not in logtxt for k in (OAT, API, DG, GQ, OAT2, GQ2, BOT, "T" * 35, "dummy", "Bearer")) and "POST anthropic/v1/messages → 200" in logtxt, logtxt[-300:])
 up.shutdown(); shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

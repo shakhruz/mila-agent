@@ -235,6 +235,16 @@ def migrate(home):
     return sorted(set(moved))
 
 
+def detach_stdio(logpath, uid=None, gid=None):
+    """the keeper's stdin from /dev/null, its stdout and stderr to its own log (no keys are written there). Without this the
+    forked keeper held the entrypoint's pipe open, and the start waited on it forever — an empty container log."""
+    fd = os.open(logpath, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o640)
+    if uid is not None and os.geteuid() == 0: os.fchown(fd, uid, gid)
+    dn = os.open(os.devnull, os.O_RDONLY)
+    os.dup2(dn, 0); os.dup2(fd, 1); os.dup2(fd, 2)
+    os.close(dn); os.close(fd)
+
+
 def boot(home, agent_uid, keys_uid, port):
     """root, once per start: keys into ~/.keys of their own user, the put socket for agent, the keeper as that user."""
     if os.geteuid() != 0: sys.exit("keyd boot: needs root (the entrypoint's first step)")
@@ -253,7 +263,9 @@ def boot(home, agent_uid, keys_uid, port):
             try: socket.create_connection(("127.0.0.1", port), 0.2).close(); log("up as uid %d; moved in: %s" % (keys_uid, ", ".join(moved) or "nothing")); return 0
             except OSError: time.sleep(0.1)
         log("did not start"); return 1
-    os.setsid(); os.setgroups([]); os.setgid(keys_uid); os.setuid(keys_uid)
+    os.setsid()
+    detach_stdio(os.path.join(run, "keyd.log"), keys_uid, agent_uid)   # let go of the entrypoint's pipe: it must not wait for the keeper
+    os.setgroups([]); os.setgid(keys_uid); os.setuid(keys_uid)
     for v in [v for v in os.environ if v not in ("PATH", "KEYD_PORT", "KEYD_BIND", "KEYD_SOCK", "LANG")]: del os.environ[v]
     os.environ["KEYS_DIR"] = KEYS
     try: main()
