@@ -26,6 +26,13 @@ BUF = 64 * 1024
 INVISIBLE = re.compile("[​-‏‪-‮⁠-⁤⁦-⁩﻿]")
 
 
+EMPTY_LETTERS = set("\u115f\u1160\u3164\uffa0\u2800\u034f\u00ad\u180e")   # letters that print as nothing
+
+
+def _emoji(ch):
+    return unicodedata.category(ch) in ("So", "Sk") or ch == "\ufe0f" or 0x1f3fb <= ord(ch) <= 0x1f3ff
+
+
 FIELDS = ("text", "targets", "when", "attachments")   # what a card shows; a category may narrow it with "fields"
 MANDATE_DAYS = 7                                       # a standing permission lives at most a week (the owner's word)
 MANDATE_USD_DAY = 10.0                                 # … and spends at most this a day, unless the owner's config says less
@@ -97,8 +104,17 @@ class Proxy:
 
     # ── what exactly the owner approves ──
     def hidden(self, v):
-        """any string in the payload with characters the card would not show, or not in its NFC form"""
-        if isinstance(v, str): return bool(INVISIBLE.search(v)) or unicodedata.normalize("NFC", v) != v
+        """any string in the payload with characters the card would not show, or not in its NFC form — by property, not by list:
+        format, control (but newline and tab), line/paragraph separators, private-use and unassigned, and the «empty letters».
+        A zero-width joiner between two emoji (a family, a flag sequence) is what it is meant to be and passes."""
+        if isinstance(v, str):
+            if unicodedata.normalize("NFC", v) != v: return True
+            for i, ch in enumerate(v):
+                if ch in "\n\t": continue
+                if ch in EMPTY_LETTERS: return True
+                if ch == "\u200d" and 0 < i < len(v) - 1 and _emoji(v[i - 1]) and _emoji(v[i + 1]): continue
+                if unicodedata.category(ch) in ("Cf", "Cc", "Zl", "Zp", "Co", "Cn", "Cs"): return True
+            return False
         if isinstance(v, dict): return any(self.hidden(x) for x in v.values()) or any(self.hidden(k) for k in v)
         if isinstance(v, (list, tuple)): return any(self.hidden(x) for x in v)
         return False

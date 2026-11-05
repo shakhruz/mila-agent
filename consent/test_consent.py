@@ -94,6 +94,13 @@ r = px.request("publish_zernio", {"text": "обычный", "targets": ["acc\u20
 check("…и в адресатах — отказ", r["status"] == "denied", r)
 r = px.request("publish_zernio", {"text": "e\u0301", "targets": ["a"]})
 check("…и текст не в форме NFC (составная буква) — отказ", r["status"] == "denied", r)
+# by property, not by list: tags, soft hyphen, CGJ, Mongolian separator, line separator, empty letters, controls, private use
+bad = ["x\U000E0041\U000E0042", "co\u00adst", "a\u034fb", "a\u180eb", "a\u2028b", "\u3164", "\u2800", "\u115f", "\u1160", "\uffa0", "a\x07b", "\ue000"]
+check("невидимые по свойству (теги U+E00xx, мягкий перенос, CGJ, U+180E, U+2028, пустые буквы, управляющие, частные) — отказ",
+      all(px.request("publish_zernio", {"text": t, "targets": ["a"]})["status"] == "denied" for t in bad), [repr(t) for t in bad if px.request("publish_zernio", {"text": t, "targets": ["a"]})["status"] != "denied"])
+good = ["обычный текст\nвторая строка\tтаб", "\u2764\ufe0f спасибо", "\U0001F468\u200d\U0001F469\u200d\U0001F467 семья", "\U0001F44D\U0001F3FD ок", "\U0001F1FA\U0001F1FF"]
+check("обычный текст, перенос и таб, эмодзи с U+FE0F, семья через ZWJ, тон кожи, флаг — проходят к карточке",
+      all(not px.hidden(t) for t in good), [repr(t) for t in good if px.hidden(t)])
 # attachments: only inside the home, never through a link
 KEY = os.path.join(STATE, "hmac.key"); k0 = len(CARDS)
 os.symlink(KEY, os.path.join(HOME, "work", "photo.jpg"))
