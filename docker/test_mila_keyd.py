@@ -118,6 +118,7 @@ SCRIPT = ("import os, sys, time; sys.path.insert(0, sys.argv[1]); import mila_ke
 t0 = time.time(); r = subprocess.run([sys.executable, "-c", SCRIPT, H, os.path.join(T, "child.log")], capture_output=True, text=True, timeout=20)
 check("старт хранителя отпускает трубу entrypoint: вызывающий получает вывод сразу, не ждёт живого хранителя",
       time.time() - t0 < 3 and r.stdout.strip() == "up", (round(time.time() - t0, 1), r.stdout))
+cc2 = socket.create_connection(("127.0.0.1", PORT)); cc2.sendall(b"POST /anthropic/v1/messages HTTP/1.1\r\nHost: x\r\nContent-Length: zz\r\n\r\n"); time.sleep(0.5); cc2.close()   # a broken request
 p.terminate(); p.wait(); LOG.close(); logtxt = open(os.path.join(T, "keyd.log")).read()
-check("в журнале нет ни ключей, ни заголовков — только метод, маршрут, код", all(k not in logtxt for k in (OAT, API, DG, GQ, OAT2, GQ2, BOT, "T" * 35, "dummy", "Bearer")) and "POST anthropic/v1/messages → 200" in logtxt, logtxt[-300:])
+check("в журнале нет ни ключей, ни заголовков, ни трассировок — только метод, маршрут, код", all(k not in logtxt for k in (OAT, API, DG, GQ, OAT2, GQ2, BOT, "T" * 35, "dummy", "Bearer")) and "Traceback" not in logtxt and "POST anthropic/v1/messages → 200" in logtxt, logtxt[-300:])
 up.shutdown(); shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

@@ -276,10 +276,16 @@ def main():
     os.umask(0o077)
     sock = os.environ.get("KEYD_SOCK") or "/run/mila-keyd/put.sock"
     if os.path.exists(sock): os.unlink(sock)
-    us = socketserver.ThreadingUnixStreamServer(sock, Put)
+    class PutServer(socketserver.ThreadingUnixStreamServer):
+        def handle_error(self, request, client_address):
+            log("put error: %s" % (sys.exc_info()[0].__name__ if sys.exc_info()[0] else "?"))
+    us = PutServer(sock, Put)
     os.chmod(sock, 0o620)   # the group (agent) may put a key in; nobody reads one out
     threading.Thread(target=us.serve_forever, daemon=True).start()
-    srv = http.server.ThreadingHTTPServer((os.environ.get("KEYD_BIND") or "127.0.0.1", int(os.environ.get("KEYD_PORT") or 8790)), Proxy)
+    class Server(http.server.ThreadingHTTPServer):
+        def handle_error(self, request, client_address):   # only the error's type in the log — never a traceback with values
+            log("request error: %s" % (sys.exc_info()[0].__name__ if sys.exc_info()[0] else "?"))
+    srv = Server((os.environ.get("KEYD_BIND") or "127.0.0.1", int(os.environ.get("KEYD_PORT") or 8790)), Proxy)
     log("listening on %s:%d, keys in %s" % (srv.server_address[0], srv.server_address[1], KEYS))
     srv.serve_forever()
 
