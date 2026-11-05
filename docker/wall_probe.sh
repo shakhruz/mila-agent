@@ -23,4 +23,10 @@ chk "под agent: ни файлы, ни /proc хранителя, ни ps, ни
 chk "под agent: ~/.keys не читается (Permission denied)" "printf '%s' \"\$OUT\" | grep -q 'Permission denied'"
 chk "под agent: класть ключ в сокет можно (запись), прочесть — нечем" "AS \"python3 -c 'import sys; sys.path.insert(0,\\\"/usr/local/bin\\\"); import mila_keyd; sys.exit(0 if mila_keyd.put_remote(\\\"deepgram\\\", \\\"a1b2c3d4\\\"*5) else 1)'\""
 chk "в журнале хранителя ключей нет" "! grep -rq WALLPROBE $HOME/state 2>/dev/null"
+# the receiver's updates: once it is up, the session's user cannot read the bot's updates through the keeper
+mkdir -p /run/mila-io; touch /run/mila-io/receiver.up
+chk "под agent: getUpdates через хранителя при поднятом приёмнике — 403" "[ \"\$(AS 'curl -s -o /dev/null -w %{http_code} -X POST http://127.0.0.1:8790/telegram/bot1:x/getUpdates')\" = 403 ]"
+# the receiver's journals: owned by mila-io in io/, the session's user reads and cannot write
+IOD=/tmp/wall-io; mkdir -p "$IOD"; touch "$IOD/taps.jsonl"; chown mila-io:agent "$IOD" "$IOD/taps.jsonl"; chmod 2750 "$IOD"; chmod 640 "$IOD/taps.jsonl"
+chk "под agent: журнал нажатий приёмника — читается, не пишется, папку не подменить" "AS 'cat $IOD/taps.jsonl' >/dev/null && ! AS 'echo x >> $IOD/taps.jsonl' && ! AS 'touch $IOD/new'"
 echo "итог $ok/$n"; [ $ok -eq $n ]

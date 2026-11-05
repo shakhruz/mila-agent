@@ -57,4 +57,15 @@ m2 = os.path.join(tempfile.mkdtemp(), "mut2.py"); open(m2, "w").write(src2)
 chk("мутант «только первый тег» пропускает вопрос — тест «тик, затем вопрос» его ловит", not blocked(two(("tick-x-1", "Маховик", "тик"), ("7", "owner", "вопрос?")), say("шаг"), hook=m2))
 m = os.path.join(tempfile.mkdtemp(), "mut.py"); open(m, "w").write(src)
 chk("мутант без пропуска тика — тест ловит", blocked(ch("tick-razrabotka-1", "Маховик", "тик"), say("шаг"), hook=m))
+# the feeder's envelope with the receiver's attributes (observer, reaction) — the same rules hold
+import importlib.util as _iu
+os.environ.setdefault("COMPANION_STATE", tempfile.mkdtemp()); os.environ.setdefault("TELEGRAM_STATE_DIR", tempfile.mkdtemp())
+_sp = _iu.spec_from_file_location("feeder", os.path.join(os.path.dirname(HOOK), "companion-feeder.py")); FD = _iu.module_from_spec(_sp); _sp.loader.exec_module(FD)
+def env_rec(p, m): return {"type": "user", "message": {"role": "user", "content": FD.envelope(p, m)}}
+chk("конверт кормильца: наблюдатель (observe_only) без reply — проходит", not blocked(env_rec({"content": "[observer mode — not addressed]\nx"},
+    {"chat_id": "-1", "message_id": "9", "user": "g", "user_id": "42", "from": "other", "observe_only": "true"}), say("ок")))
+chk("конверт кормильца: реакция плагина [reaction] без reply — проходит", not blocked(env_rec({"content": "[reaction] 👍"},
+    {"chat_id": "111", "message_id": "10", "user": "owner", "user_id": "111", "from": "owner", "type": "reaction"}), say("ок")))
+chk("конверт кормильца: вопрос хозяина без reply — стоп", blocked(env_rec({"content": "как дела?"},
+    {"chat_id": "111", "message_id": "11", "user": "owner", "user_id": "111", "from": "owner"}), say("ок")))
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

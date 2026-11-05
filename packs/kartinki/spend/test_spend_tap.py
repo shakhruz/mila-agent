@@ -85,4 +85,24 @@ rc, out = s("limit", "50", "--card", "c10")
 chk("та же карточка лимита второй раз — отказ", rc != 0 and "уже использована" in out, out)
 rc, out = s("reject", plan(), "--by", STRANGER)
 chk("отказ от траты — без нажатия (безопасно)", rc == 0, out)
+# newer plugin: presses in taps.jsonl next to cards.jsonl — what Telegram delivered counts, a «used» line in the registry does not
+TP = os.path.join(T, "taps.jsonl"); open(TP, "w").write("")
+i = plan(); card("tp1", "Видео #%s" % i, tapped_by=OWNER, data="ok")          # forged-able registry line only
+rc, out = s("approve", i, "--card", "tp1"); chk("taps.jsonl есть: «нажато» в реестре не одобряет", rc != 0, out)
+i2 = plan(); card("tp2", "Видео #%s" % i2)
+open(TP, "a").write(json.dumps({"card_id": "tp2", "used_ts": iso(2), "used_by": OWNER, "data": "ok", "card_text": "Другая трата #zzz"}) + "\n")
+rc, out = s("approve", i2, "--card", "tp2"); chk("метка — из текста, который показал Telegram", rc != 0 and "видел" in out, out)
+i3 = plan(); card("tp3", "Видео #%s" % i3)
+open(TP, "a").write(json.dumps({"card_id": "tp3", "used_ts": iso(2), "used_by": OWNER, "data": "ok", "card_text": "Видео #%s" % i3}) + "\n")
+rc, out = s("approve", i3, "--card", "tp3"); chk("настоящее нажатие хозяина из taps.jsonl — одобрено", rc == 0, out)
+# Mila Agent: presses from the receiver's own folder (MILA_TG_JOURNAL), trusted only if owned by the receiver's OS user
+import pwd as _pwd
+JD = os.path.join(T, "io"); os.makedirs(JD); open(os.path.join(JD, "taps.jsonl"), "w").write("")
+def sj(user, *a):
+    p = subprocess.run([sys.executable, os.path.join(H, "spend.py"), *a], capture_output=True, text=True, env=dict(ENV, MILA_TG_JOURNAL=JD, MILA_IO_USER=user))
+    return p.returncode, (p.stdout + p.stderr).strip()
+i4 = plan(); card("tj1", "Видео #%s" % i4)
+open(os.path.join(JD, "taps.jsonl"), "a").write(json.dumps({"card_id": "tj1", "used_ts": iso(2), "used_by": OWNER, "data": "ok", "card_text": "Видео #%s" % i4}) + "\n")
+rc, out = sj("root", "approve", i4, "--card", "tj1"); chk("журнал нажатий не его пользователя — не одобрено", rc != 0 and "подменён" in out, out)
+rc, out = sj(_pwd.getpwuid(os.getuid()).pw_name, "approve", i4, "--card", "tj1"); chk("журнал приёмника его пользователя — одобрено", rc == 0, out)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

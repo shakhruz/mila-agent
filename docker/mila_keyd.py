@@ -39,8 +39,17 @@ TG_METHODS = {m.lower() for m in """getMe getUpdates deleteWebhook getFile getCh
     closeGeneralForumTopic reopenGeneralForumTopic unpinAllForumTopicMessages leaveChat""".split()}   # not setWebhook, logOut, close
 
 
-def tg_allowed(method, rest):
+IO_ONLY = {"getupdates", "deletewebhook"}   # reading the bot's updates: the receiver's alone once it runs
+IO_UID = int(os.environ.get("MILA_IO_UID") or 1003)
+RECEIVER_UP = os.environ.get("MILA_RECEIVER_UP") or "/run/mila-io/receiver.up"
+
+
+def tg_allowed(method, rest, peer="tcp"):
     m = re.fullmatch(r"/bot[^/]+/([A-Za-z]+)", rest)
+    if m and m.group(1).lower() in IO_ONLY:
+        # the receiver (its own OS user, over the unix socket) — always; anyone else — only while the receiver is not up
+        # (the sign-in helper before the first start). Otherwise the session could read every update, strangers' too.
+        return method in ("GET", "POST") and (peer == "io" or not os.path.exists(RECEIVER_UP))
     if m: return method in ("GET", "POST") and m.group(1).lower() in TG_METHODS
     m = re.fullmatch(r"/file/bot[^/]+/([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)", rest)
     return bool(m) and method == "GET" and ".." not in m.group(1).split("/")
@@ -154,7 +163,7 @@ class Proxy(http.server.BaseHTTPRequestHandler):
         if not m: return self.plain(404, {"error": "unknown route"})
         kind, rest = m.group(1), m.group(2)
         shown = re.sub(r"bot[^/]+/", "bot…/", rest.split("?")[0])[:80]   # the journal never shows a token, real or placeholder
-        if not (tg_allowed(self.command, rest.split("?")[0]) if kind == "telegram"
+        if not (tg_allowed(self.command, rest.split("?")[0], getattr(self, "peer", "tcp")) if kind == "telegram"
                 else any(self.command == meth and re.fullmatch(pat, rest.split("?")[0]) for meth, pat in ALLOW[kind])):
             log("%s %s%s → 403 (not on the list)" % (self.command, kind, shown))
             return self.plain(403, {"error": "not allowed through the key keeper"})
@@ -196,6 +205,17 @@ class Proxy(http.server.BaseHTTPRequestHandler):
             c.close()
 
     do_GET = do_POST = do_PUT = do_DELETE = do_PATCH = do_HEAD = handle_any
+
+
+class ProxyUnix(Proxy):
+    """the same routes over a unix socket, where the calling OS user is known (SO_PEERCRED): the receiver's user is «io»."""
+    def setup(self):
+        super().setup()
+        import struct
+        try: uid = struct.unpack("3i", self.request.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")))[1]
+        except OSError: uid = -1
+        self.peer = "io" if uid == IO_UID else "local"
+        self.client_address = ("unix", 0)
 
 
 class Put(socketserver.StreamRequestHandler):
@@ -257,7 +277,7 @@ def boot(home, agent_uid, keys_uid, port):
         for x in [root_] + [os.path.join(root_, f) for f in files]: os.lchown(x, keys_uid, keys_uid)
     os.chmod(KEYS, 0o700)
     run = os.path.dirname(os.environ.get("KEYD_SOCK") or "/run/mila-keyd/put.sock")
-    os.makedirs(run, exist_ok=True); os.chown(run, keys_uid, agent_uid); os.chmod(run, 0o2750)
+    os.makedirs(run, exist_ok=True); os.chown(run, keys_uid, agent_uid); os.chmod(run, 0o2751)   # o+x: the receiver's user reaches api.sock
     if os.fork():
         for _ in range(50):
             try: socket.create_connection(("127.0.0.1", port), 0.2).close(); log("up as uid %d; moved in: %s" % (keys_uid, ", ".join(moved) or "nothing")); return 0
@@ -285,6 +305,15 @@ def main():
     class Server(http.server.ThreadingHTTPServer):
         def handle_error(self, request, client_address):   # only the error's type in the log — never a traceback with values
             log("request error: %s" % (sys.exc_info()[0].__name__ if sys.exc_info()[0] else "?"))
+    api_sock = os.environ.get("KEYD_API_SOCK") or os.path.join(os.path.dirname(sock), "api.sock")
+    if os.path.exists(api_sock): os.unlink(api_sock)
+    class UnixServer(socketserver.ThreadingUnixStreamServer):
+        daemon_threads = True
+        def handle_error(self, request, client_address):
+            log("request error: %s" % (sys.exc_info()[0].__name__ if sys.exc_info()[0] else "?"))
+    ux = UnixServer(api_sock, ProxyUnix)
+    os.chmod(api_sock, 0o666)   # anyone local may connect; what they may do depends on who they are (SO_PEERCRED)
+    threading.Thread(target=ux.serve_forever, daemon=True).start()
     srv = Server((os.environ.get("KEYD_BIND") or "127.0.0.1", int(os.environ.get("KEYD_PORT") or 8790)), Proxy)
     log("listening on %s:%d, keys in %s" % (srv.server_address[0], srv.server_address[1], KEYS))
     srv.serve_forever()

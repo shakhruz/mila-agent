@@ -172,5 +172,40 @@ ENV2 = dict(ENV, TELEGRAM_STATE_DIR=EMPTY, MILA_TG_STATE=TG)
 c = card("Пак «Бизнес-помощник»\n#pack-business-assistant-0.1.0", tap_by=OWNER)
 r = subprocess.run([sys.executable, os.path.join(HERE, "update.py"), "install-pack", "business-assistant", "--card", c], env=ENV2, capture_output=True, text=True, stdin=subprocess.DEVNULL)
 check("в контейнере (TELEGRAM_STATE_DIR — пустой мост сессии) нажатие ищется в журналах приёмника по MILA_TG_STATE", r.returncode == 0, (r.stdout + r.stderr)[-300:])
+# the receiver's taps.jsonl (newer plugin): a press counts only as Telegram delivered it — the session's registry cannot fake one
+TAPS = os.path.join(TG, "taps.jsonl")
+def tap(cid, text, by=OWNER, data="pack:yes", chat=OWNER):
+    open(TAPS, "a").write(json.dumps({"card_id": cid, "used_ts": iso(), "used_by": by, "data": data, "chat_id": chat, "card_text": text}) + "\n")
+U("remove-pack", "business-assistant", "--card", card(U("remove-pack", "business-assistant")[1].get("text", "x"), tap_by=OWNER)) if os.path.isdir(os.path.join(WORK, "packs", "business-assistant")) else None
+open(TAPS, "w").write("")
+MK = "#pack-business-assistant-0.1.0"
+c = card("Пак\n" + MK, tap_by=OWNER, write_data=True)                              # an old-style «used» line in cards.jsonl
+rc, d = U("install-pack", "business-assistant", "--card", c); check("taps.jsonl есть: строка «нажато» в реестре сессии не считается", rc != 0 and "не нажал" in d.get("error", ""), d)
+c = card("Пак\n" + MK); tap(c, "Пак «Другое»\n#pack-other-1")                      # registry says this pack, Telegram showed another
+rc, d = U("install-pack", "business-assistant", "--card", c); check("метка берётся из текста, который показал Telegram, а не из реестра", rc != 0 and "видел хозяин" in d.get("error", ""), d)
+c = card("Пак\n" + MK); tap(c, "Пак\n" + MK)
+rc, d = U("install-pack", "business-assistant", "--card", c); check("настоящее нажатие из taps.jsonl — пак ставится", rc == 0, d)
+os.remove(TAPS)
+# Mila Agent: MILA_TG_JOURNAL — the receiver's own folder; trusted only if it and the file belong to the receiver's OS user
+import pwd as _pwd
+ME = _pwd.getpwuid(os.getuid()).pw_name
+JD = os.path.join(T, "io"); os.makedirs(JD); TJ = os.path.join(JD, "taps.jsonl"); open(TJ, "w").write("")
+def tapj(cid, text):
+    open(TJ, "a").write(json.dumps({"card_id": cid, "used_ts": iso(), "used_by": OWNER, "data": "pack:yes", "chat_id": OWNER, "card_text": text}) + "\n")
+U("remove-pack", "business-assistant", "--card", card(U("remove-pack", "business-assistant")[1].get("text", "x"), tap_by=OWNER, write_data=True))
+def Uj(user, *a):
+    r = subprocess.run([sys.executable, os.path.join(HERE, "update.py")] + list(a), env=dict(ENV, MILA_TG_JOURNAL=JD, MILA_IO_USER=user),
+                       capture_output=True, text=True, stdin=subprocess.DEVNULL)
+    try: return r.returncode, json.loads(r.stdout or r.stderr or "{}")
+    except ValueError: return r.returncode, {"raw": r.stdout + r.stderr}
+c = card("Пак\n#pack-business-assistant-0.1.0"); tapj(c, "Пак\n#pack-business-assistant-0.1.0")
+rc, d = Uj("root", "install-pack", "business-assistant", "--card", c)
+check("журнал приёмника не принадлежит его пользователю (сессия сделала свой) — отказ", rc != 0 and "подменён" in d.get("error", ""), d)
+os.rename(TJ, TJ + ".real"); os.symlink(TJ + ".real", TJ)
+rc, d = Uj(ME, "install-pack", "business-assistant", "--card", c)
+check("журнал приёмника — ссылка — отказ", rc != 0 and "подменён" in d.get("error", ""), d)
+os.remove(TJ); os.rename(TJ + ".real", TJ)
+rc, d = Uj(ME, "install-pack", "business-assistant", "--card", c)
+check("журнал приёмника его пользователя — нажатие из него, пак ставится", rc == 0, d)
 srv.shutdown(); shutil.rmtree(T, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

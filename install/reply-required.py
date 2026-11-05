@@ -54,7 +54,7 @@ def main():
         s = _incoming(r)
         if s is not None:
             # реакция (👍, ❤) — не вопрос, ответа не требует (просьба Мила качества)
-            is_reaction = "type=\"reaction\"" in s or "[реакция]" in s
+            is_reaction = "type=\"reaction\"" in s or "[реакция]" in s or "[reaction]" in s
             # в режиме «наблюдатель» сообщение, где бота не звали, ответа не требует
             is_observe = "observe_only=\"true\"" in s
             # тик маховика (сам велит «хозяину не пиши»), записка файловой почты, сигнал сторожа (watch-*)

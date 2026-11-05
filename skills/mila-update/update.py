@@ -1379,6 +1379,22 @@ PACKS_IN = os.path.join(STATE, "packs-in")
 CODE_FILE = re.compile(r"\.(py|sh|bash|mjs|js|ts|rb|pl)$", re.I)
 
 
+def receiver_journal(name, legacy):
+    """a journal only the receiver writes. Mila Agent (MILA_TG_JOURNAL): its folder and file must belong to the receiver's own
+    OS user and not be links — the session could make a folder of its own with that name, never one owned by mila-io.
+    Elsewhere: the old place."""
+    jd = os.environ.get("MILA_TG_JOURNAL")
+    if not jd: return legacy
+    import pwd
+    try: io = pwd.getpwnam(os.environ.get("MILA_IO_USER") or "mila-io").pw_uid
+    except KeyError: _refuse("нет пользователя приёмника (mila-io) — журналу не верю")
+    for x in (jd, os.path.join(jd, name)):
+        try: st = os.lstat(x)
+        except OSError: _refuse("журнала приёмника %s нет" % name)
+        if stat.S_ISLNK(st.st_mode) or st.st_uid != io: _refuse("журнал приёмника %s подменён (не его владелец или ссылка) — не верю" % name)
+    return os.path.join(jd, name)
+
+
 TG_STATE = os.environ.get("MILA_TG_STATE") or os.environ.get("TELEGRAM_STATE_DIR") or os.path.join(CLAUDE, "channels", "telegram")   # Mila Agent: the receiver's state, not the session's bridge
 CARD_FRESH = 30 * 60   # «да» на карточку пака — не старше 30 минут
 
@@ -1412,7 +1428,7 @@ def _refuse(why, **k):
 def owner_attachment(msg):
     """вложение из лички хозяина по message_id — из журнала приёмника (inbound/events.jsonl), не из слов модели."""
     own = owner_ids()
-    for r in _jsonl(os.path.join(TG_STATE, "inbound", "events.jsonl")):
+    for r in _jsonl(receiver_journal("events.jsonl", os.path.join(TG_STATE, "inbound", "events.jsonl"))):
         m = (r.get("params") or {}).get("meta") or {}
         if str(m.get("message_id")) != str(msg) or not m.get("attachment_file_id"): continue
         if m.get("chat_type", "private") == "private" and str(m.get("chat_id")) == str(m.get("user_id")) and str(m.get("user_id")) in own:
@@ -1446,25 +1462,38 @@ def fetch_attachment(meta):
 
 
 def owner_yes(card_id, mark):
-    """«да» хозяина — нажатие кнопки «pack:yes» на свежей карточке с меткой пака, из журналов приёмника; одна карточка — один раз."""
+    """«да» хозяина — нажатие кнопки «pack:yes» на свежей карточке с меткой пака; одна карточка — один раз.
+    Нажатие — из taps.jsonl приёмника (его пишет только приёмник: кто нажал, какая кнопка и текст карточки, как его показал
+    Telegram); реестр карточек сессии здесь только для срока. Старый плагин без taps.jsonl — по cards.jsonl и events.jsonl."""
     own = owner_ids(); card = used = None
     for r in _jsonl(os.path.join(TG_STATE, "cards.jsonl")):
         if r.get("card_id") != card_id: continue
         if r.get("used_ts"): used = used or r
         elif card is None: card = r
-    if not card: _refuse("карточки %s нет в журнале приёмника" % str(card_id)[:40])
-    if mark not in (card.get("text") or ""): _refuse("в карточке нет метки %s — это карточка не про этот пак" % mark)
-    if str(card.get("chat_id")) not in own: _refuse("карточка не в личке хозяина")
-    try: age = time.time() - dt_parse(card.get("ts"))
+    taps = receiver_journal("taps.jsonl", os.path.join(TG_STATE, "taps.jsonl"))
+    if os.path.exists(taps):
+        used = next((r for r in _jsonl(taps) if r.get("card_id") == card_id), None)
+        if not used: _refuse("хозяин ещё не нажал на карточку")
+        if mark not in (used.get("card_text") or ""): _refuse("в карточке, которую видел хозяин, нет метки %s — это карточка не про этот пак" % mark)
+        if str(used.get("chat_id")) not in own: _refuse("карточка не в личке хозяина")
+        if str(used.get("used_by")) not in own: _refuse("хозяин ещё не нажал на карточку")
+        if used.get("data") != "pack:yes": _refuse("нажата не «Поставить»")
+        stamp = (card or {}).get("ts") or used.get("used_ts")
+    else:
+        if not card: _refuse("карточки %s нет в журнале приёмника" % str(card_id)[:40])
+        if mark not in (card.get("text") or ""): _refuse("в карточке нет метки %s — это карточка не про этот пак" % mark)
+        if str(card.get("chat_id")) not in own: _refuse("карточка не в личке хозяина")
+        if not used or str(used.get("used_by")) not in own: _refuse("хозяин ещё не нажал на карточку")
+        data = used.get("data")
+        if data is None:
+            for r in _jsonl(os.path.join(TG_STATE, "inbound", "events.jsonl")):
+                m = (r.get("params") or {}).get("meta") or {}
+                if m.get("card_id") == card_id and str(m.get("user_id")) in own: data = m.get("callback_data")
+        if data != "pack:yes": _refuse("нажата не «Поставить»" if data else "в журнале нет, какая кнопка нажата")
+        stamp = card.get("ts")
+    try: age = time.time() - dt_parse(stamp)
     except Exception: age = CARD_FRESH + 1
     if age > CARD_FRESH: _refuse("карточка старше 30 минут — покажу план заново")
-    if not used or str(used.get("used_by")) not in own: _refuse("хозяин ещё не нажал на карточку")
-    data = used.get("data")
-    if data is None:
-        for r in _jsonl(os.path.join(TG_STATE, "inbound", "events.jsonl")):
-            m = (r.get("params") or {}).get("meta") or {}
-            if m.get("card_id") == card_id and str(m.get("user_id")) in own: data = m.get("callback_data")
-    if data != "pack:yes": _refuse("нажата не «Поставить»" if data else "в журнале нет, какая кнопка нажата")
     for r in _jsonl(JOURNAL):
         if r.get("card") == card_id and r.get("event") in ("install-pack", "remove-pack"): _refuse("эта карточка уже использована")
     return str(used.get("used_by"))

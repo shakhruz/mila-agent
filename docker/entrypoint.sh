@@ -20,6 +20,41 @@ if [ "$(id -u)" = 0 ]; then
   else
     unset MILA_KEYD KEYD_SOCK
   fi
+  # The receiver as its own OS user (mila-io, a member of the session's group): it writes the journals into io/ — inbound,
+  # presses, authorizations — which the session reads and cannot write; the rest of the Telegram state is shared by group.
+  # It starts when the session's side says go (after the token page, pairing and the Claude sign-in, which read updates
+  # themselves); from then on the key keeper gives updates to mila-io only. Needs the keeper; MILA_IO=off — the old way.
+  if [ -n "${MILA_KEYD:-}" ] && [ "${MILA_IO:-on}" != off ] && id -u mila-io >/dev/null 2>&1; then
+    TGd="$HOME/.claude/channels/telegram"; IOD="$TGd/io"
+    mkdir -p "$TGd/inbound" "$IOD" /run/mila-io
+    chown "$AU:$AU" "$HOME/.claude" "$HOME/.claude/channels" "$TGd" "$TGd/inbound"
+    chmod 2770 "$TGd" "$TGd/inbound"; chmod g+rwX -R "$TGd" 2>/dev/null; rm -f "$TGd/receiver.go"
+    chmod 750 "$HOME" "$HOME/.claude" "$HOME/.claude/channels"
+    chown mila-io:"$AU" "$IOD" /run/mila-io; chmod 2750 "$IOD"; chmod 755 /run/mila-io
+    for p in inbound/events.jsonl taps.jsonl auth-log.jsonl suspicious.jsonl; do   # journals of earlier starts move in once
+      b="${p##*/}"
+      if [ -f "$TGd/$p" ] && [ ! -L "$TGd/$p" ]; then cat "$TGd/$p" >> "$IOD/$b"; rm -f "$TGd/$p"; fi
+      touch "$IOD/$b"; chown mila-io:"$AU" "$IOD/$b"; chmod 640 "$IOD/$b"
+      ln -sfn "$IOD/$b" "$TGd/$p"
+    done
+    touch "$TGd/cards.jsonl"; chown "$AU:$AU" "$TGd/cards.jsonl"; chmod 660 "$TGd/cards.jsonl"
+    setpriv --reuid=mila-io --regid=mila-io --groups="$AU" -- env -i PATH="$PATH" HOME=/run/mila-io MILA_KIT="${MILA_KIT:-/opt/mila/kit}" \
+      TGd="$TGd" IOD="$IOD" PLUG=/opt/mila/plugin/mila-telegram bash -c '
+        until [ -e "$TGd/receiver.go" ]; do sleep 2; done
+        BID="$(curl -s --max-time 5 http://127.0.0.1:8790/status | python3 -c "import json,sys; print(json.load(sys.stdin).get(\"telegram_bot_id\") or \"\")")"
+        [[ "$BID" =~ ^[0-9]{5,15}$ ]] || exit 0
+        touch /run/mila-io/receiver.up
+        while :; do
+          RECEIVER_DAEMON=1 TELEGRAM_STATE_DIR="$TGd" TELEGRAM_JOURNAL_DIR="$IOD" TELEGRAM_SHARED_GROUP=1 \
+          TELEGRAM_BOT_TOKEN="$BID:mila-keyd-placeholder-not-a-token" TELEGRAM_API_ROOT=http://keeper/telegram \
+          TELEGRAM_API_UNIX=/run/mila-keyd/api.sock MILA_KEYD=http://127.0.0.1:8790 \
+          TELEGRAM_VOICE_TRANSCRIBE_CMD="$MILA_KIT/install/transcribe-voice.sh" bun "$PLUG/receiver.ts" >> /run/mila-io/receiver.log 2>&1
+          sleep 5
+        done' >/dev/null 2>&1 &
+    export MILA_IO=1 MILA_TG_JOURNAL="$IOD"
+  else
+    unset MILA_IO MILA_TG_JOURNAL
+  fi
   exec setpriv --reuid="$AU" --regid="$AU" --init-groups -- bash "$0" "$@"
 fi
 H="$HOME"; ST=$H/state; CL=$H/.claude
@@ -80,8 +115,10 @@ fi
 [ -z "${OWNER_ID:-}" ] || [[ "$OWNER_ID" =~ ^[0-9]{3,15}$ ]] || wait_forever "OWNER_ID must be your numeric Telegram id (or leave it empty for a pairing code)."
 
 umask 077
+[ "${MILA_IO:-}" = 1 ] && umask 007   # the receiver's user is in the session's group: what we share in the Telegram state, it reads
 mkdir -p "$ST" "$CL" "$TG/inbound" "$TGS/inbound" "$H/work" "$H/.local/bin"
-for d in "$CL" "$TG" "$TG/inbound" "$TGS" "$TGS/inbound"; do chmod 700 "$d"; done   # not 700 → the plugin silently does not poll
+for d in "$CL" "$TGS" "$TGS/inbound"; do chmod 700 "$d"; done   # not 700 → the plugin silently does not poll
+[ "${MILA_IO:-}" = 1 ] && chmod 750 "$CL" || { chmod 700 "$TG" "$TG/inbound"; }   # with mila-io: its group passes to telegram/
 export PATH="$H/.local/bin:$PATH"
 
 # The kit (skills, hooks, launcher) into the home volume — on the first start and again whenever the image brings a changed kit:
@@ -126,7 +163,11 @@ cleanup() { log "stop"; tmux kill-server 2>/dev/null; kill "${PIDS[@]}" 2>/dev/n
 trap cleanup TERM INT
 # 1. receiver daemon
 # voice: the receiver runs our script for every voice note (Groq key: GROQ_API_KEY or ~/work/secrets/groq.env, see key_page.py)
-( while :; do RECEIVER_DAEMON=1 TELEGRAM_STATE_DIR="$TG" TELEGRAM_VOICE_TRANSCRIBE_CMD="${TELEGRAM_VOICE_TRANSCRIBE_CMD:-$MILA_KIT/install/transcribe-voice.sh}" bun "$PLUG/receiver.ts" >> "$ST/receiver.log" 2>&1; sleep 5; done ) & PIDS+=($!)
+if [ "${MILA_IO:-}" = 1 ]; then   # the receiver runs as mila-io (root step); here only «go» — after sign-in, so it does not take /start
+  chmod -R g+rwX "$TG" 2>/dev/null; : > "$TG/receiver.go"
+else
+  ( while :; do RECEIVER_DAEMON=1 TELEGRAM_STATE_DIR="$TG" TELEGRAM_VOICE_TRANSCRIBE_CMD="${TELEGRAM_VOICE_TRANSCRIBE_CMD:-$MILA_KIT/install/transcribe-voice.sh}" bun "$PLUG/receiver.ts" >> "$ST/receiver.log" 2>&1; sleep 5; done ) & PIDS+=($!)
+fi
 # schedule outside the session (Baraban): mila-cron jobs of this home become events once a minute — «remind me in an hour»,
 # the morning summary — even while the session restarts. State in ~/state/baraban (one owner, one home in the container).
 # The owner is read on every tick: paired by a code in the log after start (no OWNER_ID), the schedule starts without a restart.

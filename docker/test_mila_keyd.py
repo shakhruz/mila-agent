@@ -32,7 +32,7 @@ T = tempfile.mkdtemp(prefix="keyd-"); K = os.path.join(T, "keys"); SOCK = os.pat
 s = socket.socket(); s.bind(("127.0.0.1", 0)); PORT = s.getsockname()[1]; s.close()
 UPB = "http://127.0.0.1:%d" % up.server_port
 env = dict(os.environ, KEYS_DIR=K, KEYD_PORT=str(PORT), KEYD_SOCK=SOCK, KEYD_UPSTREAM_ANTHROPIC=UPB + "/a", KEYD_UPSTREAM_DEEPGRAM=UPB + "/d", KEYD_UPSTREAM_GROQ=UPB + "/g",
-           KEYD_UPSTREAM_TELEGRAM=UPB + "/t")
+           KEYD_UPSTREAM_TELEGRAM=UPB + "/t", MILA_IO_UID=str(os.getuid()), MILA_RECEIVER_UP=os.path.join(T, "receiver.up"))
 LOG = open(os.path.join(T, "keyd.log"), "w")
 p = subprocess.Popen([sys.executable, os.path.join(H, "mila_keyd.py")], env=env, stderr=LOG, stdout=LOG)
 for _ in range(50):
@@ -119,6 +119,20 @@ t0 = time.time(); r = subprocess.run([sys.executable, "-c", SCRIPT, H, os.path.j
 check("старт хранителя отпускает трубу entrypoint: вызывающий получает вывод сразу, не ждёт живого хранителя",
       time.time() - t0 < 3 and r.stdout.strip() == "up", (round(time.time() - t0, 1), r.stdout))
 cc2 = socket.create_connection(("127.0.0.1", PORT)); cc2.sendall(b"POST /anthropic/v1/messages HTTP/1.1\r\nHost: x\r\nContent-Length: zz\r\n\r\n"); time.sleep(0.5); cc2.close()   # a broken request
+# reading updates: the receiver over the unix socket (its OS user) — always; anyone over TCP — only while the receiver is not up
+class UConn(http.client.HTTPConnection):
+    def connect(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); self.sock.connect(os.path.join(T, "api.sock"))
+def ureq(path):
+    c = UConn("keeper"); c.request("POST", path, b"{}"); r = c.getresponse(); r.read(); return r.status
+n4 = len(SEEN)
+check("getUpdates по TCP, пока приёмник не поднят (вход в Claude до первого старта), — проходит", req("POST", "/telegram/bot%s/getUpdates" % PH, b"{}")[0] == 200)
+open(os.path.join(T, "receiver.up"), "w").write("1")
+n5 = len(SEEN)
+check("приёмник поднят: getUpdates и deleteWebhook по TCP (сессия) — 403, к Telegram не ходим",
+      req("POST", "/telegram/bot%s/getUpdates" % PH, b"{}")[0] == 403 and req("POST", "/telegram/bot%s/deletewebhook" % PH, b"{}")[0] == 403 and len(SEEN) == n5)
+check("приёмник (его пользователь, unix-сокет) — getUpdates проходит", ureq("/telegram/bot%s/getUpdates" % PH) == 200)
+check("обычные методы по TCP при поднятом приёмнике — как раньше", req("POST", "/telegram/bot%s/sendMessage" % PH, b"{}")[0] == 200)
 p.terminate(); p.wait(); LOG.close(); logtxt = open(os.path.join(T, "keyd.log")).read()
 check("в журнале нет ни ключей, ни заголовков, ни трассировок — только метод, маршрут, код", all(k not in logtxt for k in (OAT, API, DG, GQ, OAT2, GQ2, BOT, "T" * 35, "dummy", "Bearer")) and "Traceback" not in logtxt and "POST anthropic/v1/messages → 200" in logtxt, logtxt[-300:])
 up.shutdown(); shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

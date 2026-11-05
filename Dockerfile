@@ -9,7 +9,7 @@ ARG CLAUDE_CODE_VERSION=2.1.305   # the version README says Mila is tested on; r
 ARG BUN_VERSION=1.2.21
 ARG PLUGIN_REPO=https://github.com/shakhruz/mila-telegram.git
 # The plugin is pinned to a reviewed commit: a push to the plugin's main does not change this image until the pin moves here.
-ARG PLUGIN_REF=94bb6e2b49611dd79533730b7cafa166641a59d4
+ARG PLUGIN_REF=14ffbdc3292afbc8e2a102df5c33cac7530e272d
 
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -27,7 +27,8 @@ RUN git clone "${PLUGIN_REPO}" /opt/mila/plugin/mila-telegram && git -C /opt/mil
       > /opt/mila/marketplace/.claude-plugin/marketplace.json
 
 RUN useradd -m -u 1001 -s /bin/bash agent \
- && useradd -M -u 1002 -d /nonexistent -s /usr/sbin/nologin mila-keys
+ && useradd -M -u 1002 -d /nonexistent -s /usr/sbin/nologin mila-keys \
+ && useradd -M -u 1003 -d /nonexistent -s /usr/sbin/nologin -G agent mila-io
 COPY . /opt/mila/kit
 COPY docker/entrypoint.sh docker/healthcheck.sh docker/claude_login.py docker/birth_claim.py docker/token_page.py docker/key_page.py docker/mila_keyd.py docker/mila-face.webp /usr/local/bin/
 RUN chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh /usr/local/bin/claude_login.py /usr/local/bin/birth_claim.py /usr/local/bin/token_page.py /usr/local/bin/key_page.py /usr/local/bin/mila_keyd.py /opt/mila/kit/install/transcribe-voice.sh \

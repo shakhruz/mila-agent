@@ -60,6 +60,29 @@ def tap(card_id, mark, after=None):
             elif card is None: card = r
     except OSError:
         return None, "нет журнала карточек плагина"
+    taps = os.path.join(os.path.dirname(CARDS()), "taps.jsonl")   # newer plugin: presses only as Telegram delivered them
+    jd = os.environ.get("MILA_TG_JOURNAL")
+    if jd:   # Mila Agent: the receiver's own folder — owned by its OS user, not a link; otherwise not a press at all
+        import pwd, stat as _st
+        taps = os.path.join(jd, "taps.jsonl")
+        try:
+            io = pwd.getpwnam(os.environ.get("MILA_IO_USER") or "mila-io").pw_uid
+            if any(_st.S_ISLNK(os.lstat(x).st_mode) or os.lstat(x).st_uid != io for x in (jd, taps)):
+                return None, "журнал нажатий подменён — не верю"
+        except (KeyError, OSError):
+            return None, "нет журнала нажатий приёмника"
+    if os.path.exists(taps):
+        t = None
+        for l in open(taps, encoding="utf-8"):
+            try: r = json.loads(l)
+            except ValueError: continue
+            if isinstance(r, dict) and r.get("card_id") == card_id: t = t or r
+        if not t: return None, "на карточку ещё не нажимали"
+        if not re.search(r"(?<![\w#])%s(?!\w)" % re.escape(mark), t.get("card_text") or ""):
+            return None, "в карточке, которую видел человек, нет метки «%s»" % mark
+        if after and card and (_t(card.get("ts")) or 0) < (_t(after) or 0): return None, "карточка старше плана траты"
+        if t.get("data") != "ok": return None, "нажата не «ok»"
+        return str(t.get("used_by") or ""), None
     if not card: return None, "карточки %s нет в журнале плагина" % card_id
     if not re.search(r"(?<![\w#])%s(?!\w)" % re.escape(mark), card.get("text") or ""):
         return None, "в карточке нет метки «%s» — это карточка не про эту трату" % mark
