@@ -43,7 +43,8 @@ a press.
 `io/owners.json`:
 - written by the root step from the platform's `OWNER_ID` / `OWNERS` when they are set;
 - otherwise written once by the receiver at the first «go» — the owner the sign-in paired, before the session ever ran.
-- a home updated from a version before `mila-io` (the session has run there and could have changed the sign-in's files): only from
+- a home updated from a version before `mila-io` (journals in the old place, or the session's transcripts in `~/.claude/projects` —
+  the session has run there and could have changed the sign-in's files): only from
   `OWNER_ID` / `OWNERS`. Until they are set, nobody counts as the owner for presses and group decisions, and the start log asks for
   `OWNER_ID`.
 

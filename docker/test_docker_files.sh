@@ -63,6 +63,13 @@ OUT_UP=$(env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLA
 chk "обновлённый дом без OWNER_ID: владелец только с платформы (owners.pending), строка «set OWNER_ID»" "[ -e $HR/.claude/channels/telegram/io/owners.pending ] && [ ! -e $HR/.claude/channels/telegram/io/owners.json ] && printf '%s' \"\$OUT_UP\" | grep -q 'set OWNER_ID'"
 OUT_UP2=$(env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x OWNER_ID="555"'000111' "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh 2>&1)
 chk "с OWNER_ID платформы — owners.json из него, pending снят" "grep -q '555''000111' $HR/.claude/channels/telegram/io/owners.json && [ ! -e $HR/.claude/channels/telegram/io/owners.pending ]"
+# a home where a session ran but the receiver kept no journal (no inbound/events.jsonl) — updated too, by the session's transcripts
+rm -rf "${HR:?}"; HR=$(mktemp -d); mkdir -p "$HR/.claude/projects/-home-x"; echo '{}' > "$HR/.claude/projects/-home-x/s.jsonl"
+env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
+chk "дом со следами сессии (projects/*.jsonl), без журнала приёмника — тоже обновлённый: owners.pending" "[ -e $HR/.claude/channels/telegram/io/owners.pending ] && [ ! -e $HR/.claude/channels/telegram/io/owners.json ]"
+rm -rf "${HR:?}"; HR=$(mktemp -d)
+env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
+chk "новый дом (ни журнала, ни сессии) — без pending: владельца запишет первый «go»" "[ ! -e $HR/.claude/channels/telegram/io/owners.pending ]"
 rm -rf "$SB" "$HR"
 HC=$(mktemp -d); mkdir -p "$HC/state" "$HC/.claude/channels/telegram"; echo 0 > "$HC/state/session.pid"; echo 0 > "$HC/.claude/channels/telegram/receiver.pid"
 chk "healthcheck: pid 0 — не «жив» (kill -0 0 бьёт по группе)" "! HOME=$HC bash docker/healthcheck.sh >/dev/null 2>&1"

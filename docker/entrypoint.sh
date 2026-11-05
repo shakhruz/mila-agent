@@ -32,6 +32,8 @@ if [ "$(id -u)" = 0 ]; then
     chmod 750 "$HOME" "$HOME/.claude" "$HOME/.claude/channels"
     chown mila-io:"$AU" "$IOD" /run/mila-io; chmod 2750 "$IOD"; chmod 755 /run/mila-io
     UPGRADED=; [ -s "$TGd/inbound/events.jsonl" ] && [ ! -L "$TGd/inbound/events.jsonl" ] && UPGRADED=1   # a home from before mila-io
+    # …or any home where a session has already run (its transcripts), even if the receiver never kept a journal there
+    [ -n "$(find "$HOME/.claude/projects" -name '*.jsonl' -print -quit 2>/dev/null)" ] && UPGRADED=1
     for p in inbound/events.jsonl taps.jsonl auth-log.jsonl suspicious.jsonl; do   # journals of earlier starts move in once
       b="${p##*/}"
       if [ -f "$TGd/$p" ] && [ ! -L "$TGd/$p" ]; then cat "$TGd/$p" >> "$IOD/$b"; rm -f "$TGd/$p"; fi
