@@ -19,10 +19,12 @@ import http.client, http.server, json, os, re, socket, socketserver, ssl, sys, t
 
 KEYS = os.environ.get("KEYS_DIR") or "/home/agent/.keys"
 ROUTES = {"anthropic": "https://api.anthropic.com", "deepgram": "https://api.deepgram.com", "groq": "https://api.groq.com",
-          "telegram": "https://api.telegram.org"}
+          "telegram": "https://api.telegram.org",
+          # strangers' lane: Claude on an Anthropic API key (never the owner's subscription), only for the lane's own OS user
+          "guest": "https://api.anthropic.com"}
 ANT = "sk-" + "ant-"; OAT = ANT + "oat"; GSK = "gs" + "k_"   # key prefixes glued: no key-shaped literal in the source
 FORMAT = {"anthropic": r"^" + ANT + r"[A-Za-z0-9_-]{20,300}$", "deepgram": r"^[A-Za-z0-9]{32,64}$", "groq": r"^" + GSK + r"[A-Za-z0-9]{20,100}$",
-          "telegram": r"^[0-9]{5,15}:[A-Za-z0-9_-]{30,60}$"}
+          "telegram": r"^[0-9]{5,15}:[A-Za-z0-9_-]{30,60}$", "guest": r"^" + ANT + r"api[0-9]{2}-[A-Za-z0-9_-]{20,300}$"}
 # Only what Mila's own work calls (Claude Code with non-essential traffic off: POST /v1/messages; the voice script: listen /
 # transcriptions). Everything else — a service's account, keys, usage, billing — is 403 and never reaches the service:
 # a key the session cannot read must not be usable to mint a new one.
@@ -30,7 +32,8 @@ ALLOW = {"anthropic": [("POST", r"/v1/messages"), ("POST", r"/v1/messages/count_
          "deepgram": [("POST", r"/v1/listen")],
          "groq": [("POST", r"/openai/v1/audio/transcriptions"), ("GET", r"/openai/v1/models")],
          # the bot: a list of methods (Bot API method names are case-insensitive — compared in lower case), and file downloads
-         "telegram": []}
+         "telegram": [],
+         "guest": [("POST", r"/v1/messages"), ("POST", r"/v1/messages/count_tokens")]}
 TG_METHODS = {m.lower() for m in """getMe getUpdates deleteWebhook getFile getChat getChatMember getStickerSet getMyCommands
     sendMessage sendPhoto sendDocument sendVideo sendAudio sendVoice sendAnimation sendVideoNote sendMediaGroup sendSticker sendPoll
     sendRichMessage sendChatAction copyMessage forwardMessage editMessageText editMessageCaption editMessageMedia
@@ -41,6 +44,7 @@ TG_METHODS = {m.lower() for m in """getMe getUpdates deleteWebhook getFile getCh
 
 IO_ONLY = {"getupdates", "deletewebhook"}   # reading the bot's updates: the receiver's alone once it runs
 IO_UID = int(os.environ.get("MILA_IO_UID") or 1003)
+GUEST_UID = int(os.environ.get("MILA_GUEST_UID") or 1004)   # the strangers' lane: its own OS user, only the «guest» route
 RECEIVER_UP = os.environ.get("MILA_RECEIVER_UP") or "/run/mila-io/receiver.up"
 
 
@@ -55,7 +59,7 @@ def tg_allowed(method, rest, peer="tcp"):
     return bool(m) and method == "GET" and ".." not in m.group(1).split("/")
 
 
-CHECK = {"anthropic": "/v1/models", "deepgram": "/v1/projects", "groq": "/openai/v1/models", "telegram": "/bot{key}/getMe"}   # «is this key alive» — the keeper's own call
+CHECK = {"guest": "/v1/models", "anthropic": "/v1/models", "deepgram": "/v1/projects", "groq": "/openai/v1/models", "telegram": "/bot{key}/getMe"}   # «is this key alive» — the keeper's own call
 HOP = {"host", "connection", "keep-alive", "proxy-authorization", "proxy-connection", "te", "trailer", "transfer-encoding", "upgrade",
        "authorization", "x-api-key", "content-length", "accept-encoding", "cookie"}
 OAUTH_BETA = "oauth-2025-04-20"
@@ -112,6 +116,8 @@ def auth_headers(kind, k, hd):
             hd["anthropic-beta"] = ",".join(beta)
         else:
             hd["x-api-key"] = k
+    elif kind == "guest":
+        hd["x-api-key"] = k
     elif kind == "telegram":
         pass   # the token goes into the path (rewrite), not into a header
     elif kind == "deepgram":
@@ -159,11 +165,15 @@ class Proxy(http.server.BaseHTTPRequestHandler):
             a = key("anthropic")
             return self.plain(200, dict({k: bool(key(k)) for k in ROUTES}, anthropic_kind=("sub" if a.startswith(OAT) else "key") if a else "",
                                         telegram_bot_id=key("telegram").split(":")[0]))   # the bot's id is public; the token after «:» is not
-        m = re.match(r"^/(anthropic|deepgram|groq|telegram)(/[^#]*)$", path)
+        m = re.match(r"^/(anthropic|deepgram|groq|telegram|guest)(/[^#]*)$", path)
         if not m: return self.plain(404, {"error": "unknown route"})
         kind, rest = m.group(1), m.group(2)
         shown = re.sub(r"bot[^/]+/", "bot…/", rest.split("?")[0])[:80]   # the journal never shows a token, real or placeholder
-        if not (tg_allowed(self.command, rest.split("?")[0], getattr(self, "peer", "tcp")) if kind == "telegram"
+        peer = getattr(self, "peer", "tcp")
+        if (kind == "guest") != (peer == "guest"):   # the lane reaches only its own key; nobody else reaches that key
+            log("%s %s%s → 403 (route not for this caller)" % (self.command, kind, shown))
+            return self.plain(403, {"error": "not allowed through the key keeper"})
+        if not (tg_allowed(self.command, rest.split("?")[0], peer) if kind == "telegram"
                 else any(self.command == meth and re.fullmatch(pat, rest.split("?")[0]) for meth, pat in ALLOW[kind])):
             log("%s %s%s → 403 (not on the list)" % (self.command, kind, shown))
             return self.plain(403, {"error": "not allowed through the key keeper"})
@@ -214,7 +224,7 @@ class ProxyUnix(Proxy):
         import struct
         try: uid = struct.unpack("3i", self.request.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")))[1]
         except OSError: uid = -1
-        self.peer = "io" if uid == IO_UID else "local"
+        self.peer = "io" if uid == IO_UID else "guest" if uid == GUEST_UID else "local"
         self.client_address = ("unix", 0)
 
 
@@ -230,7 +240,7 @@ class Put(socketserver.StreamRequestHandler):
 
 OLD_FILES = (("anthropic", ".mila-auth/oauth_token", None), ("telegram", ".mila-auth/bot_token", None), ("deepgram", "work/secrets/deepgram.env", "DEEPGRAM_API_KEY"),
              ("groq", "work/secrets/groq.env", "GROQ_API_KEY"))
-ENV_KEYS = (("telegram", "TELEGRAM_BOT_TOKEN"), ("anthropic", "CLAUDE_CODE_OAUTH_TOKEN"), ("anthropic", "ANTHROPIC_API_KEY"), ("deepgram", "DEEPGRAM_API_KEY"), ("groq", "GROQ_API_KEY"))
+ENV_KEYS = (("telegram", "TELEGRAM_BOT_TOKEN"), ("anthropic", "CLAUDE_CODE_OAUTH_TOKEN"), ("anthropic", "ANTHROPIC_API_KEY"), ("deepgram", "DEEPGRAM_API_KEY"), ("groq", "GROQ_API_KEY"), ("guest", "ANTHROPIC_GUEST_API_KEY"))
 
 
 def _old_value(path, field):

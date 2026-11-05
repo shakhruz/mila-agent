@@ -15,7 +15,7 @@ if [ "$(id -u)" = 0 ]; then
   # MILA_KEYD=off keeps the old way (keys readable by the session, see SECURITY.md).
   if [ "${MILA_KEYD:-on}" != off ] && python3 "${KEYD_BIN:-/usr/local/bin/mila_keyd.py}" boot --home "$HOME" --agent-uid "$AU" 2>&1 | sed 's/^/mila-agent: /'; [ "${PIPESTATUS[0]}" = 0 ]; then
     export MILA_KEYD=http://127.0.0.1:8790 KEYD_SOCK=/run/mila-keyd/put.sock
-    unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY DEEPGRAM_API_KEY GROQ_API_KEY
+    unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY DEEPGRAM_API_KEY GROQ_API_KEY ANTHROPIC_GUEST_API_KEY
     curl -s --max-time 5 http://127.0.0.1:8790/status | grep -q '"telegram": true' && unset TELEGRAM_BOT_TOKEN
   else
     unset MILA_KEYD KEYD_SOCK

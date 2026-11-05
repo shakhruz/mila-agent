@@ -31,7 +31,7 @@ up = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Up); threading.Thread(tar
 T = tempfile.mkdtemp(prefix="keyd-"); K = os.path.join(T, "keys"); SOCK = os.path.join(T, "put.sock")
 s = socket.socket(); s.bind(("127.0.0.1", 0)); PORT = s.getsockname()[1]; s.close()
 UPB = "http://127.0.0.1:%d" % up.server_port
-env = dict(os.environ, KEYS_DIR=K, KEYD_PORT=str(PORT), KEYD_SOCK=SOCK, KEYD_UPSTREAM_ANTHROPIC=UPB + "/a", KEYD_UPSTREAM_DEEPGRAM=UPB + "/d", KEYD_UPSTREAM_GROQ=UPB + "/g",
+env = dict(os.environ, KEYS_DIR=K, KEYD_PORT=str(PORT), KEYD_SOCK=SOCK, KEYD_UPSTREAM_ANTHROPIC=UPB + "/a", KEYD_UPSTREAM_DEEPGRAM=UPB + "/d", KEYD_UPSTREAM_GROQ=UPB + "/g", KEYD_UPSTREAM_GUEST=UPB + "/a",
            KEYD_UPSTREAM_TELEGRAM=UPB + "/t", MILA_IO_UID=str(os.getuid()), MILA_RECEIVER_UP=os.path.join(T, "receiver.up"))
 LOG = open(os.path.join(T, "keyd.log"), "w")
 p = subprocess.Popen([sys.executable, os.path.join(H, "mila_keyd.py")], env=env, stderr=LOG, stdout=LOG)
@@ -41,7 +41,7 @@ for _ in range(50):
 def req(method, path, body=None, headers=None):
     c = http.client.HTTPConnection("127.0.0.1", PORT, timeout=20); c.request(method, path, body=body, headers=headers or {}); r = c.getresponse(); return r.status, r.read().decode(errors="replace")
 OAT = "sk-" + "ant-" + "oat01-" + "A" * 40; API = "sk-" + "ant-" + "api03-" + "B" * 40; DG = "c0ffee12" * 5; GQ = "gs" + "k_" + "C" * 40
-check("/status без ключей — все «нет»", json.loads(req("GET", "/status")[1]) == {"anthropic": False, "deepgram": False, "groq": False, "telegram": False, "anthropic_kind": "", "telegram_bot_id": ""})
+check("/status без ключей — все «нет»", json.loads(req("GET", "/status")[1]) == {"anthropic": False, "deepgram": False, "groq": False, "telegram": False, "guest": False, "anthropic_kind": "", "telegram_bot_id": ""})
 check("нет ключа — 503, к поставщику не ходим", req("POST", "/anthropic/v1/messages", b"{}")[0] == 503 and not SEEN)
 check("неверный формат ключа через сокет — отказ, файла нет", not mila_keyd.put_remote("anthropic", "hello", SOCK) and not os.path.exists(os.path.join(K, "anthropic")))
 check("неизвестный вид ключа — отказ", not mila_keyd.put_remote("openai", OAT, SOCK))
@@ -62,7 +62,7 @@ req("POST", "/deepgram/v1/listen?model=nova-3", b"x"); hl = {k.lower(): v for k,
 check("Deepgram — Authorization: Token <ключ>, путь /v1/listen", hl.get("authorization") == "Token " + DG and SEEN[-1][0] == "/d/v1/listen?model=nova-3", hl)
 req("POST", "/groq/openai/v1/audio/transcriptions", b"x"); hl = {k.lower(): v for k, v in SEEN[-1][1].items()}
 check("Groq — Authorization: Bearer <ключ>", hl.get("authorization") == "Bearer " + GQ, hl)
-check("/status — только да/нет и вид (подписка или ключ API)", json.loads(req("GET", "/status")[1]) == {"anthropic": True, "deepgram": True, "groq": True, "telegram": False, "anthropic_kind": "key", "telegram_bot_id": ""})
+check("/status — только да/нет и вид (подписка или ключ API)", json.loads(req("GET", "/status")[1]) == {"anthropic": True, "deepgram": True, "groq": True, "telegram": False, "guest": False, "anthropic_kind": "key", "telegram_bot_id": ""})
 check("чужой маршрут — 404", req("GET", "/etc/passwd")[0] == 404 and req("GET", "/openai/v1")[0] == 404)
 n0 = len(SEEN)
 check("управляющие ручки поставщика (новый ключ Deepgram, проекты, баланс, организации Anthropic) — 403, к поставщику не ходим",
@@ -133,6 +133,33 @@ check("приёмник поднят: getUpdates и deleteWebhook по TCP (се
       req("POST", "/telegram/bot%s/getUpdates" % PH, b"{}")[0] == 403 and req("POST", "/telegram/bot%s/deletewebhook" % PH, b"{}")[0] == 403 and len(SEEN) == n5)
 check("приёмник (его пользователь, unix-сокет) — getUpdates проходит", ureq("/telegram/bot%s/getUpdates" % PH) == 200)
 check("обычные методы по TCP при поднятом приёмнике — как раньше", req("POST", "/telegram/bot%s/sendMessage" % PH, b"{}")[0] == 200)
+# strangers' lane: an Anthropic API key (never a subscription token) reachable only by the lane's own OS user
+GK_ = "sk-" + "ant-" + "api03-" + "G" * 40
+check("ключ для чужих: токен подписки — отказ (подписка не для чужих)", not mila_keyd.put_remote("guest", OAT, SOCK))
+check("ключ для чужих: ключ API — принят", mila_keyd.put_remote("guest", GK_, SOCK) and json.loads(req("GET", "/status")[1]).get("guest") is True)
+n6 = len(SEEN)
+check("маршрут чужих по TCP (сессия) — 403, к поставщику не ходим", req("POST", "/guest/v1/messages", b"{}")[0] == 403 and len(SEEN) == n6)
+check("маршрут чужих с сокета другим пользователем (здесь — приёмник) — 403", ureq("/guest/v1/messages") == 403 and len(SEEN) == n6)
+# a second keeper where this test's OS user is the lane's user
+T2 = tempfile.mkdtemp(prefix="keyd-g-"); s2 = socket.socket(); s2.bind(("127.0.0.1", 0)); P2 = s2.getsockname()[1]; s2.close()
+LOG2 = open(os.path.join(T2, "keyd.log"), "w")
+p2 = subprocess.Popen([sys.executable, os.path.join(H, "mila_keyd.py")], env=dict(env, KEYD_PORT=str(P2), KEYD_SOCK=os.path.join(T2, "put.sock"),
+                      MILA_IO_UID="1", MILA_GUEST_UID=str(os.getuid())), stderr=LOG2, stdout=LOG2)
+for _ in range(50):
+    if os.path.exists(os.path.join(T2, "api.sock")): break
+    time.sleep(0.1)
+class GConn(http.client.HTTPConnection):
+    def connect(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); self.sock.connect(os.path.join(T2, "api.sock"))
+def greq(path):
+    c = GConn("keeper"); c.request("POST", path, b"{}"); r = c.getresponse(); r.read(); return r.status
+check("пользователь полосы: маршрут чужих — проходит, к поставщику x-api-key ключа для чужих",
+      greq("/guest/v1/messages") == 200 and {k.lower(): v for k, v in SEEN[-1][1].items()}.get("x-api-key") == GK_ and SEEN[-1][0] == "/a/v1/messages")
+n7 = len(SEEN)
+check("пользователь полосы: подписка владельца, Telegram, голос — 403", greq("/anthropic/v1/messages") == 403 and greq("/telegram/bot%s/sendMessage" % PH) == 403
+      and greq("/groq/openai/v1/models") == 403 and len(SEEN) == n7)
+check("пользователь полосы: только сообщения — список моделей и прочее 403", greq("/guest/v1/models") == 403 and len(SEEN) == n7)
+p2.terminate(); p2.wait(); LOG2.close(); shutil.rmtree(T2, ignore_errors=True)
 p.terminate(); p.wait(); LOG.close(); logtxt = open(os.path.join(T, "keyd.log")).read()
-check("в журнале нет ни ключей, ни заголовков, ни трассировок — только метод, маршрут, код", all(k not in logtxt for k in (OAT, API, DG, GQ, OAT2, GQ2, BOT, "T" * 35, "dummy", "Bearer")) and "Traceback" not in logtxt and "POST anthropic/v1/messages → 200" in logtxt, logtxt[-300:])
+check("в журнале нет ни ключей, ни заголовков, ни трассировок — только метод, маршрут, код", all(k not in logtxt for k in (OAT, API, DG, GQ, OAT2, GQ2, BOT, GK_, "T" * 35, "dummy", "Bearer")) and "Traceback" not in logtxt and "POST anthropic/v1/messages → 200" in logtxt, logtxt[-300:])
 up.shutdown(); shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
