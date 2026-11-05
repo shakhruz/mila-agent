@@ -36,17 +36,27 @@ chk "сессия по TCP при существующем пользовате�
 mkdir -p /run/mila-lane/knowledge; chown mila-guest:mila-guest /run/mila-lane; chmod 2750 /run/mila-lane
 setpriv --reuid=mila-guest --regid=mila-guest --clear-groups -- python3 /usr/local/bin/mila_lane.py serve --sock /run/mila-lane/lane.sock --knowledge /run/mila-lane/knowledge >/dev/null 2>&1 &
 LP=$!; for _ in $(seq 1 30); do [ -S /run/mila-lane/lane.sock ] && break; sleep 0.2; done
-LANE_TRY='import socket,sys; s=socket.socket(socket.AF_UNIX); s.settimeout(5); s.connect("/run/mila-lane/lane.sock"); s.sendall(b"{}\n"); print(s.recv(200).decode())'
-chk "сокет полосы: сессия (agent) подключиться не может" "! AS \"python3 -c '\$LANE_TRY'\""
-chk "сокет полосы: приёмник (mila-io) подключается и получает ответ" "setpriv --reuid=mila-io --regid=mila-io --init-groups -- python3 -c '\$LANE_TRY' | grep -q empty"
+# the socket checks: the connecting code is a file (an inline string inside chk's eval and AS's bash -c never reached python —
+# both lines checked nothing). The session must get PermissionError; the receiver's user — an answer (the positive control).
+cat > /tmp/sock_try.py <<'PY'
+import socket, sys
+try:
+    s = socket.socket(socket.AF_UNIX); s.settimeout(5); s.connect(sys.argv[1]); s.sendall(sys.argv[2].encode() + b"\n"); print(s.recv(300).decode())
+except OSError as e:
+    print(type(e).__name__)
+PY
+chmod 644 /tmp/sock_try.py
+as_agent() { AS "python3 /tmp/sock_try.py $1 '$2'"; }
+as_io() { setpriv --reuid=mila-io --regid=mila-io --init-groups -- python3 /tmp/sock_try.py "$1" "$2" 2>&1; }
+chk "сокет полосы: сессия (agent) — PermissionError" "as_agent /run/mila-lane/lane.sock '{}' | grep -q PermissionError"
+chk "сокет полосы: приёмник (mila-io) подключается и получает ответ" "as_io /run/mila-lane/lane.sock '{}' | grep -q empty"
 kill $LP 2>/dev/null
 # the consent proxy: the session asks on consent.sock, only the receiver's user reaches consent.io.sock (the owner's presses)
 CS=/tmp/wall-consent; mkdir -p "$CS/state"; chown -R mila-io:agent "$CS"; chmod 2750 "$CS"
 printf '{"owner_id_env":"MILA_OWNER_ID","home":"/home/agent","state_dir":"%s/state","session_socket":"%s/c.sock","session_socket_mode":"660","io_socket":"%s/io.sock","categories":{}}' "$CS" "$CS" "$CS" > "$CS/cfg.json"
 setpriv --reuid=mila-io --regid=mila-io --groups=agent -- env MILA_OWNER_ID=1 python3 /opt/mila/kit/consent/consent_proxy.py serve --config "$CS/cfg.json" >/dev/null 2>&1 &
 CP=$!; for _ in $(seq 1 30); do [ -S "$CS/io.sock" ] && [ -S "$CS/c.sock" ] && break; sleep 0.2; done
-TRY='import socket,sys; s=socket.socket(socket.AF_UNIX); s.settimeout(5); s.connect(sys.argv[1]); s.sendall(b"{\"op\": \"x\"}\n"); print(s.recv(200).decode())'
-chk "посредник согласий: сессия просит через consent.sock" "AS \"python3 -c '\$TRY' $CS/c.sock\" | grep -q status"
-chk "посредник согласий: io-сокет (нажатия владельца) сессии недоступен" "! AS \"python3 -c '\$TRY' $CS/io.sock\""
+chk "посредник согласий: сессия просит через consent.sock" "as_agent $CS/c.sock '{\"op\": \"x\"}' | grep -q status"
+chk "посредник согласий: io-сокет — сессии PermissionError, приёмнику ответ" "as_agent $CS/io.sock '{}' | grep -q PermissionError && as_io $CS/io.sock '{}' | grep -q status"
 kill $CP 2>/dev/null
 echo "итог $ok/$n"; [ $ok -eq $n ]
