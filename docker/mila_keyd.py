@@ -18,16 +18,22 @@ KEYD_UPSTREAM_<KIND> (tests only: another upstream base)."""
 import http.client, http.server, json, os, re, socket, socketserver, ssl, sys, threading, time, urllib.parse
 
 KEYS = os.environ.get("KEYS_DIR") or "/home/agent/.keys"
-ROUTES = {"anthropic": "https://api.anthropic.com", "deepgram": "https://api.deepgram.com", "groq": "https://api.groq.com"}
+ROUTES = {"anthropic": "https://api.anthropic.com", "deepgram": "https://api.deepgram.com", "groq": "https://api.groq.com",
+          "telegram": "https://api.telegram.org"}
 ANT = "sk-" + "ant-"; OAT = ANT + "oat"; GSK = "gs" + "k_"   # key prefixes glued: no key-shaped literal in the source
-FORMAT = {"anthropic": r"^" + ANT + r"[A-Za-z0-9_-]{20,300}$", "deepgram": r"^[A-Za-z0-9]{32,64}$", "groq": r"^" + GSK + r"[A-Za-z0-9]{20,100}$"}
+FORMAT = {"anthropic": r"^" + ANT + r"[A-Za-z0-9_-]{20,300}$", "deepgram": r"^[A-Za-z0-9]{32,64}$", "groq": r"^" + GSK + r"[A-Za-z0-9]{20,100}$",
+          "telegram": r"^[0-9]{5,15}:[A-Za-z0-9_-]{30,60}$"}
 # Only what Mila's own work calls (Claude Code with non-essential traffic off: POST /v1/messages; the voice script: listen /
 # transcriptions). Everything else — a service's account, keys, usage, billing — is 403 and never reaches the service:
 # a key the session cannot read must not be usable to mint a new one.
 ALLOW = {"anthropic": [("POST", r"/v1/messages"), ("POST", r"/v1/messages/count_tokens"), ("GET", r"/v1/models"), ("HEAD", r"/api/hello"), ("GET", r"/api/hello")],
          "deepgram": [("POST", r"/v1/listen")],
-         "groq": [("POST", r"/openai/v1/audio/transcriptions"), ("GET", r"/openai/v1/models")]}
-CHECK = {"anthropic": "/v1/models", "deepgram": "/v1/projects", "groq": "/openai/v1/models"}   # «is this key alive» — the keeper's own call
+         "groq": [("POST", r"/openai/v1/audio/transcriptions"), ("GET", r"/openai/v1/models")],
+         # the bot: any Bot API method and file download, the token in the path is the keeper's; not the ones that hand the bot
+         # to someone else (a webhook to another address, logging the bot out of the cloud API)
+         "telegram": [("GET", r"/bot[^/]+/(?!setWebhook|logOut|close)[A-Za-z]+"), ("POST", r"/bot[^/]+/(?!setWebhook|logOut|close)[A-Za-z]+"),
+                      ("GET", r"/file/bot[^/]+/[A-Za-z0-9_./-]+")]}
+CHECK = {"anthropic": "/v1/models", "deepgram": "/v1/projects", "groq": "/openai/v1/models", "telegram": "/bot{key}/getMe"}   # «is this key alive» — the keeper's own call
 HOP = {"host", "connection", "keep-alive", "proxy-authorization", "proxy-connection", "te", "trailer", "transfer-encoding", "upgrade",
        "authorization", "x-api-key", "content-length", "accept-encoding", "cookie"}
 OAUTH_BETA = "oauth-2025-04-20"
@@ -51,7 +57,7 @@ def alive(kind, k):
     try:
         c = (http.client.HTTPSConnection(up.hostname, up.port or 443, context=ssl.create_default_context(), timeout=20) if up.scheme == "https"
              else http.client.HTTPConnection(up.hostname, up.port or 80, timeout=20))
-        c.request("GET", up.path.rstrip("/") + CHECK[kind], headers=hd); st = c.getresponse().status; c.close()
+        c.request("GET", up.path.rstrip("/") + CHECK[kind].replace("{key}", k), headers=hd); st = c.getresponse().status; c.close()
         return st not in (401, 403)   # a network hiccup is not «dead»: the owner's key stays
     except Exception:
         return True
@@ -84,6 +90,8 @@ def auth_headers(kind, k, hd):
             hd["anthropic-beta"] = ",".join(beta)
         else:
             hd["x-api-key"] = k
+    elif kind == "telegram":
+        pass   # the token goes into the path (rewrite), not into a header
     elif kind == "deepgram":
         hd["Authorization"] = "Token " + k
     else:
@@ -127,18 +135,22 @@ class Proxy(http.server.BaseHTTPRequestHandler):
         path = self.path
         if path == "/status":
             a = key("anthropic")
-            return self.plain(200, dict({k: bool(key(k)) for k in ROUTES}, anthropic_kind=("sub" if a.startswith(OAT) else "key") if a else ""))
-        m = re.match(r"^/(anthropic|deepgram|groq)(/[^#]*)$", path)
+            return self.plain(200, dict({k: bool(key(k)) for k in ROUTES}, anthropic_kind=("sub" if a.startswith(OAT) else "key") if a else "",
+                                        telegram_bot_id=key("telegram").split(":")[0]))   # the bot's id is public; the token after «:» is not
+        m = re.match(r"^/(anthropic|deepgram|groq|telegram)(/[^#]*)$", path)
         if not m: return self.plain(404, {"error": "unknown route"})
         kind, rest = m.group(1), m.group(2)
+        shown = re.sub(r"bot[^/]+/", "bot…/", rest.split("?")[0])[:80]   # the journal never shows a token, real or placeholder
         if not any(self.command == meth and re.fullmatch(pat, rest.split("?")[0]) for meth, pat in ALLOW[kind]):
-            log("%s %s%s → 403 (not on the list)" % (self.command, kind, rest.split("?")[0][:80]))
+            log("%s %s%s → 403 (not on the list)" % (self.command, kind, shown))
             return self.plain(403, {"error": "not allowed through the key keeper"})
         k = key(kind)
         if not k: return self.plain(503, {"error": "no %s key here yet" % kind})
         n = int(self.headers.get("Content-Length") or 0)
         if n > 64 * 1024 * 1024: return self.plain(413, {"error": "too large"})
         body = self.rfile.read(n) if n else None
+        if kind == "telegram":   # the placeholder in /bot<…>/ and /file/bot<…>/ becomes the real token
+            rest = re.sub(r"^(/(?:file/)?bot)[^/]+/", lambda mm: mm.group(1) + k + "/", rest, count=1)
         hd = {a: b for a, b in self.headers.items() if a.lower() not in HOP}
         auth_headers(kind, k, hd)
         if body is not None: hd["Content-Length"] = str(len(body))
@@ -149,9 +161,9 @@ class Proxy(http.server.BaseHTTPRequestHandler):
             c.request(self.command, (up.path.rstrip("/") + rest) or "/", body=body, headers=hd)
             r = c.getresponse()
         except Exception as e:
-            log("%s %s → upstream error %s" % (self.command, kind, type(e).__name__))
+            log("%s %s%s → upstream error %s" % (self.command, kind, shown, type(e).__name__))
             return self.plain(502, {"error": "upstream unreachable"})
-        log("%s %s%s → %d" % (self.command, kind, rest.split("?")[0][:80], r.status))
+        log("%s %s%s → %d" % (self.command, kind, shown, r.status))
         self.send_response(r.status)
         for a, b in r.getheaders():
             if a.lower() not in ("transfer-encoding", "connection", "content-length", "keep-alive"): self.send_header(a, b)
@@ -182,9 +194,9 @@ class Put(socketserver.StreamRequestHandler):
         self.wfile.write(b"ok\n" if ok else b"bad\n")
 
 
-OLD_FILES = (("anthropic", ".mila-auth/oauth_token", None), ("deepgram", "work/secrets/deepgram.env", "DEEPGRAM_API_KEY"),
+OLD_FILES = (("anthropic", ".mila-auth/oauth_token", None), ("telegram", ".mila-auth/bot_token", None), ("deepgram", "work/secrets/deepgram.env", "DEEPGRAM_API_KEY"),
              ("groq", "work/secrets/groq.env", "GROQ_API_KEY"))
-ENV_KEYS = (("anthropic", "CLAUDE_CODE_OAUTH_TOKEN"), ("anthropic", "ANTHROPIC_API_KEY"), ("deepgram", "DEEPGRAM_API_KEY"), ("groq", "GROQ_API_KEY"))
+ENV_KEYS = (("telegram", "TELEGRAM_BOT_TOKEN"), ("anthropic", "CLAUDE_CODE_OAUTH_TOKEN"), ("anthropic", "ANTHROPIC_API_KEY"), ("deepgram", "DEEPGRAM_API_KEY"), ("groq", "GROQ_API_KEY"))
 
 
 def _old_value(path, field):

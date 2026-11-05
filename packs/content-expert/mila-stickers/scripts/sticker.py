@@ -27,7 +27,7 @@ CONFIG = os.environ.get("MILA_STICKERS") or os.path.expanduser("~/work/stickers.
 
 
 def _api(token, method, params, timeout=20):
-    req = urllib.request.Request("https://api.telegram.org/bot%s/%s" % (token, method), data=urllib.parse.urlencode(params).encode())
+    req = urllib.request.Request((os.environ.get("TELEGRAM_API_ROOT") or "https://api.telegram.org") + "/bot%s/%s" % (token, method), data=urllib.parse.urlencode(params).encode())
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read().decode("utf-8"))

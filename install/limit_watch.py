@@ -454,14 +454,14 @@ def send_outbox(outbox, chat, parts):
 def send_telegram(token, chat, parts):
     body = urllib.parse.urlencode({"chat_id": chat, "text": render_md2(parts),
                                    "parse_mode": "MarkdownV2"}).encode()
-    req = urllib.request.Request("https://api.telegram.org/bot%s/sendMessage" % token, data=body)
+    req = urllib.request.Request((os.environ.get("TELEGRAM_API_ROOT") or "https://api.telegram.org") + "/bot%s/sendMessage" % token, data=body)
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
             return r.status == 200
     except Exception:                               # noqa: BLE001
         # разметка могла не пройти — второй заход без неё
         body = urllib.parse.urlencode({"chat_id": chat, "text": render_plain(parts)}).encode()
-        req = urllib.request.Request("https://api.telegram.org/bot%s/sendMessage" % token, data=body)
+        req = urllib.request.Request((os.environ.get("TELEGRAM_API_ROOT") or "https://api.telegram.org") + "/bot%s/sendMessage" % token, data=body)
         try:
             with urllib.request.urlopen(req, timeout=15) as r:
                 return r.status == 200

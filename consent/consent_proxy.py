@@ -219,7 +219,7 @@ class Proxy:
             return False
         data = urllib.parse.urlencode({"chat_id": owner, "text": text, "reply_markup": json.dumps({"inline_keyboard": keyboard})}).encode()
         try:
-            with urllib.request.urlopen(urllib.request.Request("https://api.telegram.org/bot%s/sendMessage" % token, data=data), timeout=20) as r:
+            with urllib.request.urlopen(urllib.request.Request((os.environ.get("TELEGRAM_API_ROOT") or "https://api.telegram.org") + "/bot%s/sendMessage" % token, data=data), timeout=20) as r:
                 return bool(json.loads(r.read().decode()).get("ok"))
         except Exception:
             return False

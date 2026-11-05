@@ -83,7 +83,7 @@ class BotSend:
 
     # ── Telegram ──
     def _api(self, method, payload):
-        r = urllib.request.Request(f"https://api.telegram.org/bot{self.token}/{method}", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+        r = urllib.request.Request(f"{os.environ.get('TELEGRAM_API_ROOT') or 'https://api.telegram.org'}/bot{self.token}/{method}", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
         try: res = json.load(urllib.request.urlopen(r, timeout=20))
         except urllib.error.HTTPError as e:
             try: res = json.loads(e.read())

@@ -16,6 +16,7 @@ if [ "$(id -u)" = 0 ]; then
   if [ "${MILA_KEYD:-on}" != off ] && python3 "${KEYD_BIN:-/usr/local/bin/mila_keyd.py}" boot --home "$HOME" --agent-uid "$AU" 2>&1 | sed 's/^/mila-agent: /'; [ "${PIPESTATUS[0]}" = 0 ]; then
     export MILA_KEYD=http://127.0.0.1:8790 KEYD_SOCK=/run/mila-keyd/put.sock
     unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY DEEPGRAM_API_KEY GROQ_API_KEY
+    curl -s --max-time 5 http://127.0.0.1:8790/status | grep -q '"telegram": true' && unset TELEGRAM_BOT_TOKEN
   else
     unset MILA_KEYD KEYD_SOCK
   fi
@@ -29,6 +30,21 @@ log() { printf '%s mila-agent: %s\n' "$(date +%FT%T)" "$*"; }
 wait_forever() { log "$1"; log "Fix the variable in your Docker settings and restart the container."; exec sleep infinity; }
 
 AUTH="$H/.mila-auth"
+# The bot token with the key keeper: a token saved on this start (token page, birth code) goes to it and the file is wiped;
+# from then on everything here — receiver, session, helpers — holds only «<bot id>:placeholder» and calls Telegram through
+# the keeper, which puts the real token into the path.
+keyd_bot() {
+  [ -n "${MILA_KEYD:-}" ] || return 0
+  if [ -s "$AUTH/bot_token" ] && python3 -c 'import sys; sys.path.insert(0, sys.argv[2]); import mila_keyd; sys.exit(0 if mila_keyd.put_remote("telegram", open(sys.argv[1]).read().strip()) else 1)' "$AUTH/bot_token" "${KEYD_LIB:-/usr/local/bin}"; then
+    rm -f "$AUTH/bot_token"
+  fi
+  local BID; BID="$(curl -s --max-time 5 "$MILA_KEYD/status" | python3 -c 'import json, sys; print(json.load(sys.stdin).get("telegram_bot_id") or "")' 2>/dev/null)"
+  if [[ "$BID" =~ ^[0-9]{5,15}$ ]]; then
+    export TELEGRAM_BOT_TOKEN="$BID:mila-keyd-placeholder-not-a-token" TELEGRAM_API_ROOT="$MILA_KEYD/telegram"
+    export TG_API="$TELEGRAM_API_ROOT" MILA_TG_API="$TELEGRAM_API_ROOT" TELEGRAM_API="$TELEGRAM_API_ROOT"
+  fi
+}
+keyd_bot
 # No token anywhere and the platform gave a port (Railway, panels with a public address): one-field page, once.
 if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] && [ ! -s "$AUTH/bot_token" ] && [ -z "${BIRTH_CODE:-}" ] && [ -n "${PORT:-}" ] && [ ! -e "$AUTH/token_page.done" ]; then
   MILA_AUTH_DIR="$AUTH" python3 "${TOKEN_PAGE:-/usr/local/bin/token_page.py}" | while IFS= read -r l; do log "$l"; done
@@ -38,6 +54,7 @@ fi
 if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] && [ ! -s "$AUTH/bot_token" ] && [ -n "${BIRTH_CODE:-}" ]; then
   MILA_AUTH_DIR="$AUTH" python3 "${BIRTH_HELPER:-/usr/local/bin/birth_claim.py}" | while IFS= read -r l; do log "$l"; done
 fi
+[ -z "${TELEGRAM_BOT_TOKEN:-}" ] && keyd_bot
 if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] && [ -s "$AUTH/bot_token" ]; then TELEGRAM_BOT_TOKEN="$(head -n1 "$AUTH/bot_token")"; export TELEGRAM_BOT_TOKEN; fi
 [ -n "${TELEGRAM_BOT_TOKEN:-}" ] || wait_forever "No bot yet: set BIRTH_CODE (a one-time code from the MILAGPT bot) or TELEGRAM_BOT_TOKEN (from @BotFather)."
 [[ "${TELEGRAM_BOT_TOKEN}" =~ ^[0-9]{5,}:[A-Za-z0-9_-]{30,}$ ]] || wait_forever "TELEGRAM_BOT_TOKEN does not look like a bot token (digits:letters)."

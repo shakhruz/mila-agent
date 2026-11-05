@@ -75,7 +75,7 @@ image and voice generation, payment links). Keys for those services are the main
 
 | Secret | File | Who can read it |
 |---|---|---|
-| Telegram bot token | `~/.claude/channels/telegram/.env` (600) | the session's OS user |
+| Telegram bot token | Mila Agent: the key keeper (`~/.keys`, user `mila-keys`); elsewhere `~/.claude/channels/telegram/.env` (600) | Mila Agent: the keeper's user; elsewhere the session's OS user |
 | Keys the owner typed on the safe page | `~/work/secrets/<name>.env` (600) | the session's OS user |
 | Publishing key (e.g. Zernio) in the cloud setup, rolling out | consent proxy state (`mila-io`) | only `mila-io` |
 | Mail, image, voice and other service keys (laptop and cloud) | `~/work/secrets/…` or the skill's environment | the session's OS user |
@@ -111,9 +111,10 @@ The Claude token and the voice keys are with the key keeper (`docker/mila_keyd.p
 session reaches Anthropic, Deepgram and Groq through it at 127.0.0.1 with a placeholder and never holds a key; the entrypoint's
 root step moves keys from variables and old files into it and drops them from the session's environment. Checked in CI by
 `docker/wall_probe.sh` as the session's user: files, the keeper's `/proc`, `ps`, the environment, a search of the home.
-Left open: the moment a key is entered (the sign-in helper and the key page run as the session's user), and the bot token —
-the session can still read it until the receiver goes through the keeper too. `secret-guard.py` and the deny rules stay as the
-layer in front.
+Left open: the moment a key is entered (the sign-in helper, the key page and the token page run as the session's user).
+The bot token goes through the keeper too (`TELEGRAM_API_ROOT`, a placeholder token everywhere in the container); outside the
+container (a hosted Mila without the keeper) it stays in the plugin's `.env`, readable by the session's user. `secret-guard.py`
+and the deny rules stay as the layer in front.
 
 The receiver's journals (`inbound/events.jsonl`, `cards.jsonl`) are what the pack installer (`update.py install-pack`) and
 `spend.py` check for «the owner sent this file» and «the owner pressed yes». They are written by the receiver but owned by

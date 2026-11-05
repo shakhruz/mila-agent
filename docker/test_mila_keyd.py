@@ -16,7 +16,7 @@ class Up(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         n_ = int(self.headers.get("Content-Length") or 0); body = self.rfile.read(n_)
         auth = (self.headers.get("Authorization") or "") + (self.headers.get("x-api-key") or "")
-        if self.command == "GET" and self.path.endswith(("/v1/models", "/v1/projects")):   # the keeper's own «alive» check
+        if self.command == "GET" and self.path.endswith(("/v1/models", "/v1/projects", "/getMe")):   # the keeper's own «alive» check
             st = 401 if any(k in auth for k in DEAD) else 200
             self.send_response(st); self.send_header("Content-Length", "2"); self.end_headers(); self.wfile.write(b"{}"); return
         SEEN.append((self.path, dict(self.headers), body))
@@ -31,7 +31,8 @@ up = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Up); threading.Thread(tar
 T = tempfile.mkdtemp(prefix="keyd-"); K = os.path.join(T, "keys"); SOCK = os.path.join(T, "put.sock")
 s = socket.socket(); s.bind(("127.0.0.1", 0)); PORT = s.getsockname()[1]; s.close()
 UPB = "http://127.0.0.1:%d" % up.server_port
-env = dict(os.environ, KEYS_DIR=K, KEYD_PORT=str(PORT), KEYD_SOCK=SOCK, KEYD_UPSTREAM_ANTHROPIC=UPB + "/a", KEYD_UPSTREAM_DEEPGRAM=UPB + "/d", KEYD_UPSTREAM_GROQ=UPB + "/g")
+env = dict(os.environ, KEYS_DIR=K, KEYD_PORT=str(PORT), KEYD_SOCK=SOCK, KEYD_UPSTREAM_ANTHROPIC=UPB + "/a", KEYD_UPSTREAM_DEEPGRAM=UPB + "/d", KEYD_UPSTREAM_GROQ=UPB + "/g",
+           KEYD_UPSTREAM_TELEGRAM=UPB + "/t")
 LOG = open(os.path.join(T, "keyd.log"), "w")
 p = subprocess.Popen([sys.executable, os.path.join(H, "mila_keyd.py")], env=env, stderr=LOG, stdout=LOG)
 for _ in range(50):
@@ -40,7 +41,7 @@ for _ in range(50):
 def req(method, path, body=None, headers=None):
     c = http.client.HTTPConnection("127.0.0.1", PORT, timeout=20); c.request(method, path, body=body, headers=headers or {}); r = c.getresponse(); return r.status, r.read().decode(errors="replace")
 OAT = "sk-" + "ant-" + "oat01-" + "A" * 40; API = "sk-" + "ant-" + "api03-" + "B" * 40; DG = "c0ffee12" * 5; GQ = "gs" + "k_" + "C" * 40
-check("/status без ключей — все «нет»", json.loads(req("GET", "/status")[1]) == {"anthropic": False, "deepgram": False, "groq": False, "anthropic_kind": ""})
+check("/status без ключей — все «нет»", json.loads(req("GET", "/status")[1]) == {"anthropic": False, "deepgram": False, "groq": False, "telegram": False, "anthropic_kind": "", "telegram_bot_id": ""})
 check("нет ключа — 503, к поставщику не ходим", req("POST", "/anthropic/v1/messages", b"{}")[0] == 503 and not SEEN)
 check("неверный формат ключа через сокет — отказ, файла нет", not mila_keyd.put_remote("anthropic", "hello", SOCK) and not os.path.exists(os.path.join(K, "anthropic")))
 check("неизвестный вид ключа — отказ", not mila_keyd.put_remote("openai", OAT, SOCK))
@@ -61,7 +62,7 @@ req("POST", "/deepgram/v1/listen?model=nova-3", b"x"); hl = {k.lower(): v for k,
 check("Deepgram — Authorization: Token <ключ>, путь /v1/listen", hl.get("authorization") == "Token " + DG and SEEN[-1][0] == "/d/v1/listen?model=nova-3", hl)
 req("POST", "/groq/openai/v1/audio/transcriptions", b"x"); hl = {k.lower(): v for k, v in SEEN[-1][1].items()}
 check("Groq — Authorization: Bearer <ключ>", hl.get("authorization") == "Bearer " + GQ, hl)
-check("/status — только да/нет и вид (подписка или ключ API)", json.loads(req("GET", "/status")[1]) == {"anthropic": True, "deepgram": True, "groq": True, "anthropic_kind": "key"})
+check("/status — только да/нет и вид (подписка или ключ API)", json.loads(req("GET", "/status")[1]) == {"anthropic": True, "deepgram": True, "groq": True, "telegram": False, "anthropic_kind": "key", "telegram_bot_id": ""})
 check("чужой маршрут — 404", req("GET", "/etc/passwd")[0] == 404 and req("GET", "/openai/v1")[0] == 404)
 n0 = len(SEEN)
 check("управляющие ручки поставщика (новый ключ Deepgram, проекты, баланс, организации Anthropic) — 403, к поставщику не ходим",
@@ -92,6 +93,18 @@ kk = lambda k: open(os.path.join(HM, ".keys", k)).read().strip()
 check("перенос: токен и ключи из старых файлов — у хранителя, старые файлы стёрты", moved == ["anthropic", "deepgram", "groq"] and kk("anthropic") == OAT3 and kk("deepgram") == DG3
       and not os.path.exists(os.path.join(HM, ".mila-auth", "oauth_token")) and not os.path.exists(os.path.join(HM, "work", "secrets", "groq.env")), moved)
 check("перенос: переменная платформы сильнее старого файла (хозяин поменял её в панели)", kk("groq") == GQ4)
+# the bot: the token lives in the keeper, the caller sends a placeholder in the path
+BOT = "555" + "000111:" + "T" * 35; PH = "555" + "000111:mila-keyd-placeholder-not-a-token"
+check("токен бота через сокет — принят; /status даёт только id бота", mila_keyd.put_remote("telegram", BOT, SOCK) and json.loads(req("GET", "/status")[1]).get("telegram_bot_id") == "555" + "000111")
+req("POST", "/telegram/bot%s/sendMessage" % PH, b'{"chat_id": 1, "text": "x"}')
+check("Telegram: заглушка в пути заменена настоящим токеном, остальное как было", SEEN[-1][0] == "/t/bot%s/sendMessage" % BOT, SEEN[-1][0])
+req("GET", "/telegram/file/bot%s/documents/file_1.pdf" % PH)
+check("Telegram: скачивание файла — тоже с настоящим токеном", SEEN[-1][0] == "/t/file/bot%s/documents/file_1.pdf" % BOT, SEEN[-1][0])
+req("POST", "/telegram/bot%s/getMe" % BOT, b"{}")   # an old script still sending the real token: it works, and the journal must not show it
+n1 = len(SEEN)
+check("Telegram: setWebhook, logOut, close — 403 (бот не уходит чужому адресу), к Telegram не ходим",
+      req("POST", "/telegram/bot%s/setWebhook" % PH, b"{}")[0] == 403 and req("POST", "/telegram/bot%s/logOut" % PH, b"{}")[0] == 403
+      and req("GET", "/telegram/bot%s/close" % PH)[0] == 403 and len(SEEN) == n1)
 p.terminate(); p.wait(); LOG.close(); logtxt = open(os.path.join(T, "keyd.log")).read()
-check("в журнале нет ни ключей, ни заголовков — только метод, маршрут, код", all(k not in logtxt for k in (OAT, API, DG, GQ, OAT2, GQ2, "dummy", "Bearer")) and "POST anthropic/v1/messages → 200" in logtxt, logtxt[-300:])
+check("в журнале нет ни ключей, ни заголовков — только метод, маршрут, код", all(k not in logtxt for k in (OAT, API, DG, GQ, OAT2, GQ2, BOT, "T" * 35, "dummy", "Bearer")) and "POST anthropic/v1/messages → 200" in logtxt, logtxt[-300:])
 up.shutdown(); shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

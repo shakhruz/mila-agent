@@ -55,7 +55,7 @@ def main(argv=None, opener=None):
     if not tok:
         print("нет токена бота (TELEGRAM_BOT_TOKEN или .env канала)"); return 2
     b = uuid.uuid4().hex
-    req = urllib.request.Request("https://api.telegram.org/bot%s/sendRichMessage" % tok, data=build(chat, body, files, b),
+    req = urllib.request.Request((os.environ.get("TELEGRAM_API_ROOT") or "https://api.telegram.org") + "/bot%s/sendRichMessage" % tok, data=build(chat, body, files, b),
                                  headers={"Content-Type": "multipart/form-data; boundary=" + b})
     try:
         with (opener or urllib.request.urlopen)(req, timeout=60) as r:

@@ -353,7 +353,7 @@ def _delivery():
     return None
 
 def _tg_send(token, chat, text):
-    req = urllib.request.Request("https://api.telegram.org/bot%s/sendMessage" % token, data=urllib.parse.urlencode({"chat_id": chat, "text": text}).encode())
+    req = urllib.request.Request((os.environ.get("TELEGRAM_API_ROOT") or "https://api.telegram.org") + "/bot%s/sendMessage" % token, data=urllib.parse.urlencode({"chat_id": chat, "text": text}).encode())
     do = lambda: json.loads(urllib.request.urlopen(req, timeout=20).read().decode())
     D = _delivery()
     if D:   # дошло ли — в общий журнал доставки, как у плагина

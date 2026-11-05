@@ -70,6 +70,22 @@ chk "набор: первый старт ставит, второй с тем ж
 echo b > "$KS/kit/skills/a/SKILL.md"; sync_
 chk "набор в образе изменился — install.sh снова (обновление доходит до живого дома)" "[ \$(wc -l < $KS/runs) = 2 ]"
 rm -rf "$KS"
+# The bot token with the key keeper: a token file of this start goes to the keeper and is wiped; then a placeholder and the API root
+KB=$(mktemp -d); mkdir -p "$KB/auth" "$KB/bin" "$KB/lib"; BID="555"'000111'; BT="$BID:$(printf 'T%.0s' $(seq 35))"
+printf '%s\n' "$BT" > "$KB/auth/bot_token"
+printf 'import json, sys\ndef put_remote(kind, value, sock=None):\n    open(%s, "a").write(kind + "\\n"); return True\n' "'$KB/put.log'" > "$KB/lib/mila_keyd.py"
+cat > "$KB/bin/curl" <<CURL
+#!/bin/sh
+echo '{"telegram": true, "telegram_bot_id": "$BID"}'
+CURL
+chmod +x "$KB/bin/curl"
+sed -n '/^keyd_bot() {/,/^}/p' docker/entrypoint.sh > "$KB/fn.sh"
+OUT=$(env -i PATH="$KB/bin:$PATH" MILA_KEYD=http://keyd AUTH="$KB/auth" KEYD_LIB="$KB/lib" bash -c '. "$1"; keyd_bot; echo "T=$TELEGRAM_BOT_TOKEN"; echo "R=$TELEGRAM_API_ROOT"; echo "G=$TG_API"' x "$KB/fn.sh")
+chk "токен бота этого старта — хранителю, файл стёрт" "grep -qx telegram $KB/put.log && [ ! -e $KB/auth/bot_token ]"
+chk "дальше везде заглушка «<id бота>:…» и адрес хранителя, настоящего токена в окружении нет" "printf '%s' \"\$OUT\" | grep -qx \"T=\$BID:mila-keyd-placeholder-not-a-token\" && printf '%s' \"\$OUT\" | grep -qx 'R=http://keyd/telegram' && printf '%s' \"\$OUT\" | grep -qx 'G=http://keyd/telegram' && ! printf '%s' \"\$OUT\" | grep -q TTTTTTTT"
+OUT2=$(env -i PATH="$PATH" AUTH="$KB/auth" bash -c '. "$1"; keyd_bot; echo "T=${TELEGRAM_BOT_TOKEN:-}"' x "$KB/fn.sh")
+chk "без хранителя keyd_bot ничего не трогает" "[ \"\$OUT2\" = 'T=' ]"
+rm -rf "$KB"
 # Baraban loop, one turn: the owner from the file / access.json when OWNER_ID is empty; the error log is cut
 O1="555"'000111'; O2="555"'000222'; O3="555"'000333'
 BB=$(mktemp -d); mkdir -p "$BB/kit/install" "$BB/st" "$BB/auth" "$BB/tg"

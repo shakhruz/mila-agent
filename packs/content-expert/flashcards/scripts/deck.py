@@ -396,7 +396,7 @@ def send_polls(path, chat, really):
                 "type": "quiz", "correct_option_id": it["correct_option_id"], "explanation": it["explanation"],
                 "is_anonymous": "false"}
         r = urllib.request.urlopen(urllib.request.Request(
-            "https://api.telegram.org/bot%s/sendPoll" % token, data=urllib.parse.urlencode(body).encode()), timeout=30)
+            (os.environ.get("TELEGRAM_API_ROOT") or "https://api.telegram.org") + "/bot%s/sendPoll" % token, data=urllib.parse.urlencode(body).encode()), timeout=30)
         res = json.load(r)
         print("ok" if res.get("ok") else res)
         time.sleep(1.2)

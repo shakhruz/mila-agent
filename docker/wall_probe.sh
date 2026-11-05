@@ -6,12 +6,12 @@
 set -u
 [ "$(id -u)" = 0 ] || { echo "run as root inside the image"; echo "итог 0/1"; exit 1; }
 HOME=/home/agent; export HOME
-OAT="sk-""ant-""oat01-""WALLPROBE""$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')"; GQ="gs""k_""WALLPROBE""$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+OAT="sk-""ant-""oat01-""WALLPROBE""$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')"; BOT="1234""5678:""WALLPROBE""$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')"; GQ="gs""k_""WALLPROBE""$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 mkdir -p "$HOME/.mila-auth" "$HOME/work/secrets" "$HOME/state"; echo "$OAT" > "$HOME/.mila-auth/oauth_token"; printf "GROQ_API_KEY='%s'\n" "$GQ" > "$HOME/work/secrets/groq.env"
 chown -R agent:agent "$HOME"
 ok=0; n=0; chk() { n=$((n+1)); if eval "$2" >/dev/null 2>&1; then ok=$((ok+1)); echo "✅ $1"; else echo "❌ $1"; fi; }
-CLAUDE_CODE_OAUTH_TOKEN="$OAT" python3 /usr/local/bin/mila_keyd.py boot --home "$HOME" --agent-uid 1001 >/dev/null 2>&1
-chk "хранитель поднялся (status отвечает)" "curl -s --max-time 5 http://127.0.0.1:8790/status | grep -q '\"anthropic\": true'"
+TELEGRAM_BOT_TOKEN="$BOT" CLAUDE_CODE_OAUTH_TOKEN="$OAT" python3 /usr/local/bin/mila_keyd.py boot --home "$HOME" --agent-uid 1001 >/dev/null 2>&1
+chk "хранитель поднялся: токен Claude и бота у него (status отвечает)" "curl -s --max-time 5 http://127.0.0.1:8790/status | grep -q '\"anthropic\": true' && curl -s --max-time 5 http://127.0.0.1:8790/status | grep -q '\"telegram\": true'"
 chk "старые файлы с ключами стёрты" "[ ! -e $HOME/.mila-auth/oauth_token ] && [ ! -e $HOME/work/secrets/groq.env ]"
 AS() { setpriv --reuid=1001 --regid=1001 --init-groups -- env -i HOME="$HOME" PATH=/usr/local/bin:/usr/bin:/bin MILA_KEYD=http://127.0.0.1:8790 KEYD_SOCK=/run/mila-keyd/put.sock bash -c "$1" 2>&1; }
 KP=$(pgrep -f 'mila_keyd.py' | head -1)

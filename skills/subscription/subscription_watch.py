@@ -72,9 +72,9 @@ def notify(text, png, args):
         for k, v in (("chat_id", str(args.chat)), ("caption", text[:1000])):
             data += ("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n%s\r\n" % (b, k, v)).encode()
         data += ("--%s\r\nContent-Disposition: form-data; name=\"photo\"; filename=\"card.png\"\r\nContent-Type: image/png\r\n\r\n" % b).encode() + open(png, "rb").read() + ("\r\n--%s--\r\n" % b).encode()
-        req = urllib.request.Request("https://api.telegram.org/bot%s/sendPhoto" % tok, data=data, headers={"Content-Type": "multipart/form-data; boundary=" + b})
+        req = urllib.request.Request((os.environ.get("TELEGRAM_API_ROOT") or "https://api.telegram.org") + "/bot%s/sendPhoto" % tok, data=data, headers={"Content-Type": "multipart/form-data; boundary=" + b})
     else:
-        req = urllib.request.Request("https://api.telegram.org/bot%s/sendMessage" % tok, data=json.dumps({"chat_id": args.chat, "text": text[:3900]}).encode(), headers={"Content-Type": "application/json"})
+        req = urllib.request.Request((os.environ.get("TELEGRAM_API_ROOT") or "https://api.telegram.org") + "/bot%s/sendMessage" % tok, data=json.dumps({"chat_id": args.chat, "text": text[:3900]}).encode(), headers={"Content-Type": "application/json"})
     urllib.request.urlopen(req, timeout=30).read()
 
 

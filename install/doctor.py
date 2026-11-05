@@ -100,7 +100,7 @@ def read_token():
 
 
 def api(token, method, timeout=12):
-    url = "https://api.telegram.org/bot%s/%s" % (token, method)
+    url = (os.environ.get("TELEGRAM_API_ROOT") or "https://api.telegram.org") + "/bot%s/%s" % (token, method)
     try:
         with urllib.request.urlopen(url, timeout=timeout) as r:
             return json.loads(r.read().decode("utf-8"))
