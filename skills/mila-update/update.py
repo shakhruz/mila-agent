@@ -640,6 +640,23 @@ def reexec_release_updater(src, rows, argv):
 
 
 def cmd_apply(a):
+    if os.environ.get("MILA_CONSENT_SOCKET"):
+        # Mila Agent: the owner's «yes» through the consent proxy for exactly this release (its commit), never a --yes string
+        src0 = source(a); sha0 = git_sha(src0) or "?"
+        what = "Обновить ядро Милы%s (%s)" % ((" до " + a.tag) if getattr(a, "tag", None) else "", sha0[:12])
+        mark = "#update-" + sha0[:12]
+        inherited = os.environ.get("MILA_UPDATE_CONSENT", "")
+        if os.environ.get("MILA_UPDATE_REEXEC") == "1" and inherited.startswith("consent:"):
+            # the release's own updater, started by mine after the owner's «yes»: the same consent, checked again in the journal
+            sys.path.insert(0, os.path.join(os.environ.get("MILA_KIT") or "/opt/mila/kit", "consent"))
+            import consent_proxy as _cp
+            payload = {"text": "%s\n%s" % (what, mark)}
+            if _cp.confirmed(os.path.join(IO_DIR, "consent", "decisions.jsonl"), "update", _cp.action_hash("update", payload, []), 0) != inherited[8:]:
+                _refuse("в журнале решений нет «да» владельца на это обновление")
+            a.yes = inherited
+        else:
+            a.yes = "consent:" + proxy_consent(mark, what, "update")["consent"]
+        os.environ["MILA_UPDATE_CONSENT"] = a.yes   # a re-exec of the release's updater carries it
     if not a.yes: sys.exit(json.dumps({"error": "нужно «да» хозяина: --yes \"<кто, где, когда>\" — без него не обновляюсь"}, ensure_ascii=False))
     off = load_version().get("offered")   # ONE-CARD: кнопка устаревшей карточки — не применяю, даже если модель вызвала apply
     stale = bool(getattr(a, "tag", None) and off and re.match(r"^v\d", off) and re.match(r"^v\d", a.tag) and vkey(a.tag) < vkey(off))   # старее предложенной; новее — свежая карточка, ручная или ночная
@@ -1521,7 +1538,7 @@ def manual_yes(a):
     return bool((a.yes or "").strip()) and sys.stdin.isatty() and not os.environ.get("CLAUDECODE")
 
 
-def proxy_consent(mark, what=""):
+def proxy_consent(mark, what="", kind="pack"):
     """Mila Agent: the owner's «yes» goes through the consent proxy — it draws the card, records the decision in its chain, and
     this tool runs only after it finds «confirmed» for exactly this pack (the mark carries the pack and its archive) there."""
     sock = os.environ.get("MILA_CONSENT_SOCKET", "")
@@ -1533,16 +1550,16 @@ def proxy_consent(mark, what=""):
         _refuse("посредник согласий не найден в наборе (%s)" % kit)
     payload = {"text": ("%s\n%s" % (what, mark)) if what else "Пак: %s" % mark}   # the owner reads what; the mark ties it to the archive
     t0 = time.time()
-    r = _cc.ask("pack", payload, sock)
+    r = _cc.ask(kind, payload, sock)
     st = r.get("status")
     if st in ("asked", "waiting", "deferred"):
-        jlog({"event": "pack-asked", "mark": mark, "status": st})
+        jlog({"event": kind + "-asked", "mark": mark, "status": st})
         sys.exit(json.dumps({"waiting": st, "mark": mark, "next": "карточка у владельца; после его «Да» — та же команда ещё раз"}, ensure_ascii=False))
     if st != "done": _refuse("посредник согласий: " + str(r.get("why") or st)[:200])
     cid = str((r.get("result") or {}).get("confirmed") or "")
     used = {str(x.get("consent")) for x in _jsonl(JOURNAL) if x.get("consent")}
-    got = _cp.confirmed(os.path.join(IO_DIR, "consent", "decisions.jsonl"), "pack", _cp.action_hash("pack", payload, []), t0 - 60, used)
-    if not cid or got != cid: _refuse("в журнале решений нет «да» владельца на этот пак")
+    got = _cp.confirmed(os.path.join(IO_DIR, "consent", "decisions.jsonl"), kind, _cp.action_hash(kind, payload, []), t0 - 60, used)
+    if not cid or got != cid: _refuse("в журнале решений нет «да» владельца на это действие")
     return {"consent": cid}
 
 

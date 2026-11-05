@@ -20,7 +20,7 @@ srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Fake); threading.Thread(
 CFG = os.path.join(T, "consent.json")
 json.dump({"owner_id_env": "MILA_OWNER_ID", "bot_token_env": "BOT_TOKEN", "home": HOME, "state_dir": os.path.join(TG, "io", "consent"),
            "session_socket": os.path.join(SD, "c.sock"), "io_socket": os.path.join(SD, "io.sock"), "default_lang": "ru",
-           "categories": {"pack": {"enabled": True, "title": "пак", "fields": ["text"]}}}, open(CFG, "w"))
+           "categories": {"pack": {"enabled": True, "title": "пак", "fields": ["text"]}, "update": {"enabled": True, "title": "обновление", "fields": ["text"]}}}, open(CFG, "w"))
 px = subprocess.Popen([sys.executable, os.path.join(REPO, "consent", "consent_proxy.py"), "serve", "--config", CFG],
                       env=dict(os.environ, MILA_OWNER_ID=OWNER, BOT_TOKEN="1:x", TELEGRAM_API_ROOT="http://127.0.0.1:%d" % srv.server_port),
                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -60,5 +60,16 @@ check("убрать пак — тоже через посредника: кар�
 io({"op": "callback", "data": json.loads(CARDS[-1]["reply_markup"])["inline_keyboard"][0][0]["callback_data"], "from_id": OWNER, "chat_id": OWNER})
 rc, d = U("remove-pack", "jev")
 check("…после «да» — снят", rc == 0 and not os.path.isdir(os.path.join(CL, "skills", "jev")), (rc, d))
+# a core update: also only through the proxy — a --yes string from the session is not an owner's «yes»
+R = os.path.join(T, "rel"); os.makedirs(os.path.join(R, "skills", "demo")); os.makedirs(os.path.join(HOME, "work"), exist_ok=True)
+open(os.path.join(R, "release.json"), "w").write(json.dumps({"version": "9.9.9", "tag": "v9.9.9", "zones": [{"what": "навыки", "src": "skills/*", "dst": "{claude}/skills/*", "kind": "dir"}]}))
+open(os.path.join(R, "skills", "demo", "SKILL.md"), "w").write('---\nname: demo\ndescription: "демо"\n---\n# demo\n')
+rc, d = U("apply", "--src", R, "--yes", "хозяин сказал да")
+check("обновление ядра: строка --yes не считается — карточка у владельца, ничего не поставлено", rc != 0 and d.get("waiting") == "asked" and "Обновить ядро" in CARDS[-1]["text"]
+      and not os.path.isdir(os.path.join(CL, "skills", "demo")), (rc, d))
+io({"op": "callback", "data": json.loads(CARDS[-1]["reply_markup"])["inline_keyboard"][0][0]["callback_data"], "from_id": OWNER, "chat_id": OWNER})
+rc, d = U("apply", "--src", R)
+check("…после «да» владельца — обновлено, в журнале «consent:<id>»", rc == 0 and os.path.isdir(os.path.join(CL, "skills", "demo"))
+      and any(str(r.get("yes", "")).startswith("consent:") for r in (json.loads(l) for l in open(os.path.join(CL, "mila-update", "journal.jsonl")) if l.strip())), (rc, d))
 px.terminate(); px.wait(); srv.shutdown(); shutil.rmtree(T, ignore_errors=True); shutil.rmtree(SD, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
