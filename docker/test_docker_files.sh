@@ -136,9 +136,9 @@ http.server.HTTPServer(("127.0.0.1",int(sys.argv[1])),H).serve_forever()' "$PORT
 printf '#!/bin/sh\necho started >> "%s/receiver.started"; sleep 30\n' "$SV" > "$SV/bin/bun"; chmod +x "$SV/bin/bun"
 BODY=$(awk "/bash -c '\$/{f=1;next} f&&/^        done' >/{exit} f" docker/entrypoint.sh | sed "s#/run/mila-io#$SV/run#g; s#127.0.0.1:8790#127.0.0.1:$PORT#g"; echo done)
 echo '555' > "$SV/tg/receiver.go"
-(TGd="$SV/tg" IOD="$SV/io" PLUG=/x MILA_KIT=/x PATH="$SV/bin:$PATH" "$PERL" -e "$TMO" 14 bash -c "$BODY" >/dev/null 2>&1 &)
+(TGd="$SV/tg" IOD="$SV/io" PLUG=/x MILA_KIT=/x PATH="$SV/bin:$PATH" "$PERL" -e "$TMO" 14 bash -c "$BODY" > "$SV/stdout" 2>/dev/null &)
 sleep 4
-chk "надзор приёмника: «go» есть, токена бота нет — ждёт, строка в журнале, не выходит и не стартует" "grep -q 'waiting for the bot token' $SV/run/receiver.log && [ \$(grep -c 'waiting for the bot token' $SV/run/receiver.log) -eq 1 ] && [ ! -e $SV/run/receiver.up ] && [ ! -e $SV/receiver.started ]"
+chk "надзор приёмника: «go» есть, токена бота нет — ждёт, строка в журнале и в выводе платформы (mila-agent:), не выходит и не стартует" "grep -q 'waits for the bot token' $SV/run/receiver.log && [ \$(grep -c 'waits for the bot token' $SV/run/receiver.log) -eq 1 ] && grep -q '^mila-agent: receiver waits for the bot token' $SV/stdout && [ ! -e $SV/run/receiver.up ] && [ ! -e $SV/receiver.started ]"
 printf '{"telegram_bot_id": "12345678"}' > "$SV/status"; sleep 7
 chk "надзор приёмника: токен появился — receiver.up и приёмник запущен" "[ -e $SV/run/receiver.up ] && [ -e $SV/receiver.started ]"
 kill $SVP 2>/dev/null; sleep 8; rm -rf "${SV:?}"
