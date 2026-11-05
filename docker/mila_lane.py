@@ -73,6 +73,10 @@ DOMAIN = re.compile(r"(?<![\w-])(?:[\w-]+\.)+(?:[^\W\d_]{2,63}|xn--[a-zA-Z0-9-]{
 
 def clean(out, know):
     """what the lane may publish in the owner's group: no @mentions, links only those in the owner's knowledge. Else ''."""
+    # «evil。com», «evil．com», full-width letters: the same link to Telegram — checked in their plain form
+    import unicodedata
+    plain = unicodedata.normalize("NFKC", out).replace("\u3002", ".").replace("\uff61", ".")
+    if plain != out: return out if clean(plain, know) else ""
     if re.search(r"(?<![\w.])@[A-Za-z][A-Za-z0-9_]{3,}", out): return ""
     k = know.lower()
     for m in SCHEME.finditer(out):
