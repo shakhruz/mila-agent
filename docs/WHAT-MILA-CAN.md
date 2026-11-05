@@ -13,7 +13,7 @@ Nothing here has been run live on a clean install of this release yet.
 | What she does | Where | How we know |
 |---|---|---|
 | Talks to you in Telegram DMs: text, buttons, files to you up to 50 MB, edits, reactions | plugin `server.ts` | test: plugin `bun test` |
-| Works in groups you connect, in the mode you choose on a card: lead the chat, on mention, observer, only me, refuse | plugin `group-mode.mjs` | test: plugin `group-mode.test.ts` |
+| Works in groups you connect, in the mode you choose on a card: lead the chat, on mention, observer, only me, refuse — for you and the group's team; strangers there do not reach her ([SAFE-GROUPS](SAFE-GROUPS.md)) | plugin `group-mode.mjs`, `team.mjs` | test: plugin `group-mode.test.ts`, `safe-route.test.ts` |
 | Sees photos as they arrive; other files on request, up to 20 MB (Telegram's limit for bots) | plugin `server.ts` | test: plugin `bun test` |
 | Searches the web and reads web pages | Claude Code `WebSearch`, `WebFetch` | Claude Code |
 | Reads images, PDFs and documents; writes and edits files; runs commands in her home | Claude Code `Read`, `Write`, `Edit`, `Bash` | Claude Code |
@@ -40,7 +40,7 @@ Nothing here has been run live on a clean install of this release yet.
 | What | Why |
 |---|---|
 | Answer strangers who write to your bot in a DM | They get a pairing code or no answer, by your access settings. A separate lane for strangers is the next step of the plugin, not in this release. |
-| Answer strangers in a group with limited rights | In «lead the chat» mode she answers everyone from the main session, with all her tools. A safe mode for strangers is in work. |
+| Answer strangers in a group | Their messages do not reach her session at all ([SAFE-GROUPS](SAFE-GROUPS.md)); you can add a person to the group's team with a button. A separate lane that answers strangers with no tools is in work. |
 | Read Telegram chat history or search it | The Bot API gives only new messages. |
 | Download files over 20 MB | The Bot API limit. |
 | Generate images, video or voice | Not in the core. The packs that do it call `genimage.py` and `el.py`, which are not in this repository. |

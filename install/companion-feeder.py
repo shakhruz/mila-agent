@@ -120,12 +120,12 @@ def envelope(p, m):
 
 
 ATTRS = (("user_id", r"[0-9]{1,15}"), ("from", r"owner|team|other"), ("type", r"reaction|callback"), ("observe_only", r"true"),
-         ("chat_type", r"private|group|supergroup|channel"))
+         ("chat_type", r"private|group|supergroup|channel"), ("guests_since_last", r"[0-9]{1,6}"))
 
 
 def meta_attrs(m):
     """what the receiver knows and the session needs: the author by Telegram id (from = owner/team/other), the event type, the
-    observer mark, the chat's title and kind. Only known values (patterns) — never free text in an attribute."""
+    observer mark, the chat's title and kind, how many strangers wrote since (a number). Only known values (patterns) — never free text in an attribute."""
     out = "".join(' %s="%s"' % (k, m[k]) for k, pat in ATTRS if re.fullmatch(pat, str(m.get(k) or "")))
     if m.get("chat_title"):
         out += ' chat_title="%s"' % esc(str(m["chat_title"])[:128])

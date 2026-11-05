@@ -90,9 +90,9 @@ the calling OS user (`SO_PEERCRED`).
 
 ## What stays open
 
-- The session (`agent`) can still change `access.json` (who may write to the bot, group modes, the team list), the card
-  registry and chat notes — shared on purpose (pairing, Mila's notes). It cannot make anyone an owner. Group modes and the
-  team list move to the receiver's side with the next step.
+- The session (`agent`) can still change `access.json` (who may write to the bot, group modes), the card registry and chat
+  notes — shared on purpose (pairing, Mila's notes). It cannot make anyone an owner or a team member: the team lives in the
+  receiver's `io/team.json` (see [SAFE-GROUPS](SAFE-GROUPS.md)). Group modes move to the receiver's side later.
 - A co-owner added later: set `OWNERS` on the platform and restart.
 - In the main session, what owners and team members write is read as usual. Strangers' raw text is kept away from the main
   session in the next step (the safe mode for groups).
