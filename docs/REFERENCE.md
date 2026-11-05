@@ -182,10 +182,8 @@ strangers who guess the bot's username keep getting pairing codes.
 ```
 $ mila status
 receiver   running (pid 32455)          the daemon that polls Telegram
-sender     running                       outbound queue
 bridge     cursor 268968 / 268968        session has read the whole journal
 journal    268968 bytes, 1633 events     nothing lost across restarts
-outbox     empty
 ```
 
 Messages sent while the session was down are waiting in the journal and arrive
@@ -354,10 +352,11 @@ refuses without sending a card at all, **ask** sends one with a deadline — an
 unanswered card is a refusal, and the assistant is expected to say out loud that
 it did not do the thing.
 
-A malformed policy becomes all-ask. Never all-allow: a syntax error must not
+These prompts work where Claude Code asks permission (a laptop session); in the container (Mila Agent) the session runs with
+`--dangerously-skip-permissions` and the policy is not consulted. A malformed policy becomes all-ask. Never all-allow: a syntax error must not
 open the door. Never all-deny: that paralyses instead of asking.
 
-Start from `install/permissions.example.json` — 15 rules, two hard denials, and
+Start from `install/permissions.example.json` — 21 rules, five of them hard denials, and
 a comment on every rule saying why it exists. Rules that block routine work get
 deleted by whoever is trying to work, so the dangerous ones use regular
 expressions and draw the line precisely: root and system directories refused,
