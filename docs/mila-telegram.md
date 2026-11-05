@@ -6,7 +6,7 @@ own with a plain Claude Code.
 
 ## What it does
 
-Checked against the plugin's code (`shakhruz/mila-telegram`, main `94bb6e2`).
+Checked against the plugin's code (`shakhruz/mila-telegram`).
 
 - **Messages both ways.** What people write to your bot arrives in the session as `<channel …>` messages. The assistant
   answers with the `reply` tool:
@@ -14,6 +14,9 @@ Checked against the plugin's code (`shakhruz/mila-telegram`, main `94bb6e2`).
   - a reply to a specific message;
   - files (images as photos, the rest as documents, up to 50 MB each);
   - inline buttons — links, or choices that come back as `[button] <label>`; up to 3 per row, 6 in total.
+- **Pin and forum topics.** `pin` pins a message (silently by default) or unpins it. In a group with Topics on, a message from a
+  topic carries its `thread_id` and the topic's name, and `reply` with that `thread_id` answers in the same topic. `topic`
+  lists, creates, renames, closes and reopens topics — no delete. The bot needs the admin rights to pin and to manage topics.
 - **Edit and react.** `edit_message` edits the bot's own message, for example «working…» → the result; edits don't ping the
   person. `react` puts an emoji reaction from Telegram's fixed list.
 - **Files and voice.** Photos are downloaded as they arrive. Other files are downloaded on request with `download_attachment`
@@ -78,7 +81,6 @@ outside the session), schedules and skills.
 ## What it does not do
 
 - **No chat history or search.** Telegram's Bot API gives neither; the bot sees messages only as they arrive.
-- **Pinning messages and forum topics:** not in the open plugin yet; planned as a separate update.
 - **Telegram Business chats:** not in the open plugin.
 - **Journal limits.** The journal has no size limit or expiry yet, and keeps message text as it came (keys and tokens are
   masked); downloaded files are not deleted automatically. See [PRIVACY](https://github.com/shakhruz/mila-telegram/blob/main/PRIVACY.md).

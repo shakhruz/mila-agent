@@ -170,6 +170,9 @@ ln -sfn ../telegram/access.json "$TGS/access.json"; ln -sfn ../telegram/receiver
 # «not found». Cards of earlier starts move into the shared file once.
 if [ -f "$TGS/cards.jsonl" ] && [ ! -L "$TGS/cards.jsonl" ]; then cat "$TGS/cards.jsonl" >> "$TG/cards.jsonl"; rm -f "$TGS/cards.jsonl"; fi
 ln -sfn ../telegram/cards.jsonl "$TGS/cards.jsonl"
+# Forum topics: one registry for the session's tools and the receiver (the plugin writes through the link)
+if [ -f "$TGS/topics.json" ] && [ ! -L "$TGS/topics.json" ] && [ ! -e "$TG/topics.json" ]; then mv "$TGS/topics.json" "$TG/topics.json"; fi
+ln -sfn ../telegram/topics.json "$TGS/topics.json"
 # Scripts in the session that check the owner's press or file (packs, spend) read the receiver's journals, not the session's
 # empty bridge journal.
 export MILA_TG_STATE="$TG"
