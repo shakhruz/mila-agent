@@ -13,11 +13,13 @@ Two unix sockets:
   io socket (only mila-io: the Telegram receiver forwards button presses here; the owner's category switches come here too):
       {"op": "callback", "data": "consent:<id>.<sig>", "from_id": "...", "chat_id": "..."}   → {"status": "granted" | "declined" | "ignored"}
       {"op": "category", "name": "...", "enabled": true|false, "from_id": "..."}              → owner turns a category on or off
-Every step goes to consents.jsonl (no payload, only hash and a short preview). Fail closed: anything unclear means no.
+Every step goes to decisions.jsonl — a hash chain (decisions.py), no payload, only hash and a short preview. Fail closed: anything unclear means no.
 Config keys, all paths absolute: owner_id_env, bot_token_env, home (the Mila's home — attachments only from inside it),
 state_dir, session_socket, io_socket, ttl_min (15), max_attachment_mb (20),
 categories: {name: {"enabled": bool, "exec": [command…], "title": "…"}}. Only stdlib."""
 import argparse, hashlib, hmac, json, os, re, secrets, socket, stat, subprocess, sys, tempfile, threading, time, unicodedata, urllib.parse, urllib.request
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import decisions   # the hash chain of the owner's decisions
 
 PREFIX = "consent:"
 BUF = 64 * 1024
@@ -67,8 +69,7 @@ class Proxy:
         os.replace(p + ".tmp", p)
 
     def journal(self, row):
-        with open(os.path.join(self.state, "consents.jsonl"), "a", encoding="utf-8") as f:
-            f.write(json.dumps(dict({"ts": int(self.now())}, **row), ensure_ascii=False) + "\n")
+        decisions.append(os.path.join(self.state, "decisions.jsonl"), row, now=self.now())
 
     # ── attachments: the proxy reads with more rights than the session — only files inside the Mila's home ──
     def attachment(self, path):

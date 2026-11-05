@@ -25,7 +25,7 @@ Telegram на ЭТО действие. У облачных Мил термина
 - A payload may carry only what the card shows: `text`, `targets`, `when`, `attachments` (a category can narrow it with
   `"fields"`); anything else is refused, so nothing reaches the executor unseen.
 - Categories (`publish_zernio`, …) are switched by the owner only (io socket), every switch is journalled.
-- Journal `consents.jsonl`: asked · granted · declined · used · executed · denied · category — no post text.
+- Journal `decisions.jsonl` — a hash chain (`decisions.py verify FILE [--anchor N:H12]`): asked · granted · declined · used · executed · denied · category — no post text. A changed, inserted or removed line breaks the chain; a cut tail shows against the anchor «n:h12» kept outside the machine.
 
 ## Install (server) · Установка
 User `mila-io` owns `state_dir`, the io socket (600), the service keys (`ZERNIO_API_KEY`) and runs the Telegram receiver;
