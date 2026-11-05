@@ -96,6 +96,13 @@ class Proxy:
         return {"name": os.path.basename(p), "size": len(data), "sha256": hashlib.sha256(data).hexdigest(), "data": data}
 
     # ── what exactly the owner approves ──
+    def hidden(self, v):
+        """any string in the payload with characters the card would not show, or not in its NFC form"""
+        if isinstance(v, str): return bool(INVISIBLE.search(v)) or unicodedata.normalize("NFC", v) != v
+        if isinstance(v, dict): return any(self.hidden(x) for x in v.values()) or any(self.hidden(k) for k in v)
+        if isinstance(v, (list, tuple)): return any(self.hidden(x) for x in v)
+        return False
+
     def digest(self, category, payload):
         """→ (hash, attachments with content). The hash covers the category, the canonical payload and every attachment's content."""
         atts = [self.attachment(a) for a in (payload.get("attachments") or [])]
@@ -136,6 +143,9 @@ class Proxy:
         if extra:                                            # the owner's card shows only known fields — anything else would pass unseen
             self.journal({"ev": "denied", "category": category, "why": "unknown fields"})
             return {"status": "denied", "why": "unknown fields: %s" % ", ".join(str(x)[:40] for x in extra[:5])}
+        if self.hidden(payload):   # what the owner sees must be exactly what runs: no invisible or direction-changing characters
+            self.journal({"ev": "denied", "category": category, "why": "invisible characters"})
+            return {"status": "denied", "why": "the text has invisible or direction-changing characters — remove them and ask again"}
         if not self.cats.get(category):
             self.journal({"ev": "denied", "category": category, "why": "category off"})
             return {"status": "denied", "why": "the owner turned this category off"}

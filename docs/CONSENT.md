@@ -9,6 +9,8 @@ session cannot run it itself: the service keys are with the proxy, not with the 
 1. The session asks over `/run/mila-io/consent.sock` (`consent/consent_client.py`): a kind (category) and the payload.
 2. The proxy draws the card itself in the owner's private chat: the whole text (a long one in parts before the card),
    where it goes, the attachments. A field the card does not show is refused.
+   A text or a target with invisible or direction-changing characters, or not in its NFC form, is refused: the owner sees
+   exactly what will run.
 3. Only the owner's press in the private chat counts: a signed button, checked by the proxy. The receiver passes the press to
    the proxy over `/run/mila-io/consent.io.sock`, which only `mila-io` reaches, and says the outcome on the button.
 4. The «yes» is for exactly that action (a hash of the kind, the payload and every attachment's content), once, for 15
@@ -42,7 +44,7 @@ an anchor `n:h12` kept outside the machine. `python3 consent/decisions.py verify
 
 | Claim | Where |
 |---|---|
-| the card drawn by the proxy, the exact action's hash, once, 15 min | `consent/consent_proxy.py` `request()`, `digest()`, `preview()`, `callback()` |
+| the card drawn by the proxy, the exact action's hash, once, 15 min; no invisible characters | `consent/consent_proxy.py` `request()`, `hidden()`, `digest()`, `preview()`, `callback()` |
 | a «no» a day, three in a row, silence = expired | `request()` (`DECLINE_MEMORY`, the streak), `sweep()` |
 | permissions: terms, ceilings, receipts, Stop | `mandate_ask()`, `mandate_fits()`, `receipt()`, `mandate_stop()` |
 | the chain and its check | `consent/decisions.py` |
@@ -58,4 +60,5 @@ an anchor `n:h12` kept outside the machine. `python3 consent/decisions.py verify
 
 - Kinds still asked their own way, not through the proxy yet: pack installs and updates (`update.py`), sending from the
   owner's bot (`bot-send`), paid generations (`spend.py`). They move to one `request` next.
-- The notification gate (urgent / card / summary, quiet hours) and the anchor in the evening summary.
+- The notification gate (urgent / card / summary, quiet hours, a limit on cards at night) and the anchor in the evening summary.
+- The cards are in Russian only; in the owner's language — with the gate.

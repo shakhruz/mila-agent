@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Consent proxy on temp dirs, fake Telegram and a fake executor (no network): without a yes nothing runs; the owner's yes runs
 exactly this payload once; a changed payload or a replaced file asks again; forged, foreign, late buttons are ignored; the card
-shows targets, length, the whole text (a long one in parts before the card), attachments; unknown payload fields are refused; invisible and bidi characters are stripped; attachments only from inside the
+shows targets, length, the whole text (a long one in parts before the card), attachments; unknown payload fields are refused; text with invisible, bidi or non-NFC characters is refused; attachments only from inside the
 home (symlink to the proxy key, outside path, FIFO, too big — refused); categories on/off only by the owner; fail closed.
 Run: python3 test_consent.py"""
 import json, os, re, shutil, socket, subprocess, sys, tempfile, threading, time
@@ -87,8 +87,13 @@ check("длинный текст: владелец видит ВЕСЬ текс�
 pxf = cp.Proxy(CFG, send=lambda text, kb: not text.startswith("Текст целиком, часть 2"), run=lambda *a: {"ok": True}, now=lambda: NOW[0])
 check("часть текста не дошла до владельца — карточки нет, denied", pxf.request("publish_zernio", {"text": huge + "x", "targets": ["a"]})["status"] == "denied")
 check("поле вне белого списка (его нет в карточке) — denied", px.request("publish_zernio", {"text": "x", "targets": ["a"], "link_preview_url": "https://example.com"})["status"] == "denied")
-px.request("publish_zernio", {"text": "Цена ‮001‬ сум​ и⁦скрыто⁩", "targets": ["a"]})
-check("невидимые и bidi-символы сняты из превью", not re.search("[​-‏‪-‮⁦-⁩]", CARDS[-1][0]), repr(CARDS[-1][0]))
+nc, nr = len(CARDS), len(RUNS)
+r = px.request("publish_zernio", {"text": "Цена \u202e001\u202c сум\u200b и\u2066скрыто\u2069", "targets": ["a"]})
+check("невидимые и bidi-символы в тексте — отказ без карточки (владелец видит ровно то, что исполнится)", r["status"] == "denied" and "invisible" in r["why"] and len(CARDS) == nc and len(RUNS) == nr, r)
+r = px.request("publish_zernio", {"text": "обычный", "targets": ["acc\u200b-demo"]})
+check("…и в адресатах — отказ", r["status"] == "denied", r)
+r = px.request("publish_zernio", {"text": "e\u0301", "targets": ["a"]})
+check("…и текст не в форме NFC (составная буква) — отказ", r["status"] == "denied", r)
 # attachments: only inside the home, never through a link
 KEY = os.path.join(STATE, "hmac.key"); k0 = len(CARDS)
 os.symlink(KEY, os.path.join(HOME, "work", "photo.jpg"))
