@@ -7,7 +7,7 @@
 <p align="center"><b>Turn Claude Code into an employee that lives in Telegram.</b><br>
 Free, open source, Apache-2.0. Made with ❤️ in Uzbekistan.</p>
 
-<p align="center">She answers your customers on Telegram and remembers every promise. A send-guard stops accidental leaks; in the container (Mila Agent) your keys stay with a key keeper she uses but cannot read. Ordinary replies in chats you connected go without asking.</p>
+<p align="center">She works with you and your team in Telegram — your DMs and the groups you connect — and remembers every promise. A send-guard stops accidental leaks; in the container (Mila Agent) your keys stay with a key keeper she uses but cannot read. Ordinary replies in chats you connected go without asking.</p>
 
 <p align="center">
   <a href="#quick-start"><b>Install</b></a> ·
@@ -45,7 +45,7 @@ curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.s
 Most open agents are universal assistants: powerful, if you tell them exactly what to do.
 Mila is built the other way round — **a colleague with a job.**
 
-- **Answers your customers on Telegram** — day and night, in the language they write in.
+- **Works in your Telegram** — your DMs and the groups you connect, day and night, in the language people write in. Strangers who write to your bot in a DM get no answer yet — see [what Mila can and cannot do](docs/WHAT-MILA-CAN.md).
 - **Remembers your business** — every client, conversation and promise; one short summary for you every morning.
 - **Asks before the big steps** — a send-guard stops leaks between chats and messages to a chat you have not connected; with the Manager and Images packs, broadcasts and paid generations ask for your ✅ (a skill rule, not a lock — see SECURITY).
 - **Yours, 100%** — your files stay in your home folder; `mila export` / `mila restore` moves her to any machine.
