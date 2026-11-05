@@ -9,7 +9,7 @@ ARG CLAUDE_CODE_VERSION=2.1.305   # the version README says Mila is tested on; r
 ARG BUN_VERSION=1.2.21
 ARG PLUGIN_REPO=https://github.com/shakhruz/mila-telegram.git
 # The plugin is pinned to a reviewed commit: a push to the plugin's main does not change this image until the pin moves here.
-ARG PLUGIN_REF=8ae3d46d22a6f57ec7690d9e67b3b3a9c63899de
+ARG PLUGIN_REF=94bb6e2b49611dd79533730b7cafa166641a59d4
 
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
