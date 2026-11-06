@@ -5,15 +5,15 @@
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
 **Для хозяина**
-- Когда я готова к работе, первое сообщение от меня приходит с моим портретом.
-- Сторож ключей записывает каждый свой отказ: видно, что он остановил и почему, без самих ключей.
+- У новой Милы первое сообщение хозяину — с её портретом.
+- Если сторож ключей подключён, он записывает каждый свой отказ — без текста команды и без самих ключей.
 - Mila Agent: страница подключения бота показывает, как я просыпаюсь.
 
 </details>
 
 **For the owner**
-- When Mila is ready, her first message comes with her portrait (after `mila onboard` on a laptop, after the Claude sign-in in Mila Agent).
-- The key guard keeps a journal of what it refused and why — never the command, never a value.
+- A new Mila's first message to her owner comes with her portrait (after `mila onboard` on a laptop, after the Claude sign-in in Mila Agent).
+- Where the key guard is wired, it keeps a journal of what it refused and why — never the command, never a value.
 - Mila Agent: the bot-token page shows Mila waking up.
 
 **For Milas**
