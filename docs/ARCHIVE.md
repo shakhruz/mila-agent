@@ -26,6 +26,13 @@ it. What the session may see of it comes through a search that filters by author
   «not downloaded: the archive is full» — and the owner gets one line a day. The owner's private chat is not counted. (Files that
   arrive at the same moment may pass the ceiling by one.)
 
+## Outgoing (part C)
+
+- Every send that goes through the key keeper — `reply`, an edit, a file, a send from the shell — is in the archive too: the keeper
+  copies what Telegram answered (method, chat, message id, text, file id) into a spool `/run/mila-keyd/out/` that only the
+  receiver's user reads; the receiver moves it into `archive/<chat_id>/` as `from: "mila"` lines, each once. The keeper keeps
+  nothing itself; the bot token never goes into the spool.
+
 ## Where it is on
 
 Only in Mila Agent (the receiver's own folder) or with `TELEGRAM_ARCHIVE=1`. A plain install of the plugin keeps no archive and
@@ -54,11 +61,13 @@ months — the sweep that deletes them comes in a later part; until then they st
 | edits as their own lines | plugin `edited_message` handler, `allowed_updates` (`receiver.ts`) |
 | the group told at connection and once after the update; the owner's card | plugin `join.archive`, `join.archiveOwner` (`i18n.mjs`), `announceArchive()` (`receiver.ts`) |
 | originals by content hash, strangers' without STT, over 20 MB — metadata; the ceiling | plugin `mediaOf()`, `archiveFile()`, `archiveMessage()`, `roomFor()` (`receiver.ts`); `archive.full` (`i18n.mjs`) |
-| checked | plugin `archive.test.ts`, `join-archive.test.ts`, `archive-files.test.ts`, `archive-cap.test.ts` |
+| outgoing through the keeper's spool, each once | `docker/mila_keyd.py` `spool_out()`, `OUT_SPOOL`; plugin `drainOutSpool()` (`receiver.ts`); `docker/entrypoint.sh` `TELEGRAM_OUT_SPOOL` |
+| checked | `docker/test_mila_keyd.py`; plugin `archive-out.test.ts`, `archive.test.ts`, `join-archive.test.ts`, `archive-files.test.ts`, `archive-cap.test.ts` |
 
 ## Not verified live yet
 
 - A real chat over a day: the files, their modes, an edit.
+- A send from the shell (`curl` through the keeper) lands in the archive as a `mila` line.
 
 ## What stays open
 
@@ -66,5 +75,4 @@ months — the sweep that deletes them comes in a later part; until then they st
 
 ## Next parts
 
-Outgoing messages through the key keeper · `mila
-recall` with an author filter · the retention sweep · backups.
+`mila recall` with an author filter · the retention sweep · backups.

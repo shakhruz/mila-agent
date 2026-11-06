@@ -268,10 +268,15 @@ class Proxy(http.server.BaseHTTPRequestHandler):
                 if not ch: break
                 if keep and sum(map(len, got)) < 1 << 20: got.append(ch)
                 self.wfile.write(b"%x\r\n%s\r\n" % (len(ch), ch)); self.wfile.flush()   # stream as it comes (SSE)
+            # the spool line before the end of the response: whoever sent it reads the archive after its own send
+            if keep: spool_out(om.group(1), b"".join(got)); keep = False
             self.wfile.write(b"0\r\n\r\n"); self.wfile.flush()
-            if keep: spool_out(om.group(1), b"".join(got))
         except (BrokenPipeError, ConnectionResetError):
-            pass
+            if keep:   # the caller hung up, the message is still sent: read Telegram's answer to the end and keep it
+                try:
+                    got.append(r.read(1 << 20)); spool_out(om.group(1), b"".join(got))
+                except OSError:
+                    pass
         finally:
             c.close()
 

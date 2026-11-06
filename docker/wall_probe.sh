@@ -59,4 +59,6 @@ CP=$!; for _ in $(seq 1 30); do [ -S "$CS/io.sock" ] && [ -S "$CS/c.sock" ] && b
 chk "посредник согласий: сессия просит через consent.sock" "as_agent $CS/c.sock '{\"op\": \"x\"}' | grep -q status"
 chk "посредник согласий: io-сокет — сессии PermissionError, приёмнику ответ" "as_agent $CS/io.sock '{}' | grep -q PermissionError && as_io $CS/io.sock '{}' | grep -q status"
 kill $CP 2>/dev/null
+# outgoing messages for the archive: the keeper's spool folder — the receiver's user reads it, the session's does not
+chk "спул исходящих: папка хранителя для архива — приёмнику читается, сессии нет" "[ -d /run/mila-keyd/out ] && setpriv --reuid=mila-io --regid=mila-io --init-groups -- ls /run/mila-keyd/out >/dev/null && AS 'ls /run/mila-keyd/out' 2>&1 | grep -q 'Permission denied'"
 echo "итог $ok/$n"; [ $ok -eq $n ]
