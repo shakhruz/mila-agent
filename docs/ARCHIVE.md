@@ -24,6 +24,8 @@ posts nothing about one — and there, with one OS user, it would not be a wall 
 - When the owner connects a group, the group gets one line: Mila keeps an archive of this chat, the owner can read it, to have
   your messages removed — ask the owner. The owner's connection card says the same.
 - A group connected before the archive existed gets that line once, with its first message after the update.
+- An observer group (the owner's word) is not told in the group: only the owner's connection card says it. If its mode changes
+  later, it is told then.
 
 ## Kept for how long
 
