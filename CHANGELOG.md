@@ -1,5 +1,20 @@
 # CHANGELOG · Mila
 
+## v1.7.3 · 06.11 — the channel check runs again after an update
+
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
+**Для хозяина**
+- Проверка канала снова запускается после обновления: её переводы теперь приходят вместе с ней.
+
+</details>
+
+**For the owner**
+- The channel check (doctor) runs again after an update: its translations now come with it.
+
+**For Milas**
+- `release.json`: a zone «переводы хуков (doctor)» — `install/locales/*.json` → `{claude}/hooks/locales/`. An update from v1.7.2 or older brought `doctor.py` without them and it stopped with a traceback. `test_clean_home.sh` runs doctor from the updated home.
+
 ## v1.7.2 · 06.11 — a smaller core with packs, consent before outside actions, strangers kept out of the session, the archive
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
