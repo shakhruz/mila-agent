@@ -38,6 +38,7 @@ posts nothing about one — and there, with one OS user, it would not be a wall 
 - A group connected before the archive existed gets that line once, with its first message after the update.
 - An observer group (the owner's word) is not told in the group: only the owner's connection card says it. If its mode changes
   later, it is told then.
+  Since its people are not told, a stranger there is kept as metadata only — who and when (`untold: true`), no words, no file.
 
 ## Kept for how long
 
