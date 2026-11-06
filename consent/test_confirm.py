@@ -3,7 +3,7 @@
 the tool runs the action itself after confirmed() finds that line — the chain intact, after the tool asked, not used before.
 Run: python3 test_confirm.py"""
 import json, os, shutil, sys, tempfile
-H = os.path.dirname(os.path.abspath(__file__)); T = tempfile.mkdtemp(prefix="conf-"); ok = n = 0
+H = os.path.dirname(os.path.abspath(__file__)); T = os.path.realpath(tempfile.mkdtemp(prefix="conf-")); ok = n = 0   # macOS: /var is a link to /private/var — the proxy refuses attachments through a link
 def check(name, c, x=""):
     global ok, n; n += 1; ok += bool(c); print(("✅ " if c else "❌ ") + name + ("" if c else "  ← " + str(x)[:300]))
 sys.path.insert(0, H); import consent_proxy as cp
