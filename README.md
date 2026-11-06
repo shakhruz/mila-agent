@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://milaagent.com"><img src="assets/mila-face.png" alt="Mila Agent" width="120"></a>
+  <a href="https://milaagent.com"><img src="docs/assets/mila-agent-hero.png" alt="Mila Agent — a superheroine in headphones with a cape, one fist raised, chat and Telegram icons around her" width="280"></a>
 </p>
 
 <h1 align="center">Mila Agent</h1>
