@@ -113,7 +113,7 @@ PYC
           RECEIVER_DAEMON=1 TELEGRAM_STATE_DIR="$TGd" TELEGRAM_JOURNAL_DIR="$IOD" TELEGRAM_SHARED_GROUP=1 \
           TELEGRAM_BOT_TOKEN="$BID:mila-keyd-placeholder-not-a-token" TELEGRAM_API_ROOT=http://keeper/telegram \
           TELEGRAM_API_UNIX=/run/mila-keyd/api.sock MILA_KEYD=http://127.0.0.1:8790 \
-          TELEGRAM_GUEST_LANE="$LANE" TELEGRAM_CONSENT_IO="$CIO" TELEGRAM_OUT_SPOOL=/run/mila-keyd/out/out.jsonl TELEGRAM_VOICE_TRANSCRIBE_CMD="$MILA_KIT/install/transcribe-voice.sh" bun "$PLUG/receiver.ts" >> /run/mila-io/receiver.log 2>&1
+          TELEGRAM_GUEST_LANE="$LANE" TELEGRAM_CONSENT_IO="$CIO" TELEGRAM_OUT_SPOOL=/run/mila-keyd/out TELEGRAM_VOICE_TRANSCRIBE_CMD="$MILA_KIT/install/transcribe-voice.sh" bun "$PLUG/receiver.ts" >> /run/mila-io/receiver.log 2>&1
           sleep 5
         done' 2>/dev/null &
     export MILA_IO=1 MILA_CONSENT_SOCKET=/run/mila-io/consent.sock

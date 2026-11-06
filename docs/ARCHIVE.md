@@ -29,9 +29,12 @@ it. What the session may see of it comes through a search that filters by author
 ## Outgoing (part C)
 
 - Every send that goes through the key keeper — `reply`, an edit, a file, a send from the shell — is in the archive too: the keeper
-  copies what Telegram answered (method, chat, message id, text, file id) into a spool `/run/mila-keyd/out/` that only the
-  receiver's user reads; the receiver moves it into `archive/<chat_id>/` as `from: "mila"` lines, each once. The keeper keeps
-  nothing itself; the bot token never goes into the spool.
+  copies what Telegram answered (method, chat, message id, text, file id) as one file per send into a spool folder
+  `/run/mila-keyd/out/` that only the keeper's and the receiver's users reach; the receiver moves each file into
+  `archive/<chat_id>/` as a `from: "mila"` line and deletes it. The bot token never goes into the spool.
+- The texts of outgoing messages pass through that folder, in the container's memory (`/run`), until the receiver takes them (it looks every five
+  seconds). The folder holds at most 2000 files (`MILA_ARCHIVE_SPOOL_MAX`); over it a send is not copied and the
+  keeper writes one log line. A file the archive cannot write now waits for the next pass.
 
 ## Where it is on
 
@@ -61,7 +64,7 @@ months — the sweep that deletes them comes in a later part; until then they st
 | edits as their own lines | plugin `edited_message` handler, `allowed_updates` (`receiver.ts`) |
 | the group told at connection and once after the update; the owner's card | plugin `join.archive`, `join.archiveOwner` (`i18n.mjs`), `announceArchive()` (`receiver.ts`) |
 | originals by content hash, strangers' without STT, over 20 MB — metadata; the ceiling | plugin `mediaOf()`, `archiveFile()`, `archiveMessage()`, `roomFor()` (`receiver.ts`); `archive.full` (`i18n.mjs`) |
-| outgoing through the keeper's spool, each once | `docker/mila_keyd.py` `spool_out()`, `OUT_SPOOL`; plugin `drainOutSpool()` (`receiver.ts`); `docker/entrypoint.sh` `TELEGRAM_OUT_SPOOL` |
+| outgoing through the keeper's spool, each once; the folder empties and has a ceiling | `docker/mila_keyd.py` `spool_out()`, `OUT_SPOOL`, `OUT_MAX`; plugin `drainOutSpool()` (`receiver.ts`); `docker/entrypoint.sh` `TELEGRAM_OUT_SPOOL` |
 | checked | `docker/test_mila_keyd.py`; plugin `archive-out.test.ts`, `archive.test.ts`, `join-archive.test.ts`, `archive-files.test.ts`, `archive-cap.test.ts` |
 
 ## Not verified live yet

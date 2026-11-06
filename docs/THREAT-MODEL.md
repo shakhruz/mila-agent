@@ -78,6 +78,7 @@ image and voice generation, payment links). Keys for those services are the main
 | Secret | File | Who can read it |
 |---|---|---|
 | Telegram bot token | Mila Agent: the key keeper (`~/.keys`, user `mila-keys`); elsewhere `~/.claude/channels/telegram/.env` (600) | Mila Agent: the keeper's user; elsewhere the session's OS user |
+| Texts of outgoing messages on their way to the archive (Mila Agent) | `/run/mila-keyd/out/` in memory, a file per send, until the receiver takes it (every five seconds) | the keeper's and the receiver's users; not the session |
 | Keys the owner typed on the safe page | `~/work/secrets/<name>.env` (600) | the session's OS user |
 | Publishing key (e.g. Zernio) in the cloud setup, rolling out | consent proxy state (`mila-io`) | only `mila-io` |
 | Mail, image, voice and other service keys (laptop and cloud) | `~/work/secrets/…` or the skill's environment | the session's OS user |

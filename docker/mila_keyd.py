@@ -60,10 +60,13 @@ def tg_allowed(method, rest, peer="tcp"):
 
 
 # Outgoing messages for the archive (Mila Agent): what Telegram answered to a send — the method, the chat, the message id, the text —
-# goes to a spool only the receiver's user reads (MILA_ARCHIVE_SPOOL, set by the root step). The keeper keeps nothing itself.
+# goes to a spool folder, a file per send, only the receiver's user reads (MILA_ARCHIVE_SPOOL, set by the root step). The receiver
+# deletes each file once it is in the archive; the keeper keeps nothing itself. /run is memory, so the folder has a ceiling.
 OUT_METHODS = {m.lower() for m in """sendMessage sendPhoto sendDocument sendVideo sendAudio sendVoice sendAnimation sendVideoNote
     sendSticker sendPoll copyMessage forwardMessage editMessageText editMessageCaption""".split()}
 OUT_SPOOL = os.environ.get("MILA_ARCHIVE_SPOOL") or ""
+OUT_MAX = int(os.environ.get("MILA_ARCHIVE_SPOOL_MAX") or 2000)   # files waiting; over it a send is not copied (one log line)
+_out_n = 0
 
 
 def spool_out(method, body):
@@ -79,9 +82,17 @@ def spool_out(method, body):
         if res.get(k):
             f = res[k][-1] if isinstance(res[k], list) else res[k]
             row["kind"], row["file_id"] = k, (f or {}).get("file_id"); break
+    global _out_n
     try:
-        fd = os.open(OUT_SPOOL, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o640)
-        with os.fdopen(fd, "a", encoding="utf-8") as f: f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        with os.scandir(OUT_SPOOL) as it:
+            if sum(1 for _ in zip(range(OUT_MAX), it)) >= OUT_MAX:
+                log("spool: full, not copied"); return
+        _out_n += 1
+        name = "%013d-%d-%d.json" % (row["ts"], os.getpid(), _out_n)
+        tmp = os.path.join(OUT_SPOOL, "." + name)   # written whole, then renamed: the receiver never reads half a file
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o640)
+        with os.fdopen(fd, "w", encoding="utf-8") as f: f.write(json.dumps(row, ensure_ascii=False))
+        os.rename(tmp, os.path.join(OUT_SPOOL, name))
     except OSError as e:
         log("spool: %s" % type(e).__name__)
 
@@ -355,10 +366,10 @@ def boot(home, agent_uid, keys_uid, port):
     run = os.path.dirname(os.environ.get("KEYD_SOCK") or "/run/mila-keyd/put.sock")
     os.makedirs(run, exist_ok=True); os.chown(run, keys_uid, agent_uid); os.chmod(run, 0o2751)   # o+x: the receiver's user reaches api.sock
     global OUT_SPOOL
-    try:   # Mila Agent: a spool for outgoing messages the receiver's user reads (group mila-io), the session's user does not
+    try:   # Mila Agent: a spool for outgoing messages the receiver's user reads and empties (group mila-io), the session's user does not
         import pwd; io_gid = pwd.getpwnam("mila-io").pw_gid
-        od = os.path.join(run, "out"); os.makedirs(od, exist_ok=True); os.chown(od, keys_uid, io_gid); os.chmod(od, 0o2750)
-        OUT_SPOOL = os.path.join(od, "out.jsonl")
+        od = os.path.join(run, "out"); os.makedirs(od, exist_ok=True); os.chown(od, keys_uid, io_gid); os.chmod(od, 0o2770)
+        OUT_SPOOL = od
     except (KeyError, ImportError, OSError):
         pass
     if os.fork():
