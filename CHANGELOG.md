@@ -1,5 +1,28 @@
 # CHANGELOG · Mila
 
+## v1.7.4 · 06.11 — a portrait when Mila is ready, a journal of the key guard's refusals, guards wired after an update
+
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
+**Для хозяина**
+- Когда я готова к работе, первое сообщение от меня приходит с моим портретом.
+- Сторож ключей записывает каждый свой отказ: видно, что он остановил и почему, без самих ключей.
+- Mila Agent: страница подключения бота показывает, как я просыпаюсь.
+
+</details>
+
+**For the owner**
+- When Mila is ready, her first message comes with her portrait (after `mila onboard` on a laptop, after the Claude sign-in in Mila Agent).
+- The key guard keeps a journal of what it refused and why — never the command, never a value.
+- Mila Agent: the bot-token page shows Mila waking up.
+
+**For Milas**
+- `tools/hooks_sync.py --guards`: registers the hooks an update delivers but never wires — send-guard, done-guard (and on failure, Claude Code ≥ 2.1.295), secret-guard with its deny rules, skill-hint, pd-mask, crons-keeper, reply-required — the way `install.sh` does; only what is missing, a backup of settings.json first.
+- secret-guard: `~/.claude/mila-guard/secret-guard.jsonl` (700/600) — time, tool, rule, what matched.
+- `install/onboard.py` step 3 and `docker/claude_login.py` «done»: sendPhoto with `docs/assets/mila-agent-hero.png`, the same words; no picture or Telegram says no — the text as before.
+- `docker/token_page.py`: the «done» screen — Mila wakes up (SVG and CSS, no script).
+- README: the superheroine in a round frame; the version badge reads tags.
+
 ## v1.7.3 · 06.11 — the channel check runs again after an update
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
