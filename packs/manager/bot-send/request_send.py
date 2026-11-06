@@ -5,7 +5,7 @@ bot-send-gate (токен бота оператора живёт на хосте
   request_send.py broadcast --operator <slug> --segment "<сегмент>" | --to id1,id2 --text "…" --card <card_id> --choice <choice>
   request_send.py status <id>                 — что ответила служба (<id>.result.json)
 card/choice — карточка, на которой хозяин нажал ✅ (из входящего «[кнопка] …» и cards.jsonl плагина); служба сверит её сама.
-Mila Agent (есть MILA_CONSENT_SOCKET): оператора и службы нет — отправляет посредник согласий от бота владельца после его «да» на ровно
+Mila Agent (на машине есть пользователь mila-io; вне его — MILA_CONSENT_SOCKET): оператора и службы нет — отправляет посредник согласий от бота владельца после его «да» на ровно
 этот текст и этих получателей (--to — числовые id); --operator/--card/--choice не нужны, кнопки и сегменты — не поддерживаются."""
 import argparse, json, os, re, sys, time, uuid
 
@@ -32,6 +32,19 @@ def button_errors(buttons):
     return err
 
 
+CONSENT_SOCK = "/run/mila-io/consent.sock"
+
+
+def consent_sock():
+    """the consent proxy's socket, or "" when there is none to use. Mila Agent is decided by the machine — the receiver's OS user
+    exists — not by a variable the session could unset: there, always the image's socket (a variable cannot point elsewhere)
+    and no way around it. Elsewhere MILA_CONSENT_SOCKET may turn the proxy on (a plain install that runs one)."""
+    import pwd
+    try: pwd.getpwnam("mila-io"); agent = True
+    except KeyError: agent = False
+    return CONSENT_SOCK if agent else os.environ.get("MILA_CONSENT_SOCKET", "")
+
+
 def via_proxy(a, text):
     """Mila Agent: the consent proxy shows the owner this text and these chats, sends from the owner's bot after «yes»."""
     to = [x.strip() for x in a.to.split(",") if x.strip()]
@@ -41,7 +54,7 @@ def via_proxy(a, text):
     if a.buttons: sys.exit(json.dumps({"error": "кнопки в сообщении от бота владельца пока не отправляются — уберите --buttons"}, ensure_ascii=False))
     sys.path.insert(0, os.path.join(os.environ.get("MILA_KIT") or "/opt/mila/kit", "consent"))
     import consent_client as _cc
-    r = _cc.ask("send_as_owner", {"text": text, "targets": to}, os.environ["MILA_CONSENT_SOCKET"])
+    r = _cc.ask("send_as_owner", {"text": text, "targets": to}, consent_sock())
     st = r.get("status")
     if st in ("asked", "waiting", "deferred"):
         print(json.dumps({"waiting": st, "next": "карточка у владельца; после его «Да» — та же команда ещё раз"}, ensure_ascii=False)); sys.exit(2)
@@ -54,7 +67,7 @@ def via_proxy(a, text):
 def main():
     ap = argparse.ArgumentParser(); sp = ap.add_subparsers(dest="cmd", required=True)
     for k in ("personal", "broadcast"):
-        proxy = bool(os.environ.get("MILA_CONSENT_SOCKET"))
+        proxy = bool(consent_sock())
         p = sp.add_parser(k); p.add_argument("--operator", required=not proxy, default=""); p.add_argument("--text", required=True)
         p.add_argument("--to", default=""); p.add_argument("--card", required=not proxy, default=""); p.add_argument("--choice", required=not proxy, default="")
         p.add_argument("--buttons", default="", help='JSON: [[{"label":"Сайт","url":"https://…"}]] — только https')
@@ -66,7 +79,7 @@ def main():
         print(open(r).read() if os.path.exists(r) else json.dumps({"status": "ждёт службу", "id": a.id}, ensure_ascii=False)); return
     text = a.text.strip()
     if not text or len(text) > 4096: sys.exit(json.dumps({"error": "текст пустой или длиннее 4096"}, ensure_ascii=False))
-    if os.environ.get("MILA_CONSENT_SOCKET"): return via_proxy(a, text)
+    if consent_sock(): return via_proxy(a, text)
     if not re.fullmatch(r"[a-z0-9-]{2,40}", a.operator): sys.exit(json.dumps({"error": "operator — slug оператора"}, ensure_ascii=False))
     to = [x.strip().lstrip("@") for x in a.to.split(",") if x.strip()]
     if a.cmd == "personal" and len(to) != 1: sys.exit(json.dumps({"error": "personal — ровно один получатель"}, ensure_ascii=False))

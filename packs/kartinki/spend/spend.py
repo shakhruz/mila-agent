@@ -69,6 +69,17 @@ def io_file(name):
     return p
 
 
+CONSENT_SOCK = "/run/mila-io/consent.sock"
+
+
+def consent_sock():
+    """the consent proxy's socket, or "" when there is none to use. Mila Agent is decided by the machine — the receiver's OS user
+    exists — not by a variable the session could unset: there, always the image's socket (a variable cannot point elsewhere)
+    and no way around it. Elsewhere MILA_CONSENT_SOCKET may turn the proxy on (a plain install that runs one)."""
+    agent = io_uid() is not None
+    return CONSENT_SOCK if agent else os.environ.get("MILA_CONSENT_SOCKET", "")
+
+
 def proxy_approve(r):
     """Mila Agent: a paid generation is approved by the owner through the consent proxy — a card with what, where and the
     forecast; or within a standing permission the owner opened there (up to 7 days and $10 a day). → (consent id, why)."""
@@ -81,7 +92,7 @@ def proxy_approve(r):
     payload = {"text": "Платная генерация: %s · %s · ~$%.2f\n#%s" % (r.get("what") or "", r.get("service") or "", r["est"], r["id"]),
                "targets": [str(r.get("service") or "")], "cost_usd": r["est"]}
     t0 = _time.time()
-    q = _cc.ask("spend", payload, os.environ["MILA_CONSENT_SOCKET"])
+    q = _cc.ask("spend", payload, consent_sock())
     st = q.get("status")
     if st in ("asked", "waiting", "deferred"): return "", "карточка у владельца (%s); после его «да» — approve %s ещё раз" % (st, r["id"])
     if st != "done": return "", "посредник: " + str(q.get("why") or st)[:200]
@@ -174,7 +185,7 @@ def main():
                        "over_limit": "месячный потолок — спроси владельца поднять лимит"}[r["status"]]}, ensure_ascii=False))
     elif cmd in ("approve", "reject"):
         r = rs[o.x[0]]
-        if cmd == "approve" and os.environ.get("MILA_CONSENT_SOCKET"):
+        if cmd == "approve" and consent_sock():
             cid, why = proxy_approve(r)
             if not cid: sys.exit("не одобрено: " + why)
             put({"id": r["id"], "status": "approved", "approved_by": "owner", "consent": cid, "approved_ts": NOW()})

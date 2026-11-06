@@ -640,7 +640,7 @@ def reexec_release_updater(src, rows, argv):
 
 
 def cmd_apply(a):
-    if os.environ.get("MILA_CONSENT_SOCKET"):
+    if consent_sock():
         # Mila Agent: the owner's «yes» through the consent proxy for exactly this release (its commit), never a --yes string
         src0 = source(a); sha0 = git_sha(src0) or "?"
         what = "Обновить ядро Милы%s (%s)" % ((" до " + a.tag) if getattr(a, "tag", None) else "", sha0[:12])
@@ -1538,10 +1538,21 @@ def manual_yes(a):
     return bool((a.yes or "").strip()) and sys.stdin.isatty() and not os.environ.get("CLAUDECODE")
 
 
+CONSENT_SOCK = "/run/mila-io/consent.sock"
+
+
+def consent_sock():
+    """the consent proxy's socket, or "" when there is none to use. Mila Agent is decided by the machine — the receiver's OS user
+    exists — not by a variable the session could unset: there, always the image's socket (a variable cannot point elsewhere)
+    and no way around it. Elsewhere MILA_CONSENT_SOCKET may turn the proxy on (a plain install that runs one)."""
+    agent = io_uid() is not None
+    return CONSENT_SOCK if agent else os.environ.get("MILA_CONSENT_SOCKET", "")
+
+
 def proxy_consent(mark, what="", kind="pack"):
     """Mila Agent: the owner's «yes» goes through the consent proxy — it draws the card, records the decision in its chain, and
     this tool runs only after it finds «confirmed» for exactly this pack (the mark carries the pack and its archive) there."""
-    sock = os.environ.get("MILA_CONSENT_SOCKET", "")
+    sock = consent_sock()
     kit = os.path.join(os.environ.get("MILA_KIT") or "/opt/mila/kit", "consent")
     sys.path.insert(0, kit)
     try:
@@ -1564,7 +1575,7 @@ def proxy_consent(mark, what="", kind="pack"):
 
 
 def consent(a, mark, what=""):
-    if os.environ.get("MILA_CONSENT_SOCKET"): return proxy_consent(mark, what)
+    if consent_sock(): return proxy_consent(mark, what)
     if a.card: return {"card": a.card, "yes_by": owner_yes(a.card, mark)}
     if manual_yes(a) and a.sender: return {"yes": a.yes, "from": a.sender, "manual": True}
     _refuse("нужно нажатие хозяина: --card <id карточки с меткой %s> (строка --yes — только вручную из терминала)" % mark)
@@ -1728,7 +1739,7 @@ def cmd_remove_pack(a):
         except SystemExit: pid = None
     if not pid or pid not in have: sys.exit(json.dumps({"error": "такой пак не стоит: " + q[:60], "stoyat": sorted(have)}, ensure_ascii=False))
     mark = "#unpack-" + pid
-    if not a.card and not manual_yes(a) and not os.environ.get("MILA_CONSENT_SOCKET"):   # без нажатия — карточка для хозяина, ничего не снято
+    if not a.card and not manual_yes(a) and not consent_sock():   # без нажатия — карточка для хозяина, ничего не снято
         t = {"ru": ("Убрать пак «%s»? Его навыки уйдут, бэкап останется; вернуть — поставить заново.", "🗑 Убрать", "Оставить"),
              "en": ("Remove the «%s» pack? Its skills go, a backup stays; to return it — install it again.", "🗑 Remove", "Keep"),
              "uz": ("«%s» paketini olib tashlaymi? Ko‘nikmalari ketadi, zaxira qoladi.", "🗑 Olib tashlash", "Qoldirish")}[a.lang if a.lang in ("ru", "en", "uz") else "ru"]
