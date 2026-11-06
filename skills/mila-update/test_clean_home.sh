@@ -14,6 +14,8 @@ $U apply --src "$T/rel" --yes "тест чистого дома" > "$T/a.json" 2
 chk "apply на чистом доме — версия $V" "$U status | grep -q '$V'"
 chk "навыки ядра и хуки поставлены (mila-update, send-guard)" "[ -f $CLAUDE_CONFIG_DIR/skills/mila-update/SKILL.md ] && [ -f $CLAUDE_CONFIG_DIR/hooks/send-guard.py ]"
 chk "конституция в work" "[ -f $MILA_WORK/CONSTITUTION.md ]"
+# doctor reads its strings from hooks/locales: an update that brought doctor.py but not the folder left it with a traceback
+chk "doctor из дома после обновления запускается (переводы рядом)" "[ -f $CLAUDE_CONFIG_DIR/hooks/locales/en.json ] && ! python3 $CLAUDE_CONFIG_DIR/hooks/doctor.py 2>&1 | grep -q Traceback"
 $U rollback > "$T/r.json" 2>&1
 chk "rollback — навыка из релиза больше нет, версия снова не записана" "[ ! -f $CLAUDE_CONFIG_DIR/skills/mila-update/SKILL.md ] && $U status | python3 -c \"import json,sys;assert json.load(sys.stdin)['version']!='$V'\""
 echo "итог $ok/$n"; rm -rf "$T"; [ $ok -eq $n ]

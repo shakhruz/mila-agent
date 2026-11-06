@@ -27,6 +27,12 @@
       ]
     },
     {
+      "what": "переводы хуков (doctor)",
+      "src": "install/locales/*.json",
+      "dst": "{claude}/hooks/locales/*",
+      "kind": "file"
+    },
+    {
       "what": "запускатель",
       "src": "install/mila",
       "dst": "{home}/.local/bin/mila",
