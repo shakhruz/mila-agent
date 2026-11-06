@@ -14,6 +14,18 @@ it. What the session may see of it comes through a search that filters by author
 - An edit of a message is its own line (`edit: true`, the message id, the new text); the earlier text stays.
 - A chat that is not connected, a DM from someone not allowed: nothing is written.
 
+## Files (part B)
+
+- The original of a photo (the largest size), voice, audio, video, round video, document, sticker or animation is saved under
+  `archive/<chat_id>/files/<sha256[:2]>/<sha256>.<ext>`, 0600; the message's line carries `file_sha`, `file_ext`, `file_size`.
+  The same file twice is stored once.
+- A stranger's file is kept the same way — the owner's decision: strangers' originals, 12 months — but never transcribed and
+  never shown to the session.
+- Over 20 MB (what Telegram serves to a bot): the line says «not downloaded: over 20 MB», with the file id.
+- A ceiling: `ARCHIVE_FILES_MB` (2000 by default), strangers' files at most half of it. Over it a file is not kept — the line says
+  «not downloaded: the archive is full» — and the owner gets one line a day. The owner's private chat is not counted. (Files that
+  arrive at the same moment may pass the ceiling by one.)
+
 ## Where it is on
 
 Only in Mila Agent (the receiver's own folder) or with `TELEGRAM_ARCHIVE=1`. A plain install of the plugin keeps no archive and
@@ -29,8 +41,8 @@ posts nothing about one — and there, with one OS user, it would not be a wall 
 
 ## Kept for how long
 
-Texts and transcripts — for good (the owner's decision). Original files — the next part: the owner's and the team's for good,
-strangers' 12 months.
+Texts and transcripts — for good (the owner's decision). Original files: the owner's and the team's for good, strangers' 12
+months — the sweep that deletes them comes in a later part; until then they stay.
 
 ## Claimed ↔ in the code
 
@@ -40,7 +52,8 @@ strangers' 12 months.
 | owner / team / stranger lines; nothing from unconnected chats | plugin `handleInbound()`, `guestEvent()` (`receiver.ts`) |
 | edits as their own lines | plugin `edited_message` handler, `allowed_updates` (`receiver.ts`) |
 | the group told at connection and once after the update; the owner's card | plugin `join.archive`, `join.archiveOwner` (`i18n.mjs`), `announceArchive()` (`receiver.ts`) |
-| checked | plugin `archive.test.ts`, `join-archive.test.ts` |
+| originals by content hash, strangers' without STT, over 20 MB — metadata; the ceiling | plugin `mediaOf()`, `archiveFile()`, `archiveMessage()`, `roomFor()` (`receiver.ts`); `archive.full` (`i18n.mjs`) |
+| checked | plugin `archive.test.ts`, `join-archive.test.ts`, `archive-files.test.ts`, `archive-cap.test.ts` |
 
 ## Not verified live yet
 
@@ -52,5 +65,5 @@ strangers' 12 months.
 
 ## Next parts
 
-Original files and voice (strangers' without transcription, 12 months) · outgoing messages through the key keeper · `mila
+Outgoing messages through the key keeper · `mila
 recall` with an author filter · the retention sweep · backups.
