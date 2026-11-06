@@ -4,7 +4,9 @@ bot-send-gate (токен бота оператора живёт на хосте
   request_send.py personal --operator <slug> --to <id|@username> --text "…" --card <card_id> --choice <choice>
   request_send.py broadcast --operator <slug> --segment "<сегмент>" | --to id1,id2 --text "…" --card <card_id> --choice <choice>
   request_send.py status <id>                 — что ответила служба (<id>.result.json)
-card/choice — карточка, на которой хозяин нажал ✅ (из входящего «[кнопка] …» и cards.jsonl плагина); служба сверит её сама."""
+card/choice — карточка, на которой хозяин нажал ✅ (из входящего «[кнопка] …» и cards.jsonl плагина); служба сверит её сама.
+Mila Agent (есть MILA_CONSENT_SOCKET): оператора и службы нет — отправляет посредник согласий от бота владельца после его «да» на ровно
+этот текст и этих получателей (--to — числовые id); --operator/--card/--choice не нужны, кнопки и сегменты — не поддерживаются."""
 import argparse, json, os, re, sys, time, uuid
 
 OUT = os.path.join(os.environ.get("MILA_WORK") or os.path.expanduser("~/work"), "outbox", "bot-send")
@@ -30,11 +32,31 @@ def button_errors(buttons):
     return err
 
 
+def via_proxy(a, text):
+    """Mila Agent: the consent proxy shows the owner this text and these chats, sends from the owner's bot after «yes»."""
+    to = [x.strip() for x in a.to.split(",") if x.strip()]
+    if a.cmd == "personal" and len(to) != 1: sys.exit(json.dumps({"error": "personal — ровно один получатель"}, ensure_ascii=False))
+    if not to or any(not re.fullmatch(r"-?[0-9]{1,20}", x) for x in to):
+        sys.exit(json.dumps({"error": "в Mila Agent получатели — числовые id чатов (--to id1,id2); сегментов нет"}, ensure_ascii=False))
+    if a.buttons: sys.exit(json.dumps({"error": "кнопки в сообщении от бота владельца пока не отправляются — уберите --buttons"}, ensure_ascii=False))
+    sys.path.insert(0, os.path.join(os.environ.get("MILA_KIT") or "/opt/mila/kit", "consent"))
+    import consent_client as _cc
+    r = _cc.ask("send_as_owner", {"text": text, "targets": to}, os.environ["MILA_CONSENT_SOCKET"])
+    st = r.get("status")
+    if st in ("asked", "waiting", "deferred"):
+        print(json.dumps({"waiting": st, "next": "карточка у владельца; после его «Да» — та же команда ещё раз"}, ensure_ascii=False)); sys.exit(2)
+    if st != "done": sys.exit(json.dumps({"error": "посредник: " + str(r.get("why") or st)[:200]}, ensure_ascii=False))
+    res = r.get("result") or {}
+    print(json.dumps({"ok": bool(res.get("ok")), "sent": res.get("sent", []), "failed": res.get("failed", [])}, ensure_ascii=False))
+    sys.exit(0 if res.get("ok") else 1)
+
+
 def main():
     ap = argparse.ArgumentParser(); sp = ap.add_subparsers(dest="cmd", required=True)
     for k in ("personal", "broadcast"):
-        p = sp.add_parser(k); p.add_argument("--operator", required=True); p.add_argument("--text", required=True)
-        p.add_argument("--to", default=""); p.add_argument("--card", required=True); p.add_argument("--choice", required=True)
+        proxy = bool(os.environ.get("MILA_CONSENT_SOCKET"))
+        p = sp.add_parser(k); p.add_argument("--operator", required=not proxy, default=""); p.add_argument("--text", required=True)
+        p.add_argument("--to", default=""); p.add_argument("--card", required=not proxy, default=""); p.add_argument("--choice", required=not proxy, default="")
         p.add_argument("--buttons", default="", help='JSON: [[{"label":"Сайт","url":"https://…"}]] — только https')
         if k == "broadcast": p.add_argument("--segment", default="")
     s = sp.add_parser("status"); s.add_argument("id")
@@ -44,6 +66,7 @@ def main():
         print(open(r).read() if os.path.exists(r) else json.dumps({"status": "ждёт службу", "id": a.id}, ensure_ascii=False)); return
     text = a.text.strip()
     if not text or len(text) > 4096: sys.exit(json.dumps({"error": "текст пустой или длиннее 4096"}, ensure_ascii=False))
+    if os.environ.get("MILA_CONSENT_SOCKET"): return via_proxy(a, text)
     if not re.fullmatch(r"[a-z0-9-]{2,40}", a.operator): sys.exit(json.dumps({"error": "operator — slug оператора"}, ensure_ascii=False))
     to = [x.strip().lstrip("@") for x in a.to.split(",") if x.strip()]
     if a.cmd == "personal" and len(to) != 1: sys.exit(json.dumps({"error": "personal — ровно один получатель"}, ensure_ascii=False))
