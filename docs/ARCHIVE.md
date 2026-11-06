@@ -14,6 +14,11 @@ it. What the session may see of it comes through a search that filters by author
 - An edit of a message is its own line (`edit: true`, the message id, the new text); the earlier text stays.
 - A chat that is not connected, a DM from someone not allowed: nothing is written.
 
+## Where it is on
+
+Only in Mila Agent (the receiver's own folder) or with `TELEGRAM_ARCHIVE=1`. A plain install of the plugin keeps no archive and
+posts nothing about one — and there, with one OS user, it would not be a wall anyway.
+
 ## People are told
 
 - When the owner connects a group, the group gets one line: Mila keeps an archive of this chat, the owner can read it, to have
@@ -46,4 +51,4 @@ strangers' 12 months.
 ## Next parts
 
 Original files and voice (strangers' without transcription, 12 months) · outgoing messages through the key keeper · `mila
-recall` with an author filter · the retention sweep · backups · on a plain install (one OS user) the archive is not a wall.
+recall` with an author filter · the retention sweep · backups.
