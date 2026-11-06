@@ -1,5 +1,20 @@
 # CHANGELOG · Mila
 
+## v1.7.5 · 07.11 — the first start after an install opens a conversation
+
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
+**Для хозяина**
+- Первый запуск после установки больше не закрывается сразу: я начинаю новый разговор.
+
+</details>
+
+**For the owner**
+- The first `mila` after an install no longer quits right after the trust questions: with no earlier conversation in that folder it starts a new one.
+
+**For Milas**
+- `install/mila`: no conversation for the current folder in `${CLAUDE_CONFIG_DIR:-~/.claude}/projects/<folder>/` — start without `--continue` (as `mila new`) and say so; otherwise `--continue` as before. `mila onboard` ends with «First start: mila new». `install/test_mila_first_run.sh`.
+
 ## v1.7.4 · 06.11 — a portrait when Mila is ready, a journal of the key guard's refusals, guards wired after an update
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
