@@ -151,4 +151,9 @@ E = os.path.join(T, "empty"); os.makedirs(E)
 check("пустой источник — «nothing to import»", ia.do_import("hermes", E, work, today=today)["status"] == "nothing to import")
 cp = subprocess.run([sys.executable, os.path.join(H, "import_agent.py"), "hermes", E, "--work", work], capture_output=True, text=True, env=dict(os.environ))
 check("CLI: код 0 и JSON", cp.returncode == 0 and json.loads(cp.stdout.strip().splitlines()[-1])["status"] == "nothing to import", cp.stdout + cp.stderr)
+# a line that looks like a secret the scanner does not know: keys and tokens ≥ 16, passwords and secrets ≥ 8 (all fakes glued)
+yes = ['"apiKey": "' + "abcd1234" + 'efgh5678ijkl"', "api_key: " + "abcd1234efgh" + "5678ijkl", "password: " + "hun" + "ter2hunter2", "DB_PASSWORD=" + "s3cr" + "3t!x"]
+no = ["monkey: banana", "Keywords: python, ai", "password: short", "key: value", "secret_santa: Alice"]
+check("похожие на секрет строки: ключ ≥16 и пароль ≥8 ловятся; monkey, Keywords, короткое — нет",
+      all(ia.KEYLIKE.search(x) for x in yes) and not any(ia.KEYLIKE.search(x) for x in no), [x for x in yes if not ia.KEYLIKE.search(x)] + [x for x in no if ia.KEYLIKE.search(x)])
 shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
