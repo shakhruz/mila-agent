@@ -59,6 +59,33 @@ def tg_allowed(method, rest, peer="tcp"):
     return bool(m) and method == "GET" and ".." not in m.group(1).split("/")
 
 
+# Outgoing messages for the archive (Mila Agent): what Telegram answered to a send — the method, the chat, the message id, the text —
+# goes to a spool only the receiver's user reads (MILA_ARCHIVE_SPOOL, set by the root step). The keeper keeps nothing itself.
+OUT_METHODS = {m.lower() for m in """sendMessage sendPhoto sendDocument sendVideo sendAudio sendVoice sendAnimation sendVideoNote
+    sendSticker sendPoll copyMessage forwardMessage editMessageText editMessageCaption""".split()}
+OUT_SPOOL = os.environ.get("MILA_ARCHIVE_SPOOL") or ""
+
+
+def spool_out(method, body):
+    try:
+        res = json.loads(body.decode("utf-8")).get("result")
+    except (ValueError, UnicodeDecodeError, AttributeError):
+        return
+    if not isinstance(res, dict): return
+    chat = (res.get("chat") or {}).get("id")
+    row = {"ts": int(time.time() * 1000), "method": method, "chat_id": str(chat) if chat is not None else "", "message_id": res.get("message_id"),
+           "text": str(res.get("text") or res.get("caption") or "")[:4096]}
+    for k in ("photo", "document", "video", "audio", "voice", "animation", "video_note", "sticker"):
+        if res.get(k):
+            f = res[k][-1] if isinstance(res[k], list) else res[k]
+            row["kind"], row["file_id"] = k, (f or {}).get("file_id"); break
+    try:
+        fd = os.open(OUT_SPOOL, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o640)
+        with os.fdopen(fd, "a", encoding="utf-8") as f: f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    except OSError as e:
+        log("spool: %s" % type(e).__name__)
+
+
 CHECK = {"guest": "/v1/models", "anthropic": "/v1/models", "deepgram": "/v1/projects", "groq": "/openai/v1/models", "telegram": "/bot{key}/getMe"}   # «is this key alive» — the keeper's own call
 HOP = {"host", "connection", "keep-alive", "proxy-authorization", "proxy-connection", "te", "trailer", "transfer-encoding", "upgrade",
        "authorization", "x-api-key", "content-length", "accept-encoding", "cookie"}
@@ -232,12 +259,17 @@ class Proxy(http.server.BaseHTTPRequestHandler):
         if self.command == "HEAD":
             self.send_header("Content-Length", "0"); self.end_headers(); return
         self.send_header("Transfer-Encoding", "chunked"); self.send_header("Connection", "close"); self.end_headers()
+        om = re.fullmatch(r"/bot[^/]+/([A-Za-z]+)", rest.split("?")[0]) if kind == "telegram" else None
+        keep = bool(om and r.status == 200 and om.group(1).lower() in OUT_METHODS and OUT_SPOOL)
+        got = []
         try:
             while True:
                 ch = r.read1(65536)
                 if not ch: break
+                if keep and sum(map(len, got)) < 1 << 20: got.append(ch)
                 self.wfile.write(b"%x\r\n%s\r\n" % (len(ch), ch)); self.wfile.flush()   # stream as it comes (SSE)
             self.wfile.write(b"0\r\n\r\n"); self.wfile.flush()
+            if keep: spool_out(om.group(1), b"".join(got))
         except (BrokenPipeError, ConnectionResetError):
             pass
         finally:
@@ -317,6 +349,13 @@ def boot(home, agent_uid, keys_uid, port):
     os.chmod(KEYS, 0o700)
     run = os.path.dirname(os.environ.get("KEYD_SOCK") or "/run/mila-keyd/put.sock")
     os.makedirs(run, exist_ok=True); os.chown(run, keys_uid, agent_uid); os.chmod(run, 0o2751)   # o+x: the receiver's user reaches api.sock
+    global OUT_SPOOL
+    try:   # Mila Agent: a spool for outgoing messages the receiver's user reads (group mila-io), the session's user does not
+        import pwd; io_gid = pwd.getpwnam("mila-io").pw_gid
+        od = os.path.join(run, "out"); os.makedirs(od, exist_ok=True); os.chown(od, keys_uid, io_gid); os.chmod(od, 0o2750)
+        OUT_SPOOL = os.path.join(od, "out.jsonl")
+    except (KeyError, ImportError, OSError):
+        pass
     if os.fork():
         for _ in range(50):
             try: socket.create_connection(("127.0.0.1", port), 0.2).close(); log("up as uid %d; moved in: %s" % (keys_uid, ", ".join(moved) or "nothing")); return 0

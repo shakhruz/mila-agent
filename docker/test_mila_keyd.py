@@ -25,14 +25,15 @@ class Up(http.server.BaseHTTPRequestHandler):
             for i in range(3):
                 ch = ("event: ping\ndata: %d\n\n" % i).encode(); self.wfile.write(b"%x\r\n%s\r\n" % (len(ch), ch)); self.wfile.flush(); time.sleep(0.6)
             self.wfile.write(b"0\r\n\r\n"); return
-        b = b'{"ok": true}'; self.send_response(200); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
+        b = (b'{"ok": true, "result": {"message_id": 41, "chat": {"id": 1, "type": "private"}, "text": "hello there"}}' if self.path.endswith("/sendMessage") else b'{"ok": true}')
+        self.send_response(200); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
     do_GET = do_POST
 up = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Up); threading.Thread(target=up.serve_forever, daemon=True).start()
 T = tempfile.mkdtemp(prefix="keyd-"); K = os.path.join(T, "keys"); SOCK = os.path.join(T, "put.sock")
 s = socket.socket(); s.bind(("127.0.0.1", 0)); PORT = s.getsockname()[1]; s.close()
 UPB = "http://127.0.0.1:%d" % up.server_port
 env = dict(os.environ, KEYS_DIR=K, KEYD_PORT=str(PORT), KEYD_SOCK=SOCK, KEYD_UPSTREAM_ANTHROPIC=UPB + "/a", KEYD_UPSTREAM_DEEPGRAM=UPB + "/d", KEYD_UPSTREAM_GROQ=UPB + "/g", KEYD_UPSTREAM_GUEST=UPB + "/a",
-           KEYD_UPSTREAM_TELEGRAM=UPB + "/t", MILA_IO_UID=str(os.getuid()), MILA_RECEIVER_UP=os.path.join(T, "receiver.up"))
+           KEYD_UPSTREAM_TELEGRAM=UPB + "/t", MILA_ARCHIVE_SPOOL=os.path.join(T, "out.jsonl"), MILA_IO_UID=str(os.getuid()), MILA_RECEIVER_UP=os.path.join(T, "receiver.up"))
 LOG = open(os.path.join(T, "keyd.log"), "w")
 p = subprocess.Popen([sys.executable, os.path.join(H, "mila_keyd.py")], env=env, stderr=LOG, stdout=LOG)
 for _ in range(50):
@@ -97,6 +98,9 @@ check("перенос: переменная платформы сильнее с
 BOT = "555" + "000111:" + "T" * 35; PH = "555" + "000111:mila-keyd-placeholder-not-a-token"
 check("токен бота через сокет — принят; /status даёт только id бота", mila_keyd.put_remote("telegram", BOT, SOCK) and json.loads(req("GET", "/status")[1]).get("telegram_bot_id") == "555" + "000111")
 req("POST", "/telegram/bot%s/sendMessage" % PH, b'{"chat_id": 1, "text": "x"}')
+_sp = [json.loads(l) for l in open(os.path.join(T, "out.jsonl"))] if os.path.exists(os.path.join(T, "out.jsonl")) else []
+check("исходящее для архива: ответ Telegram на sendMessage — в спул (метод, чат, id, текст), без токена", _sp and _sp[-1] == {**_sp[-1], "method": "sendMessage", "chat_id": "1", "message_id": 41, "text": "hello there"}
+      and BOT not in open(os.path.join(T, "out.jsonl")).read(), _sp)
 check("Telegram: заглушка в пути заменена настоящим токеном, остальное как было", SEEN[-1][0] == "/t/bot%s/sendMessage" % BOT, SEEN[-1][0])
 req("GET", "/telegram/file/bot%s/documents/file_1.pdf" % PH)
 check("Telegram: скачивание файла — тоже с настоящим токеном", SEEN[-1][0] == "/t/file/bot%s/documents/file_1.pdf" % BOT, SEEN[-1][0])
