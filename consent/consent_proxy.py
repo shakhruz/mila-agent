@@ -62,6 +62,8 @@ FIELDS = ("text", "targets", "when", "attachments")   # what a card shows; a cat
 MANDATE_DAYS = 7                                       # a standing permission lives at most a week (the owner's word)
 MANDATE_USD_DAY = 10.0                                 # … and spends at most this a day, unless the owner's config says less
 MAX_CARDS_HOUR = 10                                    # the owner is not flooded: more asks than this an hour are refused
+URGENT_KINDS = ("login_lost", "security")               # the only things that break the owner's quiet hours (the owner's word)
+URGENT_DAY = 5
 DECLINE_MEMORY = 86400                                 # a «no» holds for a day: the same action is not asked again
 CARD_TEXT = 3000                                       # longer text goes in parts before the card (Telegram: 4096 per message)
 PART = 3500
@@ -317,6 +319,53 @@ class Proxy:
             self._save("consents.json", cons)
             return sent
 
+    # ── the notification gate: other scripts tell the owner through here, not straight to Telegram ──
+    def notify(self, level, kind, text):
+        """urgent — at once, even at night, but only a lost login or a security event (the owner's rule); anything else waits for
+        the next summary. The same thing once a day; at most URGENT_DAY urgent lines a day."""
+        text = INVISIBLE.sub("", str(text or "")).strip()[:600]
+        kind = re.sub(r"[^a-z0-9_]", "", str(kind or "").lower())[:40] or "note"
+        if not text: return {"status": "denied", "why": "empty"}
+        now = self.now(); key = hashlib.sha256(("%s|%s" % (kind, text)).encode()).hexdigest()[:16]
+        with self.lock:
+            st = self._load("notify.json", {"seen": {}, "urgent": [], "queue": []})
+            st["seen"] = {k: t for k, t in st["seen"].items() if now - t < 86400}
+            if key in st["seen"]: return {"status": "dropped", "why": "the same today already"}
+            st["seen"][key] = now
+            if level == "urgent" and kind in URGENT_KINDS:
+                st["urgent"] = [t for t in st["urgent"] if now - t < 86400]
+                if len(st["urgent"]) < URGENT_DAY:
+                    st["urgent"].append(now); self._save("notify.json", st)
+                    ok = self.send("⚠ " + text, [])
+                    self.journal({"ev": "notified", "kind": kind, "urgent": True, "sent": bool(ok)})
+                    return {"status": "sent" if ok else "denied"}
+            st["queue"].append({"ts": now, "kind": kind, "text": text})
+            st["queue"] = st["queue"][-50:]
+            self._save("notify.json", st)
+        self.journal({"ev": "queued", "kind": kind})
+        return {"status": "queued", "why": "goes in the next summary"}
+
+    def summary(self):
+        """at the owner's summary hours (cfg summary_hours, default 9 and 19), outside quiet hours: one message with what waited"""
+        now = self.now()
+        if self.quiet(now) or not self.cfg.get("tz"): return 0
+        try:
+            from zoneinfo import ZoneInfo
+            import datetime as _dt
+            d = _dt.datetime.fromtimestamp(now, ZoneInfo(self.cfg["tz"]))
+        except Exception:
+            return 0
+        slot = "%s-%02d" % (d.date(), d.hour)
+        if d.hour not in (self.cfg.get("summary_hours") or [9, 19]): return 0
+        with self.lock:
+            st = self._load("notify.json", {"seen": {}, "urgent": [], "queue": []})
+            if st.get("last_slot") == slot or not st["queue"]: return 0
+            items, st["queue"], st["last_slot"] = st["queue"], [], slot
+            self._save("notify.json", st)
+        ok = self.send("\n".join(["Сводка Милы:"] + ["· " + i["text"] for i in items[:20]] + (["· …и ещё %d" % (len(items) - 20)] if len(items) > 20 else [])), [])
+        self.journal({"ev": "summary", "items": len(items), "sent": bool(ok)})
+        return len(items)
+
     # ── standing permissions (mandates) ──
     def cost(self, payload):
         try: return max(0.0, float(payload.get("cost_usd") or 0))
@@ -509,6 +558,7 @@ def serve(px, path, handler, mode):
 def session_handler(px):
     def h(q):
         if q.get("op") == "request": return px.request(q.get("category"), q.get("payload"))
+        if q.get("op") == "notify": return px.notify(q.get("level"), q.get("kind"), q.get("text"))
         if q.get("op") == "mandate": return px.mandate_ask(q.get("category"), q.get("targets") or [], q.get("days"), q.get("per_day"), q.get("usd_day"))
         return {"status": "denied", "why": "unknown op"}
     return h
@@ -534,7 +584,7 @@ def main(argv=None):
     def mornings():
         while True:
             time.sleep(300)
-            try: px.flush()
+            try: px.flush(); px.summary()
             except Exception as e: sys.stderr.write("consent: flush %s\n" % type(e).__name__)
     threading.Thread(target=mornings, daemon=True).start()
     threading.Thread(target=serve, args=(px, cfg["io_socket"], io_handler(px), 0o600), daemon=True).start()

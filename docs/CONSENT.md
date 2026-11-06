@@ -26,6 +26,23 @@ session cannot run it itself: the service keys are with the proxy, not with the 
   overnight — the card expires instead of showing something else.
 - More than 10 cards an hour — refused: the owner is not flooded.
 
+## Kinds in the image
+
+`consent/categories.json` (from the image, never from the session's files):
+- `send_as_owner` — a message from the owner's bot to named chats (numeric ids); the `bot-send` skill uses it in Mila Agent.
+- `spend` — a paid generation: the card shows what, where and the forecast; standing permissions allowed (per service).
+- `pack`, `update` — consent only: the proxy records «confirmed» with the exact action's hash, `update.py` runs the install
+  or the update itself after `confirmed()` finds it (the chain intact, after it asked, not used before). A `--yes` string from
+  the session is not an owner's «yes».
+- `publish_zernio` — off until the owner turns it on.
+
+## The notification gate
+
+Other scripts tell the owner through the proxy (`{"op": "notify", "level", "kind", "text"}` on the session socket):
+- urgent — at once, even at night, but only `login_lost` and `security` (the owner's rule), at most 5 a day;
+- anything else waits for the summary at 09:00 and 19:00 in the owner's time zone — one message;
+- the same thing once a day; invisible characters are removed.
+
 ## Standing permissions
 
 The session may ask for a permission; the proxy draws the card with the exact terms; only the owner's press opens it.
@@ -55,11 +72,14 @@ an anchor `n:h12` kept outside the machine. `python3 consent/decisions.py verify
 | the card drawn by the proxy, the exact action's hash, once, 15 min; no invisible characters | `consent/consent_proxy.py` `request()`, `hidden()`, `digest()`, `preview()`, `callback()` |
 | a «no» a day, three in a row, silence = expired | `request()` (`DECLINE_MEMORY`, the streak), `sweep()` |
 | night: cards wait for the morning; at most 10 an hour; the owner's language | `quiet()`, `flush()`, `MAX_CARDS_HOUR`, `lang()`, `W` |
+| consent-only kinds, the tools' check | `execute()` (no `exec`), `action_hash()`, `confirmed()`; `skills/mila-update/update.py` `proxy_consent()`, `cmd_apply()`; `packs/kartinki/spend/spend.py` `proxy_approve()` |
+| send as the owner | `consent/executors/tg_send.py`; `packs/manager/bot-send/request_send.py` `via_proxy()` |
+| the notification gate | `notify()`, `summary()`, `URGENT_KINDS` |
 | permissions: terms, ceilings, receipts, Stop | `mandate_ask()`, `mandate_fits()`, `receipt()`, `mandate_stop()` |
 | the chain and its check | `consent/decisions.py` |
 | the press goes to the proxy | plugin `consentPress()` (`receiver.ts`), `TELEGRAM_CONSENT_IO` |
 | in the image, categories from the image, sockets | `docker/entrypoint.sh` (root step, supervisor); `consent/categories.json` |
-| checked | `consent/test_consent.py`, `test_decisions.py`, `test_mandates.py`, `test_night.py`; plugin `consent-io.test.ts`; `docker/test_docker_files.sh`; in the image build `docker/wall_probe.sh` |
+| checked | `consent/test_consent.py`, `test_decisions.py`, `test_mandates.py`, `test_night.py`, `test_confirm.py`, `test_tg_send.py`, `test_notify.py`; `skills/mila-update/test_pack_proxy.py`, `packs/kartinki/spend/test_spend_proxy.py`, `packs/manager/bot-send/test_request_proxy.py`; plugin `consent-io.test.ts`; `docker/test_docker_files.sh`; in the image build `docker/wall_probe.sh` |
 
 ## Not verified live yet
 
@@ -67,6 +87,6 @@ an anchor `n:h12` kept outside the machine. `python3 consent/decisions.py verify
 
 ## What stays open
 
-- Kinds still asked their own way, not through the proxy yet: pack installs and updates (`update.py`), sending from the
-  owner's bot (`bot-send`), paid generations (`spend.py`). They move to one `request` next.
-- The notification gate for the rest (urgent / summary) and the anchor in the evening summary.
+- On a plain install (no proxy) packs, updates, `bot-send` and `spend.py` keep their own way of asking.
+- Which scripts send through the gate: the gate is there; moving each script (limit watch, feeder alerts) to it — next.
+- The chain's anchor in the evening summary.
