@@ -6,7 +6,7 @@
 
 [English](README.md) · **中文** · [Русский](README.ru.md) · [Oʻzbekcha](README.uz.md)
 
-[![tests](https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml) [![Latest release](https://img.shields.io/github/v/release/shakhruz/mila-agent?sort=semver&label=release)](https://github.com/shakhruz/mila-agent/releases/latest) [![License](https://img.shields.io/github/license/shakhruz/mila-agent)](LICENSE)
+[![tests](https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml) [![Latest version](https://img.shields.io/github/v/tag/shakhruz/mila-agent?sort=semver&label=version)](https://github.com/shakhruz/mila-agent/tags) [![License](https://img.shields.io/github/license/shakhruz/mila-agent)](LICENSE)
 
 **[当前版本](https://github.com/shakhruz/mila-agent/releases/latest)** · [更新内容](CHANGELOG.md)
 

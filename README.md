@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://milaagent.com"><img src="docs/assets/mila-agent-hero.png" alt="Mila Agent — a superheroine in headphones with a cape, one fist raised, chat and Telegram icons around her" width="280"></a>
+  <a href="https://milaagent.com"><img src="docs/assets/mila-agent-hero.png" alt="Mila Agent — a superheroine in headphones with a cape, one fist raised, chat and Telegram icons around her, in a round frame" width="280"></a>
 </p>
 
 <h1 align="center">Mila Agent</h1>
@@ -19,7 +19,7 @@ Free, open source, Apache-2.0. Made with ❤️ in Uzbekistan.</p>
 </p>
 
 <p align="center">
-  <a href="https://github.com/shakhruz/mila-agent/releases/latest"><img src="https://img.shields.io/github/v/release/shakhruz/mila-agent?sort=semver&label=release" alt="Latest release"></a>
+  <a href="https://github.com/shakhruz/mila-agent/tags"><img src="https://img.shields.io/github/v/tag/shakhruz/mila-agent?sort=semver&label=version" alt="Latest version"></a>
   <a href="https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml"><img src="https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0"></a>
   <img src="https://img.shields.io/badge/built%20on-Claude%20Code-555" alt="Built on Claude Code">
