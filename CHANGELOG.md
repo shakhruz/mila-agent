@@ -1,12 +1,16 @@
 # CHANGELOG · Mila
 
-## Unreleased (after v1.7.1)
+## v1.7.2 · 06.11 — a smaller core with packs, consent before outside actions, strangers kept out of the session, the archive
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
 **Для хозяина**
+- В ядре теперь 34 навыка, остальные стали паками. Те, что у вас уже есть, остаются, но обновляются только вместе с паком. Паки: Менеджер, Контент, Реклама, Почта, Узбекский, Дом, Jev, Картинки, Бизнес-помощник. Навыки, ушедшие в паки, у вашей Милы остаются, но обновляются только вместе с паком. Знакомство — три вопроса и одна польза, без списка шагов и строки «⛽». Ядро работает только на Claude (ваша подписка или ключ Anthropic).
+- После обновления образа чужие люди в группах до меня не доходят: я знаю только, сколько их написало. Это все, кроме вас и вашей команды. В Mila Agent им может коротко ответить отдельный помощник без инструментов, только по файлам, которые вы для этого положили.
+- Mila Agent: пост, платная генерация, сообщение от вашего бота — только после вашего нажатия на карточке в личке, где виден весь текст и куда он уйдёт. «Нет» держится сутки; молчание — не согласие; ночью карточка ждёт утра.
+- Mila Agent: архив переписки — все сообщения подключённых чатов и файлы; читает его только приёмник, не я. Группа узнаёт об архиве одной строкой.
+- После обновления образа голосовое от чужого человека не скачивается и не расшифровывается; 👀 ставлю только после того, как сообщение записано.
 - Токен вашего бота в Mila Agent — тоже у хранителя ключей: Мила пишет в Telegram через него и не может прочитать токен.
-- Ядро стало меньше: 34 навыка вместо 74; остальное — паки, которые ставятся по вашему «да» (Менеджер, Контент, Реклама, Почта, Узбекский, Дом, Jev, Картинки, Бизнес-помощник). Навыки, ушедшие в паки, у вашей Милы остаются, но обновляются только вместе с паком. Знакомство — три вопроса и одна польза, без списка шагов и строки «⛽». Ядро работает только на Claude (ваша подписка или ключ Anthropic).
 - Ваш токен Claude и ключи голоса в Mila Agent теперь у хранителя ключей — отдельного пользователя в контейнере: я пользуюсь ими, но прочитать их не могу ни я, ни подсказка-инъекция.
 - Mila Agent после обновления образа: новые навыки и мой новый CLAUDE.md доходят до уже живущей Милы (раньше — только до новой); ваши правки в CLAUDE.md и конституции не затираются — новая версия ляжет рядом; неизменённая конституция при новом образе обновляется (образ обновляете вы сами). После перезапуска я продолжаю разговор, а не здороваюсь заново.
 - Знакомство без кнопки «Удиви меня»: разбор вашего сайта или канала — шагом д2 в блоке «Ваше дело», одна находка и один шаг.
@@ -23,6 +27,10 @@
 </details>
 
 **For the owner**
+- Mila Agent: a post, a paid generation, a message from your bot — only after your press on a card in your private chat that shows the whole text and where it goes. A «no» holds for a day; silence is not consent; at night the card waits for the morning.
+- After the image update, in groups strangers (not you, not your team) do not reach me: I only learn how many wrote. In Mila Agent a separate helper with no tools may answer them briefly, only from files you put there for that.
+- Mila Agent: an archive of every message and file in connected chats; only the receiver reads it, not me. A group is told about it in one line.
+- After the image update, a stranger's voice note is not downloaded or transcribed; the 👀 comes only after the message is written down.
 - Telegram: Mila can pin a message and work with forum topics — answer in the topic a message came from, open a topic for a task and close it when it is done.
 - Mila Agent: the part that hears Telegram works under its own user — what people wrote and which buttons you pressed is kept where Mila can read but not rewrite; every message is marked by who wrote it (you, your team, someone else) by Telegram id, not by name.
 - A smaller core: 34 skills instead of 74; the rest are packs installed by your «yes» (Manager, Content, Ads, Mail, Uzbek, Home, Jev, Images, Business assistant). Getting acquainted is three questions and one benefit — no step list, no «⛽» line. The core runs only on Claude (your subscription or Anthropic key).
@@ -34,6 +42,10 @@
 - All of Mila's qualities in one list: `canon/QUALITIES.md`; new №19 «Business curiosity»: I follow the market, prices and competitors and can give a comparison with fresh facts.
 
 **For Milas**
+- Groups: owner / team / stranger by Telegram id; strangers go to `guests.jsonl` (0600), the session gets `guests_since_last` and a placeholder for a quoted stranger; the strangers' lane `mila-guest` (uid 1004) with no tools, its own key and limits. On by default and always in Mila Agent; `TELEGRAM_SAFE_GROUPS=0` turns it off elsewhere (a Mila serving customers in groups with no team list). See docs/SAFE-GROUPS.md.
+- Journals: voice is transcribed only after the access check; the journal is written before the ack; one envelope builder (`install/envelope.py`) for the feeder and the hook. See docs/JOURNALS.md.
+- Consent proxy (`consent/`, user `mila-io`): cards drawn by the proxy, a signed press, a hash-chained `decisions.jsonl`, «no» for a day, quiet hours, at most 10 cards an hour, standing permissions up to 7 days and $10 a day; `bot-send`, `spend`, packs and core updates ask through it where `mila-io` exists. See docs/CONSENT.md.
+- Archive (plugin; Mila Agent or `TELEGRAM_ARCHIVE=1`): `io/archive/<chat>/<YYYY-MM>.jsonl` 0600 in a 0700 folder, edits as their own lines, file originals by sha256 under a ceiling (`ARCHIVE_FILES_MB`), observer groups keep strangers as metadata only; outgoing messages through the key keeper's spool folder (a file per send, emptied by the receiver). See docs/ARCHIVE.md.
 - mila-update: a snapshot before every apply (`backups/<time>-<tag>-snapshot.json`, 600) — mila-cron job ids, session crons, settings.json hooks (event and file name only, no env), skills (sha of SKILL.md); no values or texts. `health` names what disappeared after the update.
 - skill-hint (`templates/home/.claude/hooks/skill-hint.py`, UserPromptSubmit): a message from the owner (terminal or the owner's private chat) that is exactly one word from the map («пульт», «входящие», «расписание»…) adds «call skill X» to the turn, only if that skill is installed; groups and other people get nothing. Each Mila adds her own words in `~/.claude/skill-hints.json`.
 - Plugin tools `pin` (pin/unpin, silent by default) and `topic` (list, create, rename, close, reopen; no delete); `reply` takes `thread_id`; inbound from a topic carries `thread_id` and `topic`; `topics.json` registry kept from Telegram's service events, shared by the session's folder and the receiver's through a link (entrypoint).
