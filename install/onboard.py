@@ -41,6 +41,44 @@ def say(mark, text):
     print("%s %s" % (mark, text), flush=True)
 
 
+# «Mila is born»: the first message after pairing carries the superheroine (docs/assets in the kit). No file — text, as before.
+HERO_DIRS = [os.environ.get("MILA_KIT") or "", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."),
+             os.environ.get("MILA_DIR") or "", os.path.expanduser("~/mila"), os.path.expanduser("~/mila-companion")]
+
+
+def hero_png():
+    for d in HERO_DIRS:
+        p = os.path.join(d, "docs", "assets", "mila-agent-hero.png") if d else ""
+        if p and os.path.isfile(p) and not os.path.islink(p) and os.path.getsize(p) < 5 * 1024 * 1024:
+            return p
+    return None
+
+
+def multipart(fields, name, filename, data):
+    """multipart/form-data body for one file + text fields (sendPhoto), stdlib only."""
+    b = "mila-" + os.urandom(8).hex()
+    out = []
+    for k, v in fields.items():
+        out.append(('--%s\r\nContent-Disposition: form-data; name="%s"\r\n\r\n%s\r\n' % (b, k, v)).encode("utf-8"))
+    out.append(('--%s\r\nContent-Disposition: form-data; name="%s"; filename="%s"\r\nContent-Type: image/png\r\n\r\n' % (b, name, filename)).encode())
+    out.append(data + ("\r\n--%s--\r\n" % b).encode())
+    return b"".join(out), "multipart/form-data; boundary=" + b
+
+
+def tg_photo(token, chat_id, caption, timeout=30):
+    """sendPhoto with the hero and the caption; False when there is no file or Telegram said no (the caller sends text)."""
+    p = hero_png()
+    if not p:
+        return False
+    body, ctype = multipart({"chat_id": chat_id, "caption": caption}, "photo", "mila.png", open(p, "rb").read())
+    try:
+        req = urllib.request.Request("%s/bot%s/sendPhoto" % (API, token), data=body, headers={"Content-Type": ctype})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return bool(json.loads(r.read().decode("utf-8")).get("ok"))
+    except Exception:
+        return False
+
+
 def tg(token, method, params=None, timeout=15):
     """Bot API. The token never appears in an error text."""
     url = "%s/bot%s/%s" % (API, token, method)
@@ -227,7 +265,9 @@ def step_pair(tok, me, check):
                 if not uid.isdigit():
                     continue
                 set_owner(uid)
-                tg(tok, "sendMessage", {"chat_id": uid, "text": "Paired ✓ You are my owner. Start Claude Code with `mila` in your terminal."})
+                hi = "Paired ✓ You are my owner. Start Claude Code with `mila` in your terminal."
+                if not tg_photo(tok, uid, hi):
+                    tg(tok, "sendMessage", {"chat_id": uid, "text": hi})
                 say("✓", "3/3 owner paired (id %s): allowFrom + allowlist, OWNER_ID in settings.json" % uid)
                 say(" ", "    Mila will see your code as your first message when she starts — that's normal.")
                 return True

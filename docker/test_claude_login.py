@@ -27,8 +27,14 @@ class S:
 class Fake(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def do_POST(self):
-        body = urllib.parse.parse_qs(self.rfile.read(int(self.headers.get("Content-Length") or 0)).decode())
+        raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
         method = self.path.rsplit("/", 1)[-1]
+        if method == "sendPhoto":   # multipart: the caption and the chat as fields, the picture as a file
+            f = dict(re.findall(rb'name="(chat_id|caption)"\r\n\r\n(.*?)\r\n--', raw, re.S))
+            S.sent.append({"chat_id": f.get(b"chat_id", b"").decode(), "text": f.get(b"caption", b"").decode(), "photo": raw.find(b"\x89PNG") >= 0})
+            b = json.dumps({"ok": True, "result": {"message_id": len(S.sent)}}).encode()
+            self.send_response(200); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b); return
+        body = urllib.parse.parse_qs(raw.decode())
         if method == "getUpdates":
             S.offsets.append(int(body.get("offset", ["0"])[0])); S.tos.append(body.get("timeout", ["?"])[0])
             if body.get("timeout", ["25"])[0] != "0": time.sleep(0.2)
@@ -49,9 +55,11 @@ srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Fake); threading.Thread(
 uid = [0]
 def msg(frm, text, mid, lang="ru"):
     uid[0] += 1; return {"update_id": uid[0], "message": {"message_id": mid, "chat": {"id": frm, "type": "private"}, "from": {"id": frm, "language_code": lang}, "text": text}}
-def start(owner="", ttl="600"):
+KIT = os.path.join(T, "kit"); os.makedirs(os.path.join(KIT, "docs", "assets"))
+shutil.copy(os.path.join(H, "..", "docs", "assets", "mila-agent-hero.png"), os.path.join(KIT, "docs", "assets"))
+def start(owner="", ttl="600", kit=os.path.join(T, "no-kit")):
     S.queue.clear(); S.sent.clear(); S.deleted.clear()
-    env = dict(os.environ, TELEGRAM_BOT_TOKEN=BOT, TG_API="http://127.0.0.1:%d" % srv.server_port, MILA_AUTH_DIR=os.path.join(T, "auth"),
+    env = dict(os.environ, MILA_KIT=kit, TELEGRAM_BOT_TOKEN=BOT, TG_API="http://127.0.0.1:%d" % srv.server_port, MILA_AUTH_DIR=os.path.join(T, "auth"),
                LOGIN_CMD="%s %s" % (sys.executable, fake), OWNER_ID=owner, LINK_TTL=ttl)
     return subprocess.Popen([sys.executable, os.path.join(H, "claude_login.py")], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 def wait(cond, t=15):
@@ -61,7 +69,7 @@ def wait(cond, t=15):
         time.sleep(0.1)
     return False
 # 1) no OWNER_ID: a pairing code in the container log; a stranger who only knows the bot name gets nothing
-p = start()
+p = start(kit=KIT)
 line = p.stdout.readline()
 import re as _re
 PAIR = (_re.search(r"pairing code ([A-Z2-9]{6})", line) or [None, ""])[1]
@@ -84,6 +92,7 @@ check("токен в томе: файл 600, папка 700, содержимо�
       and oct(os.stat(os.path.join(A, "oauth_token")).st_mode & 0o777) == "0o600" and oct(os.stat(A).st_mode & 0o777) == "0o700")
 check("хозяин = тот, кто прислал код пары и прошёл вход", open(os.path.join(A, "owner_id")).read().strip() == OWN)
 check("«подписка подключена» хозяину — на «вы», без «ты/тебя» (канон обращения)", any("подключена" in m["text"] and "Как вас зовут" in m["text"] and not re.search(r"\\b(ты|тебя|твоя)\\b", m["text"]) for m in S.sent))
+check("«Мила родилась»: «подписка подключена» — фото героини (PNG из комплекта) с тем же текстом, хозяину", any(m.get("photo") and "подключена" in m["text"] and m["chat_id"] == OWN for m in S.sent), [m for m in S.sent if m.get("photo") is not None])
 check("ни токен, ни код не попали в вывод и в сообщения", TOKEN_OUT not in out + err and CODE not in out + err and not any(TOKEN_OUT in json.dumps(m) or CODE in json.dumps(m) for m in S.sent))
 shutil.rmtree(A)
 # 2) OWNER_ID set: stranger refused; wrong code → nothing saved

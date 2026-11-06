@@ -118,6 +118,34 @@ def tg(method, **params):
         return {"ok": False}
 
 
+# «Mila is born»: after the sign-in the owner gets the superheroine with the same words (the kit's docs/assets). No file — text.
+HERO = os.path.join(os.environ.get("MILA_KIT") or "/opt/mila/kit", "docs", "assets", "mila-agent-hero.png")
+
+
+def multipart(fields, name, filename, data):
+    """multipart/form-data body for one file + text fields (sendPhoto), stdlib only."""
+    b = "mila-" + os.urandom(8).hex()
+    out = []
+    for k, v in fields.items():
+        out.append(('--%s\r\nContent-Disposition: form-data; name="%s"\r\n\r\n%s\r\n' % (b, k, v)).encode("utf-8"))
+    out.append(('--%s\r\nContent-Disposition: form-data; name="%s"; filename="%s"\r\nContent-Type: image/png\r\n\r\n' % (b, name, filename)).encode())
+    out.append(data + ("\r\n--%s--\r\n" % b).encode())
+    return b"".join(out), "multipart/form-data; boundary=" + b
+
+
+def say_hero(chat, text):
+    try:
+        if os.path.isfile(HERO) and not os.path.islink(HERO):
+            body, ctype = multipart({"chat_id": chat, "caption": text}, "photo", "mila.png", open(HERO, "rb").read())
+            req = urllib.request.Request("%s/bot%s/sendPhoto" % (API, TOKEN), data=body, headers={"Content-Type": ctype})
+            with urllib.request.urlopen(req, timeout=40) as r:
+                if json.loads(r.read().decode()).get("ok"):
+                    return True
+    except Exception as e:                       # never echo the URL — it carries the bot token
+        sys.stderr.write("claude-login: telegram sendPhoto failed: %s\n" % type(e).__name__)
+    return say(chat, text)
+
+
 def say(chat, text, button=None):
     kw = {"chat_id": chat, "text": text}
     if button:
@@ -350,7 +378,7 @@ def main():
             # confirm every update read so far: the offset only reaches Telegram with the NEXT getUpdates — without this the
             # message with the code comes again to the receiver that starts next, and the model gets the sign-in code
             tg("getUpdates", offset=offset, timeout=0, allowed_updates=["message"])
-            say(uid, tx(uid, "done"))
+            say_hero(uid, tx(uid, "done"))
             print("claude-login: signed in, owner %s" % owner, flush=True)
             return 0
 

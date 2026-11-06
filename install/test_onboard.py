@@ -15,7 +15,7 @@ class TG(BaseHTTPRequestHandler):
 
     def do_GET(self):
         n = int(self.headers.get("Content-Length") or 0)
-        body = self.rfile.read(n).decode() if n else ""
+        body = self.rfile.read(n).decode("utf-8", "replace") if n else ""   # a photo is binary
         method = self.path.rsplit("/", 1)[-1].split("?")[0]
         if TOKEN not in self.path or S["bad_token"]:
             r = {"ok": False, "error_code": 401, "description": "Unauthorized"}
@@ -47,6 +47,9 @@ class TG(BaseHTTPRequestHandler):
                 r = {"ok": True, "result": res}
         elif method == "sendMessage":
             S["sent"].append(body); r = {"ok": True, "result": {}}
+        elif method == "sendPhoto":
+            S.setdefault("photos", []).append(body)
+            r = {"ok": False, "description": "Bad Request: PHOTO_INVALID"} if S.get("photo_fail") else {"ok": True, "result": {}}
         else:
             r = {"ok": False, "description": "?"}
         b = json.dumps(r).encode()
@@ -96,7 +99,10 @@ chk("шаг 2: не вошёл → claude auth login → вошёл", "Opening A
 acc = json.load(open(os.path.join(T, "tg", "access.json")))
 chk("шаг 3: хозяин — тот, кто прислал код в личку (не группа, не другой текст)", acc.get("allowFrom") == [str(S["owner"])] and acc.get("dmPolicy") == "allowlist")
 st = json.load(open(os.path.join(T, ".claude", "settings.json")))
-chk("шаг 3: OWNER_ID в settings.json, подтверждение хозяину в Telegram", st["env"]["OWNER_ID"] == str(S["owner"]) and any("Paired" in s for s in S["sent"]))
+chk("шаг 3: OWNER_ID в settings.json, подтверждение хозяину в Telegram", st["env"]["OWNER_ID"] == str(S["owner"]) and any("Paired" in s for s in S["sent"] + S.get("photos", [])))
+ph = S.get("photos", [])
+chk("«Мила родилась»: подтверждение — фото героини (PNG из docs/assets) с прежним текстом, без второго текстового", len(ph) == 1 and "PNG" in ph[0]
+    and 'name="caption"' in ph[0] and "Paired" in ph[0] and str(S["owner"]) in ph[0] and not any("Paired" in s for s in S["sent"]))
 chk("всё готово: выход 0", rc == 0 and "All three done" in out)
 rc, out = run(["--check"])
 chk("--check после: выход 0, три ✓", rc == 0 and out.count("✓") == 3)
@@ -121,8 +127,9 @@ chk("старый .env.tmp 644 не мешает: .env снова 600", stat.S_I
 os.remove(os.path.join(T, "tg", "access.json")); S["flood"] = True; S["acked"] = False
 rc, out = run(stdin="n\n")
 chk("100+ старых в очереди, «нет»: ничего не подтверждено, честный выход 1", rc == 1 and "100+ unread" in out and not S["acked"])
-S["acked"] = False
+S["acked"] = False; S["photo_fail"] = True; S["sent"] = []
 rc, out = run(stdin="y\n")
+chk("Telegram не принял фото — то же подтверждение текстом", any("Paired" in s for s in S["sent"]))
 chk("100+ старых, «да»: старые подтверждены, код 101-м дошёл, хозяин записан", rc == 0 and S["acked"] and os.path.exists(os.path.join(T, "tg", "access.json")) and "first message" in out)
 print("итог %d/%d" % (ok, n))
 sys.exit(0 if ok == n else 1)
