@@ -14,6 +14,12 @@ it. What the session may see of it comes through a search that filters by author
 - An edit of a message is its own line (`edit: true`, the message id, the new text); the earlier text stays.
 - A chat that is not connected, a DM from someone not allowed: nothing is written.
 
+## People are told
+
+- When the owner connects a group, the group gets one line: Mila keeps an archive of this chat, the owner can read it, to have
+  your messages removed — ask the owner. The owner's connection card says the same.
+- A group connected before the archive existed gets that line once, with its first message after the update.
+
 ## Kept for how long
 
 Texts and transcripts — for good (the owner's decision). Original files — the next part: the owner's and the team's for good,
@@ -26,11 +32,16 @@ strangers' 12 months.
 | per chat and month, 0700 folder, 0600 files, keys masked | plugin `archive()` (`receiver.ts`) |
 | owner / team / stranger lines; nothing from unconnected chats | plugin `handleInbound()`, `guestEvent()` (`receiver.ts`) |
 | edits as their own lines | plugin `edited_message` handler, `allowed_updates` (`receiver.ts`) |
-| checked | plugin `archive.test.ts` |
+| the group told at connection and once after the update; the owner's card | plugin `join.archive`, `join.archiveOwner` (`i18n.mjs`), `announceArchive()` (`receiver.ts`) |
+| checked | plugin `archive.test.ts`, `join-archive.test.ts` |
 
 ## Not verified live yet
 
 - A real chat over a day: the files, their modes, an edit.
+
+## What stays open
+
+- Removing a person's words on request (`forget`) is not there yet — the next part; until then the notice says «ask the owner».
 
 ## Next parts
 
