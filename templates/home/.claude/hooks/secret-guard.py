@@ -18,9 +18,20 @@ import fnmatch, json, os, re, stat, sys, time
 PLACES = re.compile(r"\.mila-auth|work/secrets|/proc/[^/\s]*/environ|\.credentials\.json|channels/[^/\s\"']+/\.env", re.I)
 NAMES = re.compile(r"CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY|OPENROUTER_API_KEY|DEEPGRAM_API_KEY|GROQ_API_KEY|TELEGRAM_BOT_TOKEN", re.I)
 # the whole environment: env / printenv / export -p / set / declare -x on their own (or piped)
-DUMP = re.compile(r"(^|[;&|(`]\s*|\$\(\s*)(env|printenv|export\s+-p|declare\s+-[a-z]*x[a-z]*|set)\s*($|[;&|)`>])", re.I)
+DUMP = re.compile(r"(^|[;&|(`]\s*|\$\(\s*)(env|printenv|export\s+-p|declare\s+-[a-z]*x[a-z]*|set)\s*($|[;&|)`>])", re.I | re.M)   # per line: «…⏎env»
 # helpers that legitimately read a key at the moment of the action
 ALLOWED = re.compile(r"(transcribe-voice\.sh|safe_read\.py|key_page\.py|seif\.py|vault\.py)\b")
+# A quoted heredoc (<<'EOF' … EOF) is literal text for the shell: a note or a file with `env` in markdown is not a dump.
+# Its body is skipped for the dump rule only — unless the command it feeds is a shell itself (bash <<'EOF' env EOF runs env).
+HEREDOC = re.compile(r"^(?P<line>[^\n]*?)<<-?\s*(?P<q>['\"])(?P<tag>\w+)(?P=q)[^\n]*\n(?P<body>.*?)\n\s*(?P=tag)\s*$", re.S | re.M)
+SHELLS = re.compile(r"(^|[\s;&|(`$])(bash|sh|zsh|dash|ksh|fish|source|eval|xargs|env|exec)\b|(^|[;&|]\s*)\.\s")
+
+
+def outside_literal_heredocs(cmd):
+    def cut(m):
+        first = m.group(0).split("\n", 1)[0]          # the whole line that opens the heredoc: «cat <<'EOF' | bash» feeds a shell too
+        return m.group(0) if SHELLS.search(first) else m.group("line") + "<<'" + m.group("tag") + "'\n" + m.group("tag")
+    return HEREDOC.sub(cut, cmd)
 
 
 def secret_places(home):
@@ -115,7 +126,7 @@ def check(tool, args, cwd=None):
         if m: return "команда трогает файлы входа или сейфа", "place", m.group(0)
         m = NAMES.search(cmd)
         if m: return "команда называет переменную с ключом", "name", m.group(0).upper()
-        m = DUMP.search(cmd)
+        m = DUMP.search(outside_literal_heredocs(cmd))
         if m: return "команда выводит всё окружение (там ключи)", "dump", m.group(2).split()[0].lower()
         return None
     target = " ".join(str(args.get(k) or "") for k in ("file_path", "path", "pattern", "glob"))

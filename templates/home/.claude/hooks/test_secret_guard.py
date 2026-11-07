@@ -16,6 +16,13 @@ for c in ("cat ~/.mila-auth/oauth_token", "printenv CLAUDE_CODE_OAUTH_TOKEN", "e
 for c in ("ls -la", "git status", "python3 ~/.claude/skills/safe-link/scripts/safe_read.py groq GROQ_API_KEY --mask",
           "python3 /usr/local/bin/key_page.py deepgram --lang ru", "echo hello env", "grep -n environment README.md", "set -e; ls"):
     chk("Bash пропуск: " + c, dec("Bash", command=c), "allow")
+# quoted heredoc = literal text: a note with `env` in markdown is not a dump; a heredoc fed to a shell still is
+for c in ("cat > note.md <<'EOF'\nтест без своего `env` пишет в дом\nEOF", "cat > a.txt <<\"X\"\nset\nX",
+          "python3 - <<'EOF'\nprint('про `env` в тексте')\nEOF"):
+    chk("Bash пропуск (текст в кавычном heredoc): " + c.split("\n")[0], dec("Bash", command=c), "allow")
+for c in ("bash <<'EOF'\nenv\nEOF", "cat <<'EOF' | bash\nenv\nEOF", "sh <<'EOF'\nprintenv\nEOF",
+          "cat <<EOF\n`env`\nEOF", "cat > f <<'EOF'\nx\nEOF\nenv"):
+    chk("Bash стоп (heredoc в оболочку, без кавычек или env после): " + c.replace("\n", " ⏎ ")[:50], dec("Bash", command=c), "deny")
 chk("Read ~/.mila-auth/oauth_token — стоп", dec("Read", file_path="/home/agent/.mila-auth/oauth_token"), "deny")
 chk("Read work/secrets/deepgram.env — стоп", dec("Read", file_path="/home/agent/work/secrets/deepgram.env"), "deny")
 chk("Grep по .mila-auth — стоп", dec("Grep", pattern="sk-", path="/home/agent/.mila-auth"), "deny")
