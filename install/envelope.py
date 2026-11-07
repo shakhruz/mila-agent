@@ -9,7 +9,8 @@ fake an attribute."""
 import re
 
 ATTRS = (("user_id", r"[0-9]{1,15}"), ("from", r"owner|team|other"), ("type", r"reaction|callback"), ("observe_only", r"true"),
-         ("chat_type", r"private|group|supergroup|channel"), ("guests_since_last", r"[0-9]{1,6}"))
+         ("chat_type", r"private|group|supergroup|channel"), ("guests_since_last", r"[0-9]{1,6}"),
+         ("flags", r"(hidden-chars|instruction-like)(,(hidden-chars|instruction-like))?"))   # the receiver marked the text: data, not an order
 LANG = r"[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})?"
 
 
