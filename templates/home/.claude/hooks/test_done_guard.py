@@ -25,8 +25,10 @@ def journal(rows):
     return p
 
 
+CFG = tempfile.mkdtemp(prefix="dguard-")   # the refusals' journal goes here, not into the home running the test
 def run(inp):
-    r = subprocess.run([sys.executable, G], input=json.dumps(inp) if not isinstance(inp, str) else inp, capture_output=True, text=True, timeout=20)
+    r = subprocess.run([sys.executable, G], input=json.dumps(inp) if not isinstance(inp, str) else inp, capture_output=True, text=True, timeout=20,
+                       env=dict(os.environ, CLAUDE_CONFIG_DIR=CFG))
     if r.returncode:
         return "код %d" % r.returncode
     if not r.stdout.strip():
@@ -114,5 +116,23 @@ chk("упало чтение (Read) — молчит", fail([use("m1", "r1", R, 
 chk("нет журнала — уходит", {"hook_event_name": "PreToolUse", "tool_name": R, "tool_use_id": "r1", "transcript_path": "/nonexistent/t.jsonl", "tool_input": {"text": "Сделала"}}, "пропуск")
 chk("вход не JSON — уходит", "{oops", "пропуск")
 chk("другой инструмент — не мешает", {"hook_event_name": "PreToolUse", "tool_name": B, "transcript_path": journal(same), "tool_input": {"command": "ls"}}, "пропуск")
+# the journal: one line per refusal or correction request — kind and tools' names, never the message text
+J = os.path.join(CFG, "mila-guard", "done-guard.jsonl")
+rows = [json.loads(l) for l in open(J)] if os.path.exists(J) else []
+kinds = {r["kind"] for r in rows}
+n += 1; g = {"open_work", "last_failed", "correction"} <= kinds and all(set(r) == {"ts", "kind", "tools"} for r in rows); ok += g
+print(("✅ " if g else "❌ ") + "журнал done-guard: виды open_work, last_failed, correction; только время, вид, имена инструментов" + ("" if g else "  ← %s" % rows[:3]))
+n += 1; g = os.path.exists(J) and (os.stat(J).st_mode & 0o777) == 0o600 and (os.stat(os.path.dirname(J)).st_mode & 0o777) == 0o700; ok += g
+print(("✅ " if g else "❌ ") + "журнал 600 в папке 700")
+# attacks on the journal: a link in its place, and a folder it cannot write — the refusal is the same, nothing written through the link
+victim = os.path.join(CFG, "victim.txt"); open(victim, "w").write("untouched")
+os.remove(J); os.symlink(victim, J)
+chk("на месте журнала ссылка — отказ тот же", pre(same, "Сделала, выложено."), "deny")
+n += 1; g = open(victim).read() == "untouched"; ok += g
+print(("✅ " if g else "❌ ") + "через ссылку ничего не записано (O_NOFOLLOW)")
+os.remove(J); os.chmod(os.path.dirname(J), 0o500)
+chk("журнал не записать (папка только для чтения) — отказ тот же", pre(same, "Сделала, выложено."), "deny")
+os.chmod(os.path.dirname(J), 0o700)
+import shutil; shutil.rmtree(CFG, ignore_errors=True)
 print("итог %d/%d" % (ok, n))
 sys.exit(0 if ok == n else 1)

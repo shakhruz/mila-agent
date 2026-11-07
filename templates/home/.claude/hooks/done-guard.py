@@ -84,7 +84,23 @@ def last_message(uses):
     return [b for mid, b in uses if mid == uses[-1][0]] if uses else []
 
 
-def deny(reason):
+def journal(kind, tools):
+    """One line per refusal or correction request in ~/.claude/mila-guard/done-guard.jsonl (600): time, kind, the tools' names —
+    never the message text. So the guard's work can be counted after a rollout. A journal that cannot be written changes nothing."""
+    try:
+        import time
+        d = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"), "mila-guard")
+        os.makedirs(d, mode=0o700, exist_ok=True)
+        fd = os.open(os.path.join(d, "done-guard.jsonl"), os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "kind": kind, "tools": [str(t)[:60] for t in tools][:3]},
+                               ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+def deny(reason, kind="", tools=()):
+    journal(kind or "deny", tools)
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                              "permissionDecisionReason": DENY_MARK + ": " + reason}}, ensure_ascii=False))
 
@@ -98,7 +114,7 @@ def pre(p):
     open_work = [b.get("name") for b in last_message(uses) if work_tool(b.get("name")) and b.get("id") not in done]
     if open_work:
         return deny("в этом же ходу ещё не вернулся результат (%s). Дождись результата, проверь его и напиши ответ — "
-                    "человек ждёт его в этом же ходу." % ", ".join(open_work[:3]))
+                    "человек ждёт его в этом же ходу." % ", ".join(open_work[:3]), "open_work", open_work)
     # the last work call of this turn that has come back failed, and nothing worked after it
     back = [b for _, b in uses if work_tool(b.get("name")) and b.get("id") in done]
     if back and not done[back[-1]["id"]][0]:
@@ -106,7 +122,7 @@ def pre(p):
                     and DENY_MARK in done[b["id"]][1] for _, b in uses)
         if not again:   # the same text a second time = the model checked and the failure is not about this deed
             deny("последний вызов этого хода (%s) вернулся с ошибкой. Если дело не сделано — напиши факт и следующий шаг; "
-                 "если ошибка не про это дело — отправь тот же текст ещё раз." % back[-1].get("name"))
+                 "если ошибка не про это дело — отправь тот же текст ещё раз." % back[-1].get("name"), "last_failed", [back[-1].get("name")])
 
 
 def post_failure(p):
@@ -119,6 +135,7 @@ def post_failure(p):
             and claims((u.get("input") or {}).get("text"), bool((u.get("input") or {}).get("files")))]
     if sent and any(u.get("id") == p.get("tool_use_id") for u in uses):
         chat = (sent[-1].get("input") or {}).get("chat_id")
+        journal("correction", [p.get("tool_name")])
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PostToolUseFailure",
               "additionalContext": "В этом же ходу в чат %s ушло «сделано», а %s не прошёл. Это сообщение неверно: следующим "
                                    "ходом пришли туда поправку — факт и что делаешь дальше." % (chat, p.get("tool_name"))}},
