@@ -266,7 +266,10 @@ def card():
     m = p[0]
     st["card_day"] = t.date().isoformat(); st["card_name"] = m["name"]; _save(STATE, st)
     what = "новый навык" if m["action"] == "new" else "правку навыка"
-    return {"card": {"q": "Сохранить %s «%s»?" % (what, m["name"]), "why": m.get("summary") or "Урок из прошлого хода.",
+    q = "Сохранить %s «%s»?" % (what, m["name"]); why = m.get("summary") or "Урок из прошлого хода."
+    # sent with reply buttons: the plugin records the card and the press (cards.jsonl / the receiver's taps.jsonl) — apply checks there
+    return {"card": {"q": q, "why": why, "text": q + "\n" + why,
+                     "buttons": [[{"label": "Сохранить", "data": "learn:yes"}], [{"label": "Поправить", "data": "learn:edit"}, {"label": "Нет", "data": "learn:no"}]],
                      "opt": ["a|Сохранить|Буду делать так с завтрашнего дня", "b|Поправить|Скажете, что изменить", "c|Нет|Тему не поднимаю 7 дней"],
                      "rec": "a", "name": m["name"], "more": len(p) - 1}}
 
@@ -278,9 +281,71 @@ def _decide(name, **k):
     m.update(decided=True, **k); _save(mp, m); return m
 
 
+def _jsonl_rows(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return [json.loads(l) for l in f if l.strip().startswith("{")]
+    except (OSError, ValueError):
+        return []
+
+
+LEARN_FRESH = 48 * 3600   # the card waits for the owner up to two days
+
+
+def _update_mod():
+    """the update tool's journal readers (the receiver's taps, the owners) — one place decides «the owner pressed»."""
+    import importlib.util
+    path = os.environ.get("MILA_UPDATE_PY") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mila-update", "update.py")
+    spec = importlib.util.spec_from_file_location("mila_update_for_learn", path); mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod); return mod
+
+
+def owner_pressed(card_id, mark):
+    """(True, who) only if the owner pressed «Сохранить» (learn:yes) on a card whose text he saw carries this skill's «name»,
+    in his own chat, not older than two days. Read from what the plugin/receiver writes — not from an argument the session gives."""
+    try:
+        U = _update_mod()
+    except Exception as e:
+        return False, "no update tool to read the receiver's journal (%s)" % type(e).__name__
+    try:
+        own = U.owner_ids(); card = used = None
+        for r in U._jsonl(os.path.join(U.TG_STATE, "cards.jsonl")):
+            if r.get("card_id") != card_id: continue
+            if r.get("used_ts"): used = used or r
+            elif card is None: card = r
+        taps = U.receiver_journal("taps.jsonl", os.path.join(U.TG_STATE, "taps.jsonl"))
+        if os.path.exists(taps):
+            used = next((r for r in U._jsonl(taps) if r.get("card_id") == card_id), None)
+            if not used: return False, "the owner has not pressed the card"
+            seen, chat, data = used.get("card_text") or "", used.get("chat_id"), used.get("data")
+            stamp = (card or {}).get("ts") or used.get("used_ts")
+        else:
+            if not card: return False, "no card %s in the plugin's journal" % str(card_id)[:40]
+            seen, chat, data, stamp = card.get("text") or "", card.get("chat_id"), (used or {}).get("data"), card.get("ts")
+            if data is None:
+                for r in U._jsonl(os.path.join(U.TG_STATE, "inbound", "events.jsonl")):
+                    mt = (r.get("params") or {}).get("meta") or {}
+                    if mt.get("card_id") == card_id and str(mt.get("user_id")) in own: data = mt.get("callback_data"); used = used or {"used_by": mt.get("user_id")}
+        if mark not in seen: return False, "the card the owner saw is not about %s" % mark
+        if str(chat) not in own: return False, "the card is not in the owner's chat"
+        if not used or str(used.get("used_by")) not in own: return False, "the owner has not pressed the card"
+        if data != "learn:yes": return False, "pressed is not «Сохранить»"
+        try: age = time.time() - U.dt_parse(stamp)
+        except Exception: age = LEARN_FRESH + 1
+        if age > LEARN_FRESH: return False, "the card is older than two days — show it again"
+        return True, str(used.get("used_by"))
+    except SystemExit as e:   # the update tool refuses by exiting (a swapped journal, unreadable owners)
+        return False, "refused: %s" % str(e)[:120]
+
+
 def apply(name, consent):
     if not NAME.match(name) or not consent:
         return {"ok": False, "status": "name and the owner's card id are needed"}
+    if any(r.get("ev") == "applied" and r.get("consent") == str(consent) for r in _jsonl_rows(JOURNAL)):
+        return {"ok": False, "status": "this card was already used"}
+    ok_, who = owner_pressed(str(consent), "«%s»" % name)
+    if not ok_:
+        return {"ok": False, "status": who}
     src = os.path.join(PROPOSED, name, "SKILL.md"); m = _load(os.path.join(PROPOSED, name, "meta.json"), None)
     if not m or m.get("decided") or not os.path.isfile(src):
         return {"ok": False, "status": "no open draft «%s»" % name}
@@ -292,7 +357,7 @@ def apply(name, consent):
     os.makedirs(dst, exist_ok=True)
     shutil.copy2(src, os.path.join(dst, "SKILL.md"))
     _decide(name, applied=now(), consent=str(consent))
-    journal("applied", name=name, consent=str(consent), closed=bool(m.get("closed")))
+    journal("applied", name=name, consent=str(consent), by=who, closed=bool(m.get("closed")))
     return {"ok": True, "status": "saved", "skill": dst}
 
 

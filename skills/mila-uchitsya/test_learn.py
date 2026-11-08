@@ -7,7 +7,7 @@ import json, os, sys, tempfile
 H = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(os.path.dirname(H))
 sys.path.insert(0, os.path.join(ROOT, "tests", "fixtures")); import fake_people as fp
 T = tempfile.mkdtemp(prefix="learn-")
-os.environ.update(MILA_WORK=os.path.join(T, "work"), MILA_SKILLS_DIR=os.path.join(T, "skills"), TELEGRAM_STATE_DIR=os.path.join(T, "tg"),
+os.environ.update(MILA_HOME=T, MILA_WORK=os.path.join(T, "work"), MILA_SKILLS_DIR=os.path.join(T, "skills"), TELEGRAM_STATE_DIR=os.path.join(T, "tg"),
                   CLAUDE_CONFIG_DIR=os.path.join(T, ".claude"), MILA_TZ_HOURS="5")
 os.makedirs(os.path.join(T, "tg")); OWN, GUEST, CLOSED = str(fp.OWNER_ID), str(fp.USER_ID), "-" + "7" * 10
 json.dump({"owners": [OWN], "guestDm": {"closedChats": [CLOSED]}}, open(os.path.join(T, "tg", "access.json"), "w"))
@@ -63,8 +63,25 @@ L.now = lambda: at(10); c = L.card()
 chk("днём — одна карточка: «Сохранить новый навык …», три кнопки, рекомендация", c["card"] and c["card"]["q"].startswith("Сохранить новый навык") and len(c["card"]["opt"]) == 3 and c["card"]["rec"] == "a", c)
 chk("вторая карточка в тот же день — нет", L.card()["card"] is None)
 # да → навык; откат
+# «да» — только нажатие хозяина, которое записал плагин (cards.jsonl: карточка и нажатие), а не id, который назвала сессия
+import time as _t
+CJ = os.path.join(T, "tg", "cards.jsonl"); _iso = lambda age=0: _dt.datetime.fromtimestamp(_t.time() - age, _dt.timezone.utc).isoformat()
+def card_row(cid, name, chat=OWN, age=0, by=None, data="learn:yes"):
+    with open(CJ, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"card_id": cid, "chat_id": chat, "text": "Сохранить новый навык «%s»?\nурок" % name, "ts": _iso(age),
+                            "buttons": c["card"]["buttons"]}, ensure_ascii=False) + "\n")
+        if by: f.write(json.dumps({"card_id": cid, "used_ts": _iso(age), "used_by": by, "data": data}) + "\n")
+chk("карточка несёт кнопки с данными learn:yes / learn:edit / learn:no", [b["data"] for row in c["card"]["buttons"] for b in row] == ["learn:yes", "learn:edit", "learn:no"])
+chk("id карточки, которой нет в журнале плагина, — не сохраняю", not L.apply("otchet-kratko", "Q-0")["ok"])
+card_row("Q-n", "otchet-kratko"); chk("карточка есть, хозяин не нажал — не сохраняю", not L.apply("otchet-kratko", "Q-n")["ok"])
+card_row("Q-g", "otchet-kratko", by=GUEST); chk("нажал гость — не сохраняю", not L.apply("otchet-kratko", "Q-g")["ok"])
+card_row("Q-x", "otchet-kratko", by=OWN, data="learn:no"); chk("хозяин нажал «Нет» — не сохраняю", not L.apply("otchet-kratko", "Q-x")["ok"])
+card_row("Q-o", "drugoj-navyk", by=OWN); r0 = L.apply("otchet-kratko", "Q-o"); chk("«да» на карточке другого навыка — не сохраняю", not r0["ok"] and "not about" in r0["status"], r0)
+card_row("Q-c", "otchet-kratko", chat=GUEST, by=OWN); chk("карточка не в чате хозяина — не сохраняю", not L.apply("otchet-kratko", "Q-c")["ok"])
+card_row("Q-s", "otchet-kratko", by=OWN, age=3 * 86400); chk("карточка старше двух дней — не сохраняю", not L.apply("otchet-kratko", "Q-s")["ok"])
+card_row("Q-1", "otchet-kratko", by=OWN)
 r = L.apply("otchet-kratko", "Q-1"); sk = os.path.join(T, "skills", "otchet-kratko", "SKILL.md")
-chk("«да» с id карточки → навык на месте, строка в журнале", r["ok"] and os.path.isfile(sk) and '"applied"' in open(L.JOURNAL).read())
+chk("хозяин нажал «Сохранить» на карточке этого навыка → навык на месте, в журнале кто нажал", r["ok"] and os.path.isfile(sk) and '"applied"' in open(L.JOURNAL).read() and '"by": "%s"' % OWN in open(L.JOURNAL).read(), r)
 chk("без id карточки — не сохраняю", not L.apply("closed-urok", "")["ok"])
 chk("повторный apply того же черновика — отказ", not L.apply("otchet-kratko", "Q-2")["ok"])
 chk("откат → навыка нет (раньше его не было)", L.rollback("otchet-kratko")["ok"] and not os.path.exists(sk))
