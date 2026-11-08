@@ -70,6 +70,62 @@ OUT_MAX = int(os.environ.get("MILA_ARCHIVE_SPOOL_MAX") or 2000)   # files waitin
 _out_n = 0
 
 
+# The last line for a secret on its way out (Mila Agent): every path that sends through the bot — the plugin's reply, a broadcast
+# script, curl from the shell — passes here. A send whose text carries a key this keeper holds, or a key-shaped string, is not
+# forwarded: 403 in Telegram's own shape, one line in the journal (method and rule, never the value). Attached files are not read
+# here (the send-guard checks them); text fields, captions, buttons and media-group captions are.
+LEAK = [(re.compile(r"\b(?:sk|pk)[-_][A-Za-z0-9\-_]{16,}"), "provider key"),
+        (re.compile(r"\b\d{6,12}:[A-Za-z0-9_-]{30,50}\b"), "bot token"),
+        (re.compile(r"\bAK" r"IA[0-9A-Z]{16}\b"), "AWS key"),
+        (re.compile(r"\bgh[pous]_[A-Za-z0-9]{20,}\b"), "GitHub token"),
+        (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"), "Slack token"),
+        (re.compile(r"\bcmp_[A-Za-z0-9]{16,}\b"), "API token"),
+        (re.compile(r"\b" + GSK + r"[A-Za-z0-9]{20,}"), "provider key"),
+        # a password typed into a command — the same shapes as in send-guard (the test compares the two lists)
+        (re.compile(r"\bPGPASS" r"WORD=['\"]?[^\s'\"$]{4,}"), "database password in a command"),
+        (re.compile(r"\bsshpass\s+-p\s*['\"]?[^\s'\"$]{4,}"), "ssh password in a command"),
+        (re.compile(r"\bmysql(?:dump)?\b[^\n]*?\s-p['\"]?[^\s'\"$]{4,}"), "database password in a command"),
+        (re.compile(r"(?i)\bauthorization:\s*bearer\s+[A-Za-z0-9._~+/=-]{16,}"), "token in a header")]
+
+
+def _strings(v):
+    if isinstance(v, str):
+        yield v   # media groups and buttons come as JSON inside a field: the key is a substring of it as is
+    elif isinstance(v, dict):
+        for x in v.values(): yield from _strings(x)
+    elif isinstance(v, list):
+        for x in v: yield from _strings(x)
+
+
+def out_texts(ctype, body, query=""):
+    """Every text field of a Bot API call: JSON, form, multipart (parts without a file name), the query string."""
+    out = list(_strings([v for _, v in urllib.parse.parse_qsl(query, keep_blank_values=True)]))
+    if not body: return out
+    ct = (ctype or "").lower()
+    if "multipart/" in ct:
+        import email.parser, email.policy
+        msg = email.parser.BytesParser(policy=email.policy.HTTP).parsebytes(b"Content-Type: " + ctype.encode() + b"\r\n\r\n" + body)
+        for part in msg.iter_parts() if msg.is_multipart() else []:
+            if part.get_filename() is None:
+                out += list(_strings(part.get_payload(decode=True).decode("utf-8", "replace")))
+        return out
+    t = body.decode("utf-8", "replace")
+    if "json" in ct or t.lstrip()[:1] in "[{":
+        try: return out + list(_strings(json.loads(t)))
+        except ValueError: pass
+    return out + list(_strings([v for _, v in urllib.parse.parse_qsl(t, keep_blank_values=True)])) + [t]
+
+
+def leak(texts):
+    """The rule that matched, or None. A key the keeper holds is caught by its value, any other by its shape."""
+    held = [k for k in (key(x) for x in ROUTES) if k and len(k) >= 16]
+    for t in texts:
+        if any(k in t for k in held): return "held key"
+        for rx, name in LEAK:
+            if rx.search(t): return name
+    return None
+
+
 def spool_out(method, body):
     try:
         res = json.loads(body.decode("utf-8")).get("result")
@@ -257,6 +313,13 @@ class Proxy(http.server.BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length") or 0)
         if n > 64 * 1024 * 1024: return self.plain(413, {"error": "too large"})
         body = self.rfile.read(n) if n else None
+        tm = re.fullmatch(r"/bot[^/]+/([A-Za-z]+)", rest.split("?")[0]) if kind == "telegram" else None
+        if tm and not tm.group(1).lower().startswith("get") and tm.group(1).lower() not in IO_ONLY:
+            why = leak(out_texts(self.headers.get("Content-Type"), body, urllib.parse.urlsplit(rest).query))
+            if why:
+                log("%s %s%s → 403 (secret in the text: %s)" % (self.command, kind, shown, why))
+                return self.plain(403, {"ok": False, "error_code": 403,
+                                        "description": "Forbidden: the key keeper did not send it — the text holds a secret (%s)" % why})
         if kind == "telegram":   # the placeholder in /bot<…>/ and /file/bot<…>/ becomes the real token
             rest = re.sub(r"^(/(?:file/)?bot)[^/]+/", lambda mm: mm.group(1) + k + "/", rest, count=1)
         hd = {a: b for a, b in self.headers.items() if a.lower() not in HOP}

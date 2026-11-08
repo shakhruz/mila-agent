@@ -4,7 +4,7 @@
 ключ API — x-api-key, Deepgram — Token, Groq — Bearer); что прислал клиент как ключ — выброшено; поток идёт кусками,
 не копится; /status — да/нет без значений; чужой маршрут — 404, нет ключа — 503; ключа нет ни в ответах, ни в журнале.
 Run: python3 test_mila_keyd.py"""
-import http.client, http.server, json, os, shutil, socket, subprocess, sys, tempfile, threading, time
+import http.client, http.server, json, urllib.parse, os, shutil, socket, subprocess, sys, tempfile, threading, time
 H = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, H); import mila_keyd
 ok = n = 0
 def check(name, c, x=""):
@@ -121,6 +121,27 @@ check("Telegram: методы без учёта регистра — setwebhook,
 check("Telegram: законные closeForumTopic и closeGeneralForumTopic проходят", req("POST", "/telegram/bot%s/closeForumTopic" % PH, b"{}")[0] == 200 and req("POST", "/telegram/bot%s/closeGeneralForumTopic" % PH, b"{}")[0] == 200)
 n3 = len(SEEN)
 check("Telegram: «..» в пути файла — 403", req("GET", "/telegram/file/bot%s/../../x" % PH)[0] == 403 and req("GET", "/telegram/file/bot%s/documents/../x" % PH)[0] == 403 and len(SEEN) == n3)
+# the last line for a secret on its way out: any send through the bot (reply, broadcast script, curl) with a key in its text
+DGK = open(os.path.join(K, "deepgram")).read().strip(); GH = "gh" + "p_" + "Z" * 30; n6 = len(SEEN)
+J = lambda o: json.dumps(o).encode()
+st, bd = req("POST", "/telegram/bot%s/sendMessage" % PH, J({"chat_id": 1, "text": "ключ голоса: " + DGK}), {"Content-Type": "application/json"})
+check("исходящее: ключ, который держит хранитель, в тексте — 403 в виде ответа Telegram, наружу не ушло", st == 403 and json.loads(bd).get("ok") is False and "secret" in bd and DGK not in bd and len(SEEN) == n6, (st, bd))
+check("исходящее: ключ по виду (GitHub) в caption формы — 403", req("POST", "/telegram/bot%s/sendPhoto" % PH, urllib.parse.urlencode({"chat_id": 1, "photo": "x", "caption": "вот " + GH}).encode(), {"Content-Type": "application/x-www-form-urlencoded"})[0] == 403 and len(SEEN) == n6)
+check("исходящее: ключ в кнопке (reply_markup строкой JSON) — 403", req("POST", "/telegram/bot%s/sendMessage" % PH, J({"chat_id": 1, "text": "ok", "reply_markup": json.dumps({"inline_keyboard": [[{"text": "a", "url": "https://x/?k=" + DGK}]]})}), {"Content-Type": "application/json"})[0] == 403)
+check("исходящее: подпись в альбоме (media строкой JSON) — 403", req("POST", "/telegram/bot%s/sendMediaGroup" % PH, urllib.parse.urlencode({"chat_id": 1, "media": json.dumps([{"type": "photo", "media": "x", "caption": DGK}])}).encode(), {"Content-Type": "application/x-www-form-urlencoded"})[0] == 403)
+check("исходящее: текст в строке запроса — 403", req("GET", "/telegram/bot%s/sendMessage?chat_id=1&text=%s" % (PH, urllib.parse.quote(GH)))[0] == 403 and len(SEEN) == n6)
+mp = lambda cap, filebody: (b"--B\r\nContent-Disposition: form-data; name=\"chat_id\"\r\n\r\n1\r\n--B\r\nContent-Disposition: form-data; name=\"caption\"\r\n\r\n" + cap.encode()
+    + b"\r\n--B\r\nContent-Disposition: form-data; name=\"document\"; filename=\"a.txt\"\r\nContent-Type: text/plain\r\n\r\n" + filebody + b"\r\n--B--\r\n")
+MPH = {"Content-Type": "multipart/form-data; boundary=B"}
+check("исходящее: multipart — ключ в caption — 403", req("POST", "/telegram/bot%s/sendDocument" % PH, mp("ключ " + DGK, b"plain"), MPH)[0] == 403 and len(SEEN) == n6)
+check("исходящее: multipart — файл не читается здесь (его проверяет send-guard), подпись чистая — проходит", req("POST", "/telegram/bot%s/sendDocument" % PH, mp("отчёт", DGK.encode()), MPH)[0] == 200 and len(SEEN) == n6 + 1)
+check("исходящее: обычный текст проходит", req("POST", "/telegram/bot%s/sendMessage" % PH, J({"chat_id": 1, "text": "Готово, отчёт в файле; id 555-000"}), {"Content-Type": "application/json"})[0] == 200 and len(SEEN) == n6 + 2)
+check("исходящее: чтение (getChat) с похожим на ключ параметром не проверяется", req("POST", "/telegram/bot%s/getChat" % PH, J({"chat_id": GH}), {"Content-Type": "application/json"})[0] == 200)
+check("исходящее: пароль, вписанный в команду (как у send-guard), — 403", req("POST", "/telegram/bot%s/sendMessage" % PH, J({"chat_id": 1, "text": "запускаю: PGPASS" + "WORD=" + "hunter2x psql"}), {"Content-Type": "application/json"})[0] == 403)
+import ast as _ast
+_sg = _ast.parse(open(os.path.join(H, "..", "templates", "home", ".claude", "hooks", "send-guard.py"), encoding="utf-8").read())
+_sgp = [e.elts[0].value for nd in _ast.walk(_sg) if isinstance(nd, _ast.Assign) and getattr(nd.targets[0], "id", "") == "SECRETS" for e in nd.value.elts]
+check("шаблоны ключей у хранителя — не меньше, чем у send-guard (списки не разъехались)", _sgp and set(_sgp) <= {rx.pattern for rx, _ in mila_keyd.LEAK}, set(_sgp) - {rx.pattern for rx, _ in mila_keyd.LEAK})
 # boot forks the keeper: the child must let go of the caller's pipe, or the entrypoint (… | sed) waits forever — an empty log
 SCRIPT = ("import os, sys, time; sys.path.insert(0, sys.argv[1]); import mila_keyd\n"
           "if os.fork() == 0:\n    os.setsid(); mila_keyd.detach_stdio(sys.argv[2]); print('child'); time.sleep(6); os._exit(0)\n"
