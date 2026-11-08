@@ -3,12 +3,13 @@
 иначе при конце долгого вызова (рендер 8 мин) ход получает две-три копии. Перезапуск сессии, пока событие в очереди, —
 подаём в новую сразу. Формы записей — снимок живого транскрипта (enqueue → attachment queued_command → remove).
 Всё во временной папке: HOME, журнал, транскрипт, pid сессии подменены."""
-import importlib.util, json, os, sys, tempfile, time
+import atexit, importlib.util, json, os, shutil, sys, tempfile, time
 HERE = os.path.dirname(os.path.abspath(__file__)); ok = n = 0
 def chk(name, cond):
     global ok, n
     n += 1; ok += bool(cond); print(("✅ " if cond else "❌ ") + name)
 T = tempfile.mkdtemp(prefix="fq-"); os.environ["HOME"] = T
+atexit.register(shutil.rmtree, T, True)   # the temp home goes away after the run, pass or fail
 ST = os.path.join(T, ".claude", "channels", "telegram"); os.makedirs(os.path.join(ST, "inbound")); PROJ = os.path.join(T, ".claude", "projects", "w"); os.makedirs(PROJ)
 CS = os.path.join(T, "state"); os.makedirs(CS)
 os.environ.update(TELEGRAM_STATE_DIR=ST, COMPANION_STATE=CS, COMPANION_INSTALL_DIR=HERE, CLAUDE_CONFIG_DIR=os.path.join(T, ".claude"),

@@ -2,12 +2,13 @@
 """(подписку обновили в 10:30, а кормилец держал до «resets 2pm»): при лимите — откат к съеденным
 ходами 429 входящим, проба раз в FEEDER_LOGIN_PROBE_S и сразу после рестарта; удачный ход раньше срока → «пропущено за простой: N»
 и все по порядку. Всё во временной папке: HOME, журнал плагина, транскрипт — подменены."""
-import importlib.util, json, os, sys, tempfile, time
+import atexit, importlib.util, json, os, shutil, sys, tempfile, time
 HERE = os.path.dirname(os.path.abspath(__file__)); ok = n = 0
 def chk(name, cond):
     global ok, n
     n += 1; ok += bool(cond); print(("✅ " if cond else "❌ ") + name)
 T = tempfile.mkdtemp(prefix="limit-"); os.environ["HOME"] = T
+atexit.register(shutil.rmtree, T, True)   # the temp home goes away after the run, pass or fail
 ST = os.path.join(T, ".claude", "channels", "telegram"); os.makedirs(os.path.join(ST, "inbound")); PROJ = os.path.join(T, ".claude", "projects", "w"); os.makedirs(PROJ)
 CS = os.path.join(T, "state"); os.makedirs(CS)
 os.environ.update(TELEGRAM_STATE_DIR=ST, COMPANION_STATE=CS, MILA_SENIOR_INBOX=os.path.join(T, "нет", "x.jsonl"), COMPANION_INSTALL_DIR=HERE, CLAUDE_CONFIG_DIR=os.path.join(T, ".claude"))
