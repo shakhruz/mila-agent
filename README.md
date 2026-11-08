@@ -106,6 +106,8 @@ Source: [Claude Code — legal and compliance](https://code.claude.com/docs/en/l
 
 ≈ 5 minutes.
 
+**No computer to keep on?** Mila runs in the cloud too — [Railway or Hostinger, one page](docs/CLOUD.md).
+
 **You need:**
 - macOS or Linux. On Windows — inside [WSL](https://learn.microsoft.com/windows/wsl/install).
 - [Claude Code](https://code.claude.com/docs/en/setup), a recent release (`claude --version`; older than 2.1.295 installs without the send-guard's `onFailure` key), signed in with your own **paid** Claude plan

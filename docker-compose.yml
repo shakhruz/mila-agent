@@ -2,10 +2,10 @@
 # Fill the variables in your Docker panel (or a .env file next to this one). Nothing secret lives in this file.
 services:
   mila:
-    image: mila-agent:local   # built on your server from the public repository (no registry needed)
-    build:
-      context: https://github.com/shakhruz/mila-agent.git#main
-      dockerfile: docker/Dockerfile
+    # the ready image of the latest release (public, no login): the server pulls it, nothing is built there.
+    # To build it yourself instead: docker build -t mila-agent:local -f docker/Dockerfile https://github.com/shakhruz/mila-agent.git#main
+    image: ghcr.io/shakhruz/mila-agent:latest
+    pull_policy: always   # a redeploy takes the newest release
     restart: unless-stopped
     environment:
       BIRTH_CODE: ${BIRTH_CODE:-}                             # one-time code from the MILAGPT bot: the bot token comes by itself

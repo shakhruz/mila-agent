@@ -20,7 +20,7 @@ It talks to Telegram outward only — no open ports.
 
 1. Click **Deploy on Hostinger**, choose a VPS plan, finish checkout.
 2. Docker Manager opens with Mila's compose file. Add the variables above in the environment field.
-3. Deploy. The first start builds the image (a few minutes).
+3. Deploy. The server pulls the ready image of the latest release (a minute or two) — nothing is built there.
 4. Open the container **log**: it shows `pairing code ABC123`. Send `/pair ABC123` to your bot in Telegram — you are the owner
    (with `OWNER_ID` set, or a birth code, this step is skipped). The bot sends a «Sign in to Claude» button: sign in with the
    account that has your Claude subscription, copy the code Anthropic shows and send it to the bot within 10 minutes. The bot
