@@ -164,6 +164,12 @@ good = dec == "allow" and (json.loads(out)["hookSpecificOutput"]["updatedInput"]
 ok += good; print(("✅ " if good else "❌ ") + "сумма сразу после номера («… 100 USD») — номер всё равно маской" + ("" if good else "  " + out[:200]))
 # подпись к фото (caption) проверяется так же, как текст; маска — в своём поле, текст не смешивается
 chk("ключ провайдера в caption — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "Готово", "caption": "ключ " + "sk-" + "abcdefghijklmnopqrstuv"}}, "deny")
+# пароль, вписанный в команду, без префикса провайдера — сканеры его не видят (разбор утечек через «больше не спрашивать»)
+chk("пароль базы в команде — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "Запустите: PGPASS" + "WORD=Zx9qLm2w psql -h db"}}, "deny")
+chk("пароль ssh в команде — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "sshpass -p 'Qw7rTy' ssh root@host"}}, "deny")
+chk("mysql -pПАРОЛЬ — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "mysql -u app -pS3cretPw shop"}}, "deny")
+chk("Bearer-токен в заголовке — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "curl -H 'Authorization: Bea" + "rer abcDEF123456ghiJKL' https://x"}}, "deny")
+chk("ссылка на переменную, не пароль — пропуск", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "PGPASS" + "WORD=$DB_PASS psql; mysql -u app -p shop"}}, "allow")
 chk("серверный путь в caption — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "Альбом", "caption": "файлы в " + "/srv/" + "mila/x"}}, "deny")
 n += 1; code, dec, out = run({"tool_name": R, "tool_input": {"chat_id": "111", "text": "Альбом", "caption": "Карта " + PS + " к оплате", "files": ["/tmp/a.png", "/tmp/b.png"]}})
 u = json.loads(out)["hookSpecificOutput"].get("updatedInput", {}) if dec == "allow" else {}

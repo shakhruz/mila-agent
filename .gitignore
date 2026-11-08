@@ -7,3 +7,4 @@ __pycache__/
 *.pyc
 FLEET-MOVE.md
 dist/
+.claude/settings.local.json

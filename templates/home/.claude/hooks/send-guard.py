@@ -53,6 +53,11 @@ SECRETS = [
     (r"\bgh[pous]_[A-Za-z0-9]{20,}\b", "токен GitHub"),
     (r"\bxox[baprs]-[A-Za-z0-9-]{10,}", "токен Slack"),
     (r"\bcmp_[A-Za-z0-9]{16,}\b", "токен API"),
+    # a password typed into a command has no provider prefix — scanners miss it; these are the shapes seen leaking
+    (r"\bPGPASS" r"WORD=['\"]?[^\s'\"$]{4,}", "пароль базы в команде"),
+    (r"\bsshpass\s+-p\s*['\"]?[^\s'\"$]{4,}", "пароль ssh в команде"),
+    (r"\bmysql(?:dump)?\b[^\n]*?\s-p['\"]?[^\s'\"$]{4,}", "пароль базы в команде"),
+    (r"(?i)\bauthorization:\s*bearer\s+[A-Za-z0-9._~+/=-]{16,}", "токен в заголовке"),
 ]
 SECRETS_EARLY = SECRETS
 
