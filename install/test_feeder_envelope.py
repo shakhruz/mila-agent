@@ -2,11 +2,13 @@
 """The feeder's envelope carries what the receiver knows: the author by Telegram id (from = owner/team/other), the event type,
 the observer mark, the chat's title and kind — only known values, so a crafted name or text cannot fake an attribute.
 Run: python3 test_feeder_envelope.py"""
-import importlib.util, os, sys
+import atexit, importlib.util, os, shutil, sys, tempfile
+_TD = tempfile.mkdtemp(prefix="fenv-"); atexit.register(shutil.rmtree, _TD, True); tempfile.tempdir = _TD   # every temp folder below lives here and goes away
 H = os.path.dirname(os.path.abspath(__file__)); ok = n = 0
 def check(name, c, x=""):
     global ok, n; n += 1; ok += bool(c); print(("✅ " if c else "❌ ") + name + ("" if c else "  ← " + str(x)[:300]))
-os.environ.setdefault("COMPANION_STATE", "/tmp"); os.environ.setdefault("TELEGRAM_STATE_DIR", "/tmp")
+T = tempfile.mkdtemp()   # the feeder writes its log into the state dir — not into /tmp itself
+os.environ.setdefault("COMPANION_STATE", T); os.environ.setdefault("TELEGRAM_STATE_DIR", T)
 spec = importlib.util.spec_from_file_location("feeder", os.path.join(H, "companion-feeder.py")); F = importlib.util.module_from_spec(spec); spec.loader.exec_module(F)
 OWNER = "555" + "000111"
 e = F.envelope({"content": "hi"}, {"chat_id": OWNER, "message_id": "5", "user": "boss", "user_id": OWNER, "from": "owner", "chat_type": "private", "ts": "t"})

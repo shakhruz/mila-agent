@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """reply-required.py (Stop-хук): когда ход без reply блокируется, а когда нет. Транскрипты — во временной папке."""
-import json, os, subprocess, sys, tempfile
+import atexit, json, os, shutil, subprocess, sys, tempfile
+_TD = tempfile.mkdtemp(prefix="rreq-"); atexit.register(shutil.rmtree, _TD, True); tempfile.tempdir = _TD   # every temp folder below lives here and goes away
 HOOK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reply-required.py")
 ok = n = 0
 def chk(name, cond):
@@ -59,7 +60,9 @@ m = os.path.join(tempfile.mkdtemp(), "mut.py"); open(m, "w").write(src)
 chk("мутант без пропуска тика — тест ловит", blocked(ch("tick-razrabotka-1", "Маховик", "тик"), say("шаг"), hook=m))
 # the feeder's envelope with the receiver's attributes (observer, reaction) — the same rules hold
 import importlib.util as _iu
-os.environ.setdefault("COMPANION_STATE", tempfile.mkdtemp()); os.environ.setdefault("TELEGRAM_STATE_DIR", tempfile.mkdtemp())
+_T = tempfile.mkdtemp()
+os.environ.setdefault("COMPANION_STATE", os.path.join(_T, "cs")); os.environ.setdefault("TELEGRAM_STATE_DIR", os.path.join(_T, "tg"))
+os.makedirs(os.environ["COMPANION_STATE"], exist_ok=True); os.makedirs(os.environ["TELEGRAM_STATE_DIR"], exist_ok=True)
 _sp = _iu.spec_from_file_location("feeder", os.path.join(os.path.dirname(HOOK), "companion-feeder.py")); FD = _iu.module_from_spec(_sp); _sp.loader.exec_module(FD)
 def env_rec(p, m): return {"type": "user", "message": {"role": "user", "content": FD.envelope(p, m)}}
 chk("конверт кормильца: наблюдатель (observe_only) без reply — проходит", not blocked(env_rec({"content": "[observer mode — not addressed]\nx"},
