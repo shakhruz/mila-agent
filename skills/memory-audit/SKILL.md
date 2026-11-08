@@ -128,4 +128,6 @@ launchctl load ~/Library/LaunchAgents/com.MILAGPT.cron.memory-audit.plist
 `python3 ~/.claude/skills/memory-audit/scripts/day_digest.py` пишет `work/memory/days/<вчера>.md` (≤ 2 КБ): дела дня из
 `work/dela.jsonl` (по типам и ступеням, с уликами), строки хода дня из NOW.md, файлы memory/, изменённые в тот день.
 Из чатов ничего не копирует; второй запуск даёт тот же файл; ничего не удаляет. Ночью — задачей Барабана (raspisanie):
-`python3 ~/.claude/skills/raspisanie/mila_cron.py add …` на 03:15 по поясу хозяина. Неделя и месяц — следующим шагом.
+`python3 ~/.claude/skills/raspisanie/mila_cron.py add …` на 03:15 по поясу хозяина.
+Неделя: `week_digest.py [--week ГГГГ-Wнн]` склеивает страницы дней в `work/memory/weeks/<неделя>.md` (≤ 3 КБ, суммы по типам,
+ссылка на каждый день, «страницы дня нет» — так и сказано); в Барабан — по воскресеньям 03:40. Без модели; месяц — следующим шагом.
