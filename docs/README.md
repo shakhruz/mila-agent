@@ -30,6 +30,7 @@ Start with the map: [MODULES.md](MODULES.md) names every module of a newborn Mil
 | Page | What is there |
 |---|---|
 | [THREAT-MODEL.md](THREAT-MODEL.md) | what is protected, from whom, and what is not |
+| [ISOLATION.md](ISOLATION.md) | the map of isolation in the container: four users, who holds which key, what each can reach |
 
 ## Installing and running
 | Page | What is there |

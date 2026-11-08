@@ -2,7 +2,7 @@
 
 Mila is a Claude Code session that reads Telegram and can act: it has shell, files, and tools that write to the outside world.
 This page says who can reach that session, what it can do, and where the real limits are — so you can judge the risk before you
-connect a bot to it.
+connect a bot to it. The short map of who is separated from whom is [ISOLATION.md](ISOLATION.md).
 
 ## Who can write to the session
 
