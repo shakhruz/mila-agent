@@ -158,4 +158,5 @@ CP=$(grep -o "find \"\$KD\" -maxdepth 1 .*2>/dev/null" docker/entrypoint.sh | se
 eval "$CP"
 chk "знания для людей: копируются только обычные небольшие .md/.txt — не ссылка, не жёсткая ссылка, не большой, не .sh" "[ \"\$(ls $KQ/dst | tr '\n' ' ')\" = 'prices.md ' ]"
 rm -rf "${KQ:?}"
+chk "№5/№6: корневой шаг — cd /, Python под root только с -I, cards.jsonl через own-file (по дескриптору)" "python3 -I docker/check_root_python.py docker/entrypoint.sh"
 echo "итог $ok/$n"; [ $ok -eq $n ]

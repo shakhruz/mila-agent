@@ -220,6 +220,29 @@ def migrate_io(home, io, io_uid, agent_gid, verify=None):
         os.close(ifd)
 
 
+def own_file(dirpath, name, uid, gid, mode):
+    """root makes or fixes one file in a folder the session can write (№6): never through a link the session left there —
+    a link (or anything but one regular file of one name) is removed and a fresh empty file made; owner and mode by descriptor."""
+    dfd = open_dir(dirpath)
+    try:
+        try:
+            st = os.stat(name, dir_fd=dfd, follow_symlinks=False)
+            if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1:
+                if stat.S_ISDIR(st.st_mode): raise Refuse("%s/%s is a folder — not touching it" % (dirpath, name))
+                os.unlink(name, dir_fd=dfd)
+        except FileNotFoundError:
+            pass
+        fd = os.open(name, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, mode, dir_fd=dfd)
+        try:
+            st = os.fstat(fd)
+            if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1: raise Refuse("%s/%s changed under me" % (dirpath, name))
+            os.fchown(fd, uid, gid); os.fchmod(fd, mode)
+        finally:
+            os.close(fd)
+    finally:
+        os.close(dfd)
+
+
 def persistent(path, rootdir="/"):
     """False when path sits on the same device as the container's own «/» — no volume under it."""
     return os.stat(path).st_dev != os.stat(rootdir).st_dev
@@ -259,6 +282,11 @@ def prepare(env, agent_uid, keys_uid, io_uid):
 
 if __name__ == "__main__":
     import argparse
+    if sys.argv[1:2] == ["own-file"]:   # own-file <dir> <name> <uid> <gid> <octal mode>
+        try:
+            d, n, u, g, m = sys.argv[2:7]; own_file(d, n, int(u), int(g), int(m, 8)); sys.exit(0)
+        except (Refuse, ValueError, OSError) as e:
+            print("mila-state: %s" % e, file=sys.stderr); sys.exit(1)
     ap = argparse.ArgumentParser(); ap.add_argument("cmd", choices=["prepare", "layout"])
     ap.add_argument("--agent-uid", type=int, default=1001); ap.add_argument("--keys-uid", type=int, default=1002)
     ap.add_argument("--io-uid", type=int, default=1003)
