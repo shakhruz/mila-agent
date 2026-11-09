@@ -59,6 +59,23 @@ try:
         lines.append("расход подписки сегодня ≈ $%.2f по прайсу API (мера, не счёт)" % float(cost))
 except Exception:
     pass
+# Mila Agent, layout B (09.11): keys and io/ not on a volume — the sign-in and keys vanish at the next redeploy. The start
+# writes /run/mila-state.json (paths and flags only). Once a day: ask Mila to tell the owner in ONE card how to fix it.
+try:
+    sj = os.environ.get("MILA_STATE_JSON") or "/run/mila-state.json"
+    st_ = json.load(open(sj, encoding="utf-8"))
+    if st_.get("persistent") is False:
+        day = time.strftime("%Y-%m-%d")
+        mark = os.path.join(ST, "no-volume-told")
+        told = open(mark).read().strip() if os.path.exists(mark) else ""
+        if told != day:
+            lines.append("⚠️ ключи и согласия Милы НЕ на постоянном томе — при следующем обновлении вход в подписку и ключи пропадут. "
+                         "Скажи владельцу ОДНОЙ карточкой сейчас: «Чтобы я не теряла вход при обновлении, подключите том на "
+                         "/var/lib/mila (Railway: Settings → Volumes → Mount path /var/lib/mila; compose: обновите docker-compose.yml) "
+                         "и перезапустите» — с кнопкой «Как?». Сегодня больше не напоминай")
+            os.makedirs(ST, exist_ok=True); open(mark, "w").write(day)
+except Exception:
+    pass
 if lines:
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart",
                                              "additionalContext": "Старт сессии Компаньона: " + " · ".join(lines)}},

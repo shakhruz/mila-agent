@@ -16,6 +16,7 @@ if [ "$(id -u)" = 0 ]; then
   mkdir -p /run 2>/dev/null; SJ="${MILA_STATE_JSON:-/run/mila-state.json}"
   ( cd / && $ST_CMD prepare --agent-uid "$AU" ) > "$SJ" 2> >(sed 's/^/mila-agent: /' >&2) \
     || { echo "mila-agent: the state folders are not safe to use — see the line above; not starting"; exit 1; }
+  chmod 644 "$SJ" 2>/dev/null   # paths and flags only, no secret: the session's start hook reads it (no volume → a card to the owner)
   grep -q '"persistent": true' "$SJ" || echo "mila-agent: keys and io are NOT on a volume (mount it at /var/lib/mila) — the sign-in will be lost at the next redeploy" >&2
   # The key keeper (mila_keyd.py): the Claude token and the voice keys move to its own user (/var/lib/mila/keys, 700 — outside the home the session owns) — variables and
   # files of earlier starts included; the session gets only the keeper's address and can use a key, not read it.
