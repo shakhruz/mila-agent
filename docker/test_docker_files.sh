@@ -159,5 +159,6 @@ eval "$CP"
 chk "знания для людей: копируются только обычные небольшие .md/.txt — не ссылка, не жёсткая ссылка, не большой, не .sh" "[ \"\$(ls $KQ/dst | tr '\n' ' ')\" = 'prices.md ' ]"
 rm -rf "${KQ:?}"
 chk "№5/№6: корневой шаг — cd /, Python под root только с -I, cards.jsonl через own-file (по дескриптору)" "python3 -I docker/check_root_python.py docker/entrypoint.sh"
+chk "№5: python3 в строке ДО setpriv — тоже root, ловится" "M=\$(mktemp); awk '{print} /^  cd \\/ \\|\\| exit 1/{print \"  python3 -c pass; exec setpriv --reuid=1001 true\"}' docker/entrypoint.sh > \$M; python3 -I docker/check_root_python.py \$M >/dev/null; r=\$?; rm -f \$M; [ \$r = 1 ]"
 chk "№5: сторож видит root-шаги и после setpriv других пользователей — мутант «io_perms без -I» ловится" "M=\$(mktemp); sed 's|python3 -I /usr/local/bin/io_perms.py|python3 /usr/local/bin/io_perms.py|' docker/entrypoint.sh > \$M; python3 -I docker/check_root_python.py \$M >/dev/null; r=\$?; rm -f \$M; [ \$r = 1 ]"
 echo "итог $ok/$n"; [ $ok -eq $n ]

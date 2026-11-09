@@ -18,6 +18,9 @@ for k, l in enumerate(block):
         if l.count("'") % 2: other = False   # the closing quote of that body
         continue
     if "setpriv " in l:
+        before = re.split(r"\s#\s", l.split("setpriv ", 1)[0], maxsplit=1)[0]   # what runs before setpriv on this line is still root
+        for m in re.finditer(r"\bpython3\b(?!\S)", before):
+            if not re.match(r"\s+-I\b", before[m.end():]): bad.append("%d: python3 without -I (before setpriv): %s" % (i, l.strip()[:120]))
         j, cmd = k, l   # the setpriv command may go on over «\» lines before its bash -c
         while cmd.rstrip().endswith("\\") and j + 1 < len(block):
             j += 1; cmd += "\n" + block[j]
