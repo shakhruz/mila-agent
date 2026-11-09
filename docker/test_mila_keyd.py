@@ -88,9 +88,9 @@ OAT3 = "sk-" + "ant-" + "oat01-" + "F" * 40; DG3 = "abcd1234" * 5; GQ3 = "gs" + 
 open(os.path.join(HM, ".mila-auth", "oauth_token"), "w").write(OAT3 + "\n")
 open(os.path.join(HM, "work", "secrets", "deepgram.env"), "w").write("DEEPGRAM_API_KEY='%s'\n" % DG3)
 open(os.path.join(HM, "work", "secrets", "groq.env"), "w").write("GROQ_API_KEY='%s'\n" % GQ3)
-mila_keyd.KEYS = os.path.join(HM, ".keys"); os.environ["GROQ_API_KEY"] = GQ4
+ST = os.path.join(T, "store"); os.makedirs(ST, mode=0o700); mila_keyd.KEYS = ST; os.environ["GROQ_API_KEY"] = GQ4
 moved = mila_keyd.migrate(HM); del os.environ["GROQ_API_KEY"]
-kk = lambda k: open(os.path.join(HM, ".keys", k)).read().strip()
+kk = lambda k: open(os.path.join(ST, k)).read().strip()
 check("перенос: токен и ключи из старых файлов — у хранителя, старые файлы стёрты", moved == ["anthropic", "deepgram", "groq"] and kk("anthropic") == OAT3 and kk("deepgram") == DG3
       and not os.path.exists(os.path.join(HM, ".mila-auth", "oauth_token")) and not os.path.exists(os.path.join(HM, "work", "secrets", "groq.env")), moved)
 check("перенос: переменная платформы сильнее старого файла (хозяин поменял её в панели)", kk("groq") == GQ4)

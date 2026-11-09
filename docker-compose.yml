@@ -18,6 +18,8 @@ services:
       PORT: ""                                              # no token page here: the token comes from the variables above
     volumes:
       - mila-home:/home/agent     # memory, skills, journal, the bot's state — survives updates
+      - mila-keys:/var/lib/mila-keys   # the key keeper's store: outside the home, so the session cannot swap the folder
     # No ports: Mila talks to Telegram outward only; nothing listens on the internet.
 volumes:
   mila-home:
+  mila-keys:

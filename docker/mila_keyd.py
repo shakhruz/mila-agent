@@ -13,11 +13,12 @@ Putting a key in: a unix socket (KEYD_SOCK), one JSON line {"kind": "anthropic|d
 "bad". There is no way to read a key back. Whatever the caller sent as auth is dropped; request and response bodies and
 headers are not logged — only method, route and status. Only stdlib.
 
-Env: KEYS_DIR (default /home/agent/.keys), KEYD_PORT (8790), KEYD_BIND (127.0.0.1), KEYD_SOCK (/run/mila-keyd/put.sock),
+Env: KEYS_DIR (default /var/lib/mila-keys — outside the session's home: a folder agent owns is a folder agent can swap), KEYD_PORT (8790), KEYD_BIND (127.0.0.1), KEYD_SOCK (/run/mila-keyd/put.sock),
 KEYD_UPSTREAM_<KIND> (tests only: another upstream base)."""
-import http.client, http.server, json, os, re, socket, socketserver, ssl, sys, threading, time, urllib.parse
+import http.client, http.server, json, os, re, socket, socketserver, ssl, stat, sys, threading, time, urllib.parse
 
-KEYS = os.environ.get("KEYS_DIR") or "/home/agent/.keys"
+STORE = "/var/lib/mila-keys"
+KEYS = os.environ.get("KEYS_DIR") or STORE
 ROUTES = {"anthropic": "https://api.anthropic.com", "deepgram": "https://api.deepgram.com", "groq": "https://api.groq.com",
           "telegram": "https://api.telegram.org",
           # strangers' lane: Claude on an Anthropic API key (never the owner's subscription), only for the lane's own OS user
@@ -109,9 +110,16 @@ def log(m):
 
 def key(kind):
     try:
-        with open(os.path.join(KEYS, kind), encoding="utf-8") as f: return f.read().strip()
+        with os.fdopen(os.open(os.path.join(KEYS, kind), os.O_RDONLY | os.O_NOFOLLOW), encoding="utf-8") as f: return f.read().strip()
     except OSError:
         return ""
+
+
+def bot_id(tok):
+    """the bot's id is public, the rest of the token is not: only from a token of the checked shape, only digits."""
+    if not re.match(FORMAT["telegram"], tok or ""): return ""
+    i = tok.split(":", 1)[0]
+    return i if re.fullmatch(r"\d{5,15}", i) else ""
 
 
 def alive(kind, k):
@@ -228,7 +236,7 @@ class Proxy(http.server.BaseHTTPRequestHandler):
         if path == "/status":
             a = key("anthropic")
             return self.plain(200, dict({k: bool(key(k)) for k in ROUTES}, anthropic_kind=("sub" if a.startswith(OAT) else "key") if a else "",
-                                        telegram_bot_id=key("telegram").split(":")[0]))   # the bot's id is public; the token after «:» is not
+                                        telegram_bot_id=bot_id(key("telegram"))))
         m = re.match(r"^/(anthropic|deepgram|groq|telegram|guest)(/[^#]*)$", path)
         if not m: return self.plain(404, {"error": "unknown route"})
         kind, rest = m.group(1), m.group(2)
@@ -320,23 +328,51 @@ OLD_FILES = (("anthropic", ".mila-auth/oauth_token", None), ("telegram", ".mila-
 ENV_KEYS = (("telegram", "TELEGRAM_BOT_TOKEN"), ("anthropic", "CLAUDE_CODE_OAUTH_TOKEN"), ("anthropic", "ANTHROPIC_API_KEY"), ("deepgram", "DEEPGRAM_API_KEY"), ("groq", "GROQ_API_KEY"), ("guest", "ANTHROPIC_GUEST_API_KEY"))
 
 
-def _old_value(path, field):
-    try: txt = open(path, encoding="utf-8").read()
-    except OSError: return ""
+OLD_STORE = tuple((k, ".keys/" + k, None) for k in sorted(FORMAT))   # the store of earlier versions, inside the session's home
+
+
+def _old_value(txt, field):
     if not field: return txt.strip().splitlines()[0].strip() if txt.strip() else ""
     m = re.search(r"^\s*%s\s*=\s*['\"]?([^'\"\s]+)" % field, txt, re.M)
     return m.group(1) if m else ""
 
 
+def take_old(home, rel, field, maxlen=8192):
+    """root reads a file in the session's home: every step by descriptor, no link followed anywhere on the way, only a
+    regular file with one name (a hard link to /etc/shadow is not «an old key file»), and the wipe goes through the same
+    descriptor — never by path again. Returns the value or ""."""
+    parts = [x for x in rel.split("/") if x]
+    fds = []
+    try:
+        fds.append(os.open(home, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW))
+        for d in parts[:-1]:
+            fds.append(os.open(d, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fds[-1]))
+        f = os.open(parts[-1], os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fds[-1])
+    except OSError:
+        for x in fds: os.close(x)
+        return ""
+    try:
+        st = os.fstat(f)
+        if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_size > maxlen: return ""
+        v = _old_value(os.read(f, maxlen).decode("utf-8", "replace"), field)
+        if v:
+            os.lseek(f, 0, 0); os.write(f, b"\0" * st.st_size); os.fsync(f)
+            os.unlink(parts[-1], dir_fd=fds[-1])
+        return v
+    finally:
+        os.close(f)
+        for x in fds: os.close(x)
+
+
 def migrate(home):
-    """keys the session could read — variables and files of earlier starts — move here; the old files are wiped."""
+    """keys the session could read — variables and files of earlier starts, the old store in its home — move here;
+    the old files are wiped."""
     moved = []
-    for kind, rel, field in OLD_FILES:
-        p = os.path.join(home, rel); v = _old_value(p, field)
+    for kind, rel, field in OLD_FILES + OLD_STORE:
+        v = take_old(home, rel, field)
         if v and put(kind, v): moved.append(kind)
-        if v and os.path.isfile(p) and not os.path.islink(p):
-            with open(p, "r+b") as f: f.write(b"\0" * os.path.getsize(p))
-            os.unlink(p)
+    try: os.rmdir(os.path.join(home, ".keys"))   # empty now; a non-empty one (not ours) stays as it is
+    except OSError: pass
     for kind, var in ENV_KEYS:   # a platform variable wins over an old file (the owner changed it in the panel)
         if os.environ.get(var) and put(kind, os.environ[var], replace=True): moved.append(kind)
     return sorted(set(moved))
@@ -352,17 +388,29 @@ def detach_stdio(logpath, uid=None, gid=None):
     os.close(dn); os.close(fd)
 
 
+def own_store(path, keys_uid):
+    """the store: a real folder of root or the keeper, 700 — anything else (a link, the session's folder) stops the start."""
+    os.makedirs(os.path.dirname(path), mode=0o755, exist_ok=True)
+    try: os.mkdir(path, 0o700)
+    except FileExistsError: pass
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    st = os.fstat(fd)
+    if st.st_uid not in (0, keys_uid):
+        os.close(fd); sys.exit("keyd boot: %s belongs to uid %d, not the keeper — refusing to keep keys there" % (path, st.st_uid))
+    os.fchown(fd, keys_uid, keys_uid); os.fchmod(fd, 0o700)
+    return fd
+
+
 def boot(home, agent_uid, keys_uid, port):
-    """root, once per start: keys into ~/.keys of their own user, the put socket for agent, the keeper as that user."""
+    """root, once per start: keys into the store outside the home (/var/lib/mila-keys) of their own user, the put socket for agent, the keeper as that user."""
     if os.geteuid() != 0: sys.exit("keyd boot: needs root (the entrypoint's first step)")
     global KEYS
-    KEYS = os.path.join(home, ".keys")
-    if os.path.islink(KEYS): os.unlink(KEYS)
-    os.makedirs(KEYS, mode=0o700, exist_ok=True)
+    KEYS = os.environ.get("KEYS_DIR") or STORE
+    sfd = own_store(KEYS, keys_uid)
     moved = migrate(home)
-    for root_, dirs, files in os.walk(KEYS):
-        for x in [root_] + [os.path.join(root_, f) for f in files]: os.lchown(x, keys_uid, keys_uid)
-    os.chmod(KEYS, 0o700)
+    for n in os.listdir(sfd):   # only what root and the keeper wrote here: the session never reaches this folder
+        os.chown(n, keys_uid, keys_uid, dir_fd=sfd, follow_symlinks=False)
+    os.close(sfd)
     run = os.path.dirname(os.environ.get("KEYD_SOCK") or "/run/mila-keyd/put.sock")
     os.makedirs(run, exist_ok=True); os.chown(run, keys_uid, agent_uid); os.chmod(run, 0o2751)   # o+x: the receiver's user reaches api.sock
     global OUT_SPOOL

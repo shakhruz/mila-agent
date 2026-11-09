@@ -25,7 +25,7 @@ Out of scope: vulnerabilities in Claude Code, Telegram or other upstream softwar
 ## The Claude token in the one-container setup
 
 In the container (Railway, docker-compose) the Claude token, the bot token and the voice keys are with the key keeper (`docker/mila_keyd.py`):
-its own user (`mila-keys`), files in `~/.keys` (700) the session's user cannot read, keys from earlier starts and from platform
+its own user (`mila-keys`), files in `/var/lib/mila-keys` (700, outside the home the session owns — a folder it owns it could swap) the session's user cannot read, keys from earlier starts and from platform
 variables moved there by the entrypoint's root step. Claude Code and the voice script talk to the keeper at 127.0.0.1 with a
 placeholder; the keeper puts the key into the request to Anthropic, Deepgram or Groq. The model can use a key, not read it:
 only Mila's own calls pass (messages, speech-to-text), account, usage and key-management paths are refused before they

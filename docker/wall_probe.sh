@@ -15,12 +15,13 @@ chk "хранитель поднялся: токен Claude и бота у не�
 chk "старые файлы с ключами стёрты" "[ ! -e $HOME/.mila-auth/oauth_token ] && [ ! -e $HOME/work/secrets/groq.env ]"
 AS() { setpriv --reuid=1001 --regid=1001 --init-groups -- env -i HOME="$HOME" PATH=/usr/local/bin:/usr/bin:/bin MILA_KEYD=http://127.0.0.1:8790 KEYD_SOCK=/run/mila-keyd/put.sock bash -c "$1" 2>&1; }
 KP=$(pgrep -f 'mila_keyd.py' | head -1)
-OUT=$(AS "cat ~/.keys/* ~/.keys/anthropic; ls -la ~/.keys; cat /proc/$KP/environ /proc/$KP/cmdline; dd if=/proc/$KP/mem bs=1 count=1 2>&1; \
+OUT=$(AS "cat /var/lib/mila-keys/* /var/lib/mila-keys/anthropic; ls -la /var/lib/mila-keys; cat /proc/$KP/environ /proc/$KP/cmdline; dd if=/proc/$KP/mem bs=1 count=1 2>&1; \
   ps eww -u mila-keys; env; grep -rI 'WALLPROBE' ~ /tmp /run 2>/dev/null; cat /run/mila-keyd/put.sock; \
   curl -s http://127.0.0.1:8790/status; curl -s http://127.0.0.1:8790/../.keys/anthropic; curl -s 'http://127.0.0.1:8790/anthropic/../../etc/passwd'; \
   python3 -c 'import os; print(os.listdir(\"/proc/$KP/fd\"))'; cat /proc/1/environ; su -s /bin/sh mila-keys -c id </dev/null")
 chk "под agent: ни файлы, ни /proc хранителя, ни ps, ни env, ни поиск по дому, ни status не дают ключа" "! printf '%s' \"\$OUT\" | grep -q WALLPROBE"
-chk "под agent: ~/.keys не читается (Permission denied)" "printf '%s' \"\$OUT\" | grep -q 'Permission denied'"
+chk "в доме сессии хранилища нет (~/.keys)" "[ ! -e $HOME/.keys ]"
+chk "под agent: /var/lib/mila-keys не читается (Permission denied)" "printf '%s' \"\$OUT\" | grep -q 'Permission denied'"
 chk "под agent: класть ключ в сокет можно (запись), прочесть — нечем" "AS \"python3 -c 'import sys; sys.path.insert(0,\\\"/usr/local/bin\\\"); import mila_keyd; sys.exit(0 if mila_keyd.put_remote(\\\"deepgram\\\", \\\"a1b2c3d4\\\"*5) else 1)'\""
 chk "в журнале хранителя ключей нет" "! grep -rq WALLPROBE $HOME/state 2>/dev/null"
 # the receiver's updates: once it is up, the session's user cannot read the bot's updates through the keeper

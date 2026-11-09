@@ -10,7 +10,7 @@ set -u
 if [ "$(id -u)" = 0 ]; then
   AU="${MILA_AGENT_UID:-1001}"
   [ "$(stat -c %u "$HOME" 2>/dev/null)" = "$AU" ] || chown -R -h "$AU:$AU" "$HOME"
-  # The key keeper (mila_keyd.py): the Claude token and the voice keys move to its own user (~/.keys, 700) — variables and
+  # The key keeper (mila_keyd.py): the Claude token and the voice keys move to its own user (/var/lib/mila-keys, 700 — outside the home the session owns) — variables and
   # files of earlier starts included; the session gets only the keeper's address and can use a key, not read it.
   # MILA_KEYD=off keeps the old way (keys readable by the session, see SECURITY.md).
   if [ "${MILA_KEYD:-on}" != off ] && python3 "${KEYD_BIN:-/usr/local/bin/mila_keyd.py}" boot --home "$HOME" --agent-uid "$AU" 2>&1 | sed 's/^/mila-agent: /'; [ "${PIPESTATUS[0]}" = 0 ]; then
