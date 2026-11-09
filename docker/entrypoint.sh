@@ -26,9 +26,13 @@ if [ "$(id -u)" = 0 ]; then
   # themselves); from then on the key keeper gives updates to mila-io only. Needs the keeper; MILA_IO=off — the old way.
   if [ -n "${MILA_KEYD:-}" ] && [ "${MILA_IO:-on}" != off ] && id -u mila-io >/dev/null 2>&1; then
     TGd="$HOME/.claude/channels/telegram"; IOD="$TGd/io"
+    # root changes owners and rights here at every start: none of these may be a link the session put between starts
+    for d in "$HOME/.claude" "$HOME/.claude/channels" "$TGd" "$TGd/inbound" "$IOD" "$IOD/consent"; do
+      [ -L "$d" ] && { echo "mila-agent: $d is a link — refusing to start (root would follow it out of the home)"; exit 1; }
+    done
     mkdir -p "$TGd/inbound" "$IOD" /run/mila-io
     chown "$AU:$AU" "$HOME/.claude" "$HOME/.claude/channels" "$TGd" "$TGd/inbound"
-    chmod 2770 "$TGd" "$TGd/inbound"; chmod g+rwX -R "$TGd" 2>/dev/null; rm -f "$TGd/receiver.go"
+    chmod 2770 "$TGd" "$TGd/inbound"; rm -f "$TGd/receiver.go"   # group rights for the shared state — io_perms.py below, not chmod -R
     chmod 750 "$HOME" "$HOME/.claude" "$HOME/.claude/channels"
     chown mila-io:"$AU" "$IOD" /run/mila-io; chmod 2750 "$IOD"; chmod 2755 /run/mila-io   # setgid: sockets there belong to the session's group
     UPGRADED=; [ -s "$TGd/inbound/events.jsonl" ] && [ ! -L "$TGd/inbound/events.jsonl" ] && UPGRADED=1   # a home from before mila-io
@@ -75,6 +79,8 @@ if [ "$(id -u)" = 0 ]; then
     # card the proxy draws itself; the owner's decisions go to io/consent/decisions.jsonl (a hash chain the session reads).
     # Its categories come from the image, never from the session's files: the session only asks over consent.sock.
     mkdir -p "$IOD/consent"; chown mila-io:"$AU" "$IOD/consent"; chmod 2750 "$IOD/consent"
+    # the session's own shared files get group rights; io/ (journals, consent, hmac key, owners) loses every write but its own
+    ( cd / && python3 -I /usr/local/bin/io_perms.py "$TGd" "$IOD" "$AU" | sed 's/^/mila-agent: /' )
     python3 - "$HOME" "$IOD/consent" "${MILA_KIT:-/opt/mila/kit}/consent/categories.json" "$TGd/langs.json" > /run/mila-io/consent.json <<'PYC'
 import json, sys
 home, state, cats, langs = sys.argv[1:5]
