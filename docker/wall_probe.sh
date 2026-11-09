@@ -21,6 +21,21 @@ OUT=$(AS "cat /var/lib/mila-keys/* /var/lib/mila-keys/anthropic; ls -la /var/lib
   python3 -c 'import os; print(os.listdir(\"/proc/$KP/fd\"))'; cat /proc/1/environ; su -s /bin/sh mila-keys -c id </dev/null")
 chk "под agent: ни файлы, ни /proc хранителя, ни ps, ни env, ни поиск по дому, ни status не дают ключа" "! printf '%s' \"\$OUT\" | grep -q WALLPROBE"
 chk "в доме сессии хранилища нет (~/.keys)" "[ ! -e $HOME/.keys ]"
+# audit №1 under real root: a store of a foreign uid stops the start; a root-owned one is handed to the keeper, 700
+FS=$(mktemp -d); chown 4242:4242 "$FS"; RS=$(mktemp -d)
+chk "хранилище чужого uid (4242) — старт отказывает (под root)" "! python3 -I -c 'import sys; sys.path.insert(0, \"/usr/local/bin\"); import mila_keyd as K; K.own_store(sys.argv[1], 1002)' $FS"
+chk "хранилище root — отдаётся хранителю, 700" "python3 -I -c 'import sys, os; sys.path.insert(0, \"/usr/local/bin\"); import mila_keyd as K; os.close(K.own_store(sys.argv[1], 1002))' $RS && [ \"\$(stat -c %u:%a $RS)\" = 1002:700 ]"
+rm -rf "$FS" "$RS"
+# a hard link the session plants to a root file in place of an old key file: root must neither read nor wipe the target
+V=/etc/mila-wall-victim; echo "root-only-line" > $V; chmod 644 $V; LN="$HOME/.mila-auth/bot_token"
+if ! AS "ln $V $LN" >/dev/null || [ ! -e "$LN" ]; then
+  echo "ℹ️  жёсткая ссылка сессии на root-файл запрещена ядром (protected_hardlinks) — здесь атака невозможна"
+else
+  python3 -I -c 'import sys, tempfile; sys.path.insert(0, "/usr/local/bin"); import mila_keyd as K; K.KEYS = tempfile.mkdtemp(); K.migrate(sys.argv[1])' "$HOME"
+  chk "жёсткая ссылка сессии на root-файл — root не читал и не стёр его" "[ \"\$(cat $V)\" = root-only-line ]"
+  rm -f "$LN"
+fi
+rm -f $V
 chk "под agent: /var/lib/mila-keys не читается (Permission denied)" "printf '%s' \"\$OUT\" | grep -q 'Permission denied'"
 chk "под agent: класть ключ в сокет можно (запись), прочесть — нечем" "AS \"python3 -c 'import sys; sys.path.insert(0,\\\"/usr/local/bin\\\"); import mila_keyd; sys.exit(0 if mila_keyd.put_remote(\\\"deepgram\\\", \\\"a1b2c3d4\\\"*5) else 1)'\""
 chk "в журнале хранителя ключей нет" "! grep -rq WALLPROBE $HOME/state 2>/dev/null"
