@@ -43,7 +43,7 @@ SB=$(mktemp -d); HR=$(mktemp -d)
 printf '#!/bin/sh\necho 0\n' > "$SB/id"; printf '#!/bin/sh\necho 0\n' > "$SB/stat"
 printf '#!/bin/sh\necho "chown $*" >> "%s/log"\n' "$SB" > "$SB/chown"; printf '#!/bin/sh\necho "setpriv $*" >> "%s/log"\nexit 0\n' "$SB" > "$SB/setpriv"
 printf '#!/bin/sh\necho "state $*" >> "%s/log"\necho "{\\"persistent\\": true}"\nexit ${STATE_RC:-0}\n' "$SB" > "$SB/state"
-chmod +x "$SB"/*; env -i HOME="$HR" MILA_STATE_CMD="$SB/state" MILA_STATE_JSON="$SB/state.json" PATH="$SB:/usr/bin:/bin" "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
+chmod +x "$SB"/*; env -i HOME="$HR" MILA_STATE_CMD="$SB/state" MILA_STATE_JSON="$SB/state.json" MILA_KEYD=off PATH="$SB:/usr/bin:/bin" "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
 chk "запуск от root: шаг раскладки (mila_state prepare --agent-uid 1001), никакого chown -R по дому, затем setpriv под 1001" "grep -q 'state prepare --agent-uid 1001' $SB/log && ! grep -q 'chown -R' $SB/log && grep -q 'setpriv --reuid=1001 --regid=1001 --init-groups -- bash docker/entrypoint.sh' $SB/log"
 : > "$SB/log"; env -i HOME="$HR" MILA_STATE_CMD="$SB/state" MILA_STATE_JSON="$SB/state.json" PATH="$SB:/usr/bin:/bin" MILA_STATE_CMD="$SB/state" STATE_RC=1 MILA_STATE_JSON="$SB/state.json" "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
 chk "раскладка отказала (ссылка, чужой владелец, столкновение) — старт останавливается до setpriv" "grep -q 'state prepare' $SB/log && ! grep -q setpriv $SB/log"
@@ -55,7 +55,7 @@ printf 'import os, sys\nopen("%s/log", "a").write("keyd " + " ".join(sys.argv[1:
 chk "root: хранитель ключей запущен (boot --home --agent-uid 1001), сессии — только его адрес, переменных с токеном нет" "grep -q 'keyd boot --home $HR --agent-uid 1001' $SB/log && grep -qx MILA_KEYD $SB/log && grep -qx KEYD_SOCK $SB/log && ! grep -qx CLAUDE_CODE_OAUTH_TOKEN $SB/log && ! grep -qx GROQ_API_KEY $SB/log"
 chk "приёмник — своим пользователем mila-io (фоном, ждёт «go»), сессии — MILA_IO" "grep -q 'setpriv --reuid=mila-io --regid=mila-io --groups=1001' $SB/log && grep -qx MILA_IO $SB/log"
 : > "$SB/log"; env -i HOME="$HR" MILA_STATE_CMD="$SB/state" MILA_STATE_JSON="$SB/state.json" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" KEYD_RC=1 CLAUDE_CODE_OAUTH_TOKEN=x "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
-chk "хранитель не поднялся — без его адреса, токен как раньше (старт не ломается)" "! grep -qx MILA_KEYD $SB/log && grep -qx CLAUDE_CODE_OAUTH_TOKEN $SB/log && grep -q setpriv $SB/log"
+chk "№10: хранитель включён, но не поднялся — старт остановлен до setpriv (ключи платформы сессии не достаются)" "! grep -q setpriv $SB/log"
 : > "$SB/log"; env -i HOME="$HR" MILA_STATE_CMD="$SB/state" MILA_STATE_JSON="$SB/state.json" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" MILA_KEYD=off "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
 chk "MILA_KEYD=off — хранитель не запускается" "! grep -q 'keyd boot' $SB/log && grep -q setpriv $SB/log"
 # an updated home (journals from before mila-io) and no OWNER_ID: owners only from the platform — a «pending» mark, a log line

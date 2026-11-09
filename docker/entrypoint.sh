@@ -22,10 +22,16 @@ if [ "$(id -u)" = 0 ]; then
   # The key keeper (mila_keyd.py): the Claude token and the voice keys move to its own user (/var/lib/mila/keys, 700 — outside the home the session owns) — variables and
   # files of earlier starts included; the session gets only the keeper's address and can use a key, not read it.
   # MILA_KEYD=off keeps the old way (keys readable by the session, see SECURITY.md).
-  if [ "${MILA_KEYD:-on}" != off ] && python3 -I "${KEYD_BIN:-/usr/local/bin/mila_keyd.py}" boot --home "$HOME" --agent-uid "$AU" 2>&1 | sed 's/^/mila-agent: /'; [ "${PIPESTATUS[0]}" = 0 ]; then
+  KEYD_WANT="${MILA_KEYD:-on}"
+  if [ "$KEYD_WANT" != off ] && python3 -I "${KEYD_BIN:-/usr/local/bin/mila_keyd.py}" boot --home "$HOME" --agent-uid "$AU" 2>&1 | sed 's/^/mila-agent: /'; [ "${PIPESTATUS[0]}" = 0 ]; then
     export MILA_KEYD=http://127.0.0.1:8790 KEYD_SOCK=/run/mila-keyd/put.sock
     unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY DEEPGRAM_API_KEY GROQ_API_KEY ANTHROPIC_GUEST_API_KEY
     curl -s --max-time 5 http://127.0.0.1:8790/status | grep -q '"telegram": true' && unset TELEGRAM_BOT_TOKEN
+  elif [ "$KEYD_WANT" != off ]; then
+    # audit №10: a keeper that did not start must not mean «keys stay in the session's environment» — a broken old file a
+    # session left behind would otherwise hand it the platform's keys. The old way is only the operator's explicit MILA_KEYD=off.
+    echo "mila-agent: the key keeper did not start — not starting (keys would stay where the session reads them). Fix the line above, or set MILA_KEYD=off on purpose."
+    exit 1
   else
     unset MILA_KEYD KEYD_SOCK
   fi

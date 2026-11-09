@@ -369,8 +369,11 @@ def migrate(home):
     the old files are wiped."""
     moved = []
     for kind, rel, field in OLD_FILES + OLD_STORE:
-        v = take_old(home, rel, field)
-        if v and put(kind, v): moved.append(kind)
+        try:
+            v = take_old(home, rel, field)
+            if v and put(kind, v): moved.append(kind)
+        except (ValueError, OSError) as e:   # audit №10: one bad old file (bytes a session left) skips that key, never the start
+            log("migrate %s skipped: %s" % (rel, type(e).__name__))
     try: os.rmdir(os.path.join(home, ".keys"))   # empty now; a non-empty one (not ours) stays as it is
     except OSError: pass
     for kind, var in ENV_KEYS:   # a platform variable wins over an old file (the owner changed it in the panel)

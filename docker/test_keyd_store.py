@@ -59,6 +59,18 @@ try:
     open(os.path.join(hm, ".mila-auth", "oauth_token"), "w").write(ANT + "\n")
     check("обычный старый файл — перенесён и стёрт", K.migrate(hm) == ["anthropic"] and not os.path.exists(os.path.join(hm, ".mila-auth", "oauth_token")))
 
+    # №10: one bad old file (a session's bytes) — that key is skipped, the rest still move, the start goes on
+    hm, st = home(), store(); open(os.path.join(hm, ".mila-auth", "oauth_token"), "w").write(ANT + "\n")
+    real_take = K.take_old
+    def bad_take(h, rel, field, **kw):
+        if rel.endswith("bot_token"): raise ValueError("bad bytes")
+        return real_take(h, rel, field, **kw)
+    K.take_old = bad_take
+    try: moved = K.migrate(hm); r10 = True
+    except Exception as e: moved, r10 = [], repr(e)
+    K.take_old = real_take
+    check("№10: сбой на одном старом файле — ключ пропущен, остальные перенесены, без исключения", r10 is True and moved == ["anthropic"], (r10, moved))
+
     # 7. a key in the store that is a symlink — the keeper does not follow it
     st = store(); v7 = os.path.join(T, "v7"); open(v7, "w").write(DG + "\n"); os.symlink(v7, os.path.join(st, "deepgram"))
     check("ключ-ссылка в хранилище — не читается", K.key("deepgram") == "")
