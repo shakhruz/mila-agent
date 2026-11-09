@@ -26,6 +26,10 @@ if [ "$(id -u)" = 0 ]; then
   # themselves); from then on the key keeper gives updates to mila-io only. Needs the keeper; MILA_IO=off — the old way.
   if [ -n "${MILA_KEYD:-}" ] && [ "${MILA_IO:-on}" != off ] && id -u mila-io >/dev/null 2>&1; then
     TGd="$HOME/.claude/channels/telegram"; IOD="$TGd/io"
+    # root changes owners and rights here at every start: none of these may be a link the session put between starts
+    for d in "$HOME/.claude" "$HOME/.claude/channels" "$TGd" "$TGd/inbound" "$IOD" "$IOD/consent"; do
+      [ -L "$d" ] && { echo "mila-agent: $d is a link — refusing to start (root would follow it out of the home)"; exit 1; }
+    done
     mkdir -p "$TGd/inbound" "$IOD" /run/mila-io
     chown "$AU:$AU" "$HOME/.claude" "$HOME/.claude/channels" "$TGd" "$TGd/inbound"
     chmod 2770 "$TGd" "$TGd/inbound"; rm -f "$TGd/receiver.go"   # group rights for the shared state — io_perms.py below, not chmod -R

@@ -10,23 +10,38 @@ writable by the session's group, and a restart made a forged decision legal. Now
 import os, stat, sys
 
 
-def _fd(path):
-    return os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+def _entries(top, skip=None):
+    """(dir_fd, name) of every real entry under top and top itself; top is opened O_NOFOLLOW (a link at the top — nothing),
+    the walk is os.fwalk by descriptors and never enters a link; skip — a folder (by dev/inode) not entered."""
+    try: tfd = os.open(top, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError: return
+    sk = None
+    if skip:
+        try: st = os.lstat(skip); sk = (st.st_dev, st.st_ino)
+        except OSError: pass
+    try:
+        yield tfd, "."
+        for root, dirs, files, rfd in os.fwalk(".", dir_fd=tfd, follow_symlinks=False):
+            keep = []
+            for d in dirs:
+                try: st = os.stat(d, dir_fd=rfd, follow_symlinks=False)
+                except OSError: continue
+                if (st.st_dev, st.st_ino) != sk: keep.append(d)
+            dirs[:] = keep
+            for n in keep + files:
+                yield rfd, n
+    finally:
+        os.close(tfd)
 
 
-def _walk(top, skip=None):
-    """every real entry under top, links not followed and not yielded; skip — a folder not entered."""
-    for root, dirs, files in os.walk(top, followlinks=False):
-        dirs[:] = [d for d in dirs if os.path.join(root, d) != skip]
-        for n in dirs + files:
-            yield os.path.join(root, n)
-    yield top
+def _open(dfd, name):
+    return os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dfd)
 
 
 def share(tgd, iod, uid):
     n = 0
-    for p in _walk(tgd, skip=iod):
-        try: fd = _fd(p)
+    for dfd, name in _entries(tgd, skip=iod):
+        try: fd = _open(dfd, name)
         except OSError: continue   # a link (ELOOP) or gone
         try:
             st = os.fstat(fd)
@@ -40,8 +55,8 @@ def share(tgd, iod, uid):
 
 def lock(iod):
     n = 0
-    for p in _walk(iod):
-        try: fd = _fd(p)
+    for dfd, name in _entries(iod):
+        try: fd = _open(dfd, name)
         except OSError: continue
         try:
             st = os.fstat(fd)
