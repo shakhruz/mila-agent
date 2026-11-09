@@ -138,6 +138,88 @@ def own(path, uid, gid, mode):
         os.close(fd)
 
 
+JOURNALS = ("events.jsonl", "taps.jsonl", "auth-log.jsonl", "suspicious.jsonl")
+OLD_IO = ".claude/channels/telegram/io"
+
+
+def _read_plain(dfd, name, maxlen=64 << 20):
+    """a regular file of one name, opened without following a link — its bytes, or None."""
+    try: fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dfd)
+    except OSError: return None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_size > maxlen: return None
+        out = b""
+        while True:
+            b = os.read(fd, 1 << 20)
+            if not b: return out
+            out += b
+    finally:
+        os.close(fd)
+
+
+def _write_new(dfd, name, data, uid, gid, mode=0o640):
+    fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode, dir_fd=dfd)
+    try:
+        os.write(fd, data); os.fchown(fd, uid, gid); os.fchmod(fd, mode)
+    finally:
+        os.close(fd)
+
+
+def migrate_io(home, io, io_uid, agent_gid, verify=None):
+    """the old io/ lived in the session's home and could have been changed by it — its contents are evidence, not truth.
+    Carried: the journals (history). The owner's decisions go to io/quarantine as evidence only — the hash chain has no secret,
+    a session that could write there could recompute it, so «intact» proves nothing; the owner gives consents again (card). NOT carried: owners.json (the owner comes from the platform again), hmac.key and consents.json
+    (a fresh key; pending consents fail closed). Every step by descriptor, no link followed. Once: io/.migrated."""
+    ifd = open_dir(io)
+    try:
+        if _exists(".migrated", ifd):
+            return {"skipped": True}
+        out = {"journals": [], "decisions": None}
+        fds = []
+        try:
+            fds.append(open_dir(home))
+            for part in OLD_IO.split("/"):
+                fds.append(open_dir(part, fds[-1]))
+        except Refuse:
+            fds_ok = False
+        else:
+            fds_ok = True
+        try:
+            if fds_ok:
+                ofd = fds[-1]
+                for j in JOURNALS:
+                    data = _read_plain(ofd, j)
+                    if data is not None and not _exists(j, ifd):
+                        _write_new(ifd, j, data, io_uid, agent_gid); out["journals"].append(j)
+                try: cfd = open_dir("consent", ofd)
+                except Refuse: cfd = None
+                if cfd is not None:
+                    try:
+                        data = _read_plain(cfd, "decisions.jsonl")
+                    finally:
+                        os.close(cfd)
+                    if data:
+                        # the chain has no secret: a session that could write here could also recompute it — old decisions are
+                        # evidence only, never the working journal; the owner gives consents again (card)
+                        if not _exists("quarantine", ifd): os.mkdir("quarantine", 0o2750, dir_fd=ifd)
+                        qfd = open_dir("quarantine", ifd)
+                        try:
+                            os.fchown(qfd, io_uid, agent_gid)
+                            if not _exists("decisions.jsonl", qfd):
+                                _write_new(qfd, "decisions.jsonl", data, io_uid, agent_gid)
+                            ok = bool(verify and verify("/proc/self/fd/%d/decisions.jsonl" % qfd))
+                        finally:
+                            os.close(qfd)
+                        out["decisions"] = "quarantine (chain %s)" % ("intact" if ok else "broken")
+        finally:
+            for x in fds: os.close(x)
+        _write_new(ifd, ".migrated", json.dumps(out).encode(), io_uid, agent_gid, 0o640)
+        return out
+    finally:
+        os.close(ifd)
+
+
 def persistent(path, rootdir="/"):
     """False when path sits on the same device as the container's own «/» — no volume under it."""
     return os.stat(path).st_dev != os.stat(rootdir).st_dev

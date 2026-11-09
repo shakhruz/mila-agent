@@ -51,6 +51,30 @@ try:
     check("чужие (-tmp-other, -home-agentX) и не папки не тронуты", {"-tmp-other", "-home-agentX", "-home-agent-file"} <= names)
     check("повтор — ничего не переименовывает", S.rename_projects(hm) == [])
     check("дом без .claude — тихо пусто", S.rename_projects(tempfile.mkdtemp(dir=T)) == [])
+    # io/ out of the home (№9): journals carried, decisions to quarantine only, owners/hmac never
+    sys.path.insert(0, os.path.join(H, "..", "consent")); import decisions as DC
+    def old_io():
+        hm = tempfile.mkdtemp(dir=T); oi = os.path.join(hm, ".claude", "channels", "telegram", "io"); os.makedirs(os.path.join(oi, "consent"))
+        open(os.path.join(oi, "events.jsonl"), "w").write('{"e":1}\n'); open(os.path.join(oi, "taps.jsonl"), "w").write('{"t":1}\n')
+        open(os.path.join(oi, "owners.json"), "w").write('{"owners": ["666"]}'); open(os.path.join(oi, "consent", "hmac.key"), "wb").write(b"k" * 32)
+        DC.append(os.path.join(oi, "consent", "decisions.jsonl"), {"verdict": "granted", "act": "post"})
+        nio = tempfile.mkdtemp(dir=T); return hm, oi, nio
+    ver = lambda p: DC.verify(p)[0]
+    hm, oi, nio = old_io(); r = S.migrate_io(hm, nio, ME, ME, ver)
+    got = sorted(os.listdir(nio))
+    check("io: журналы перенесены, владельцы и ключ подписи — нет", {"events.jsonl", "taps.jsonl"} <= set(got) and "owners.json" not in got and not os.path.exists(os.path.join(nio, "consent", "hmac.key")), got)
+    check("io: решения владельца — только в карантин (цепочка без секрета), рабочего журнала нет", r["decisions"] == "quarantine (chain intact)" and os.path.exists(os.path.join(nio, "quarantine", "decisions.jsonl")) and not os.path.exists(os.path.join(nio, "consent", "decisions.jsonl")), r)
+    check("io: повтор — ничего не делает (метка .migrated в io/)", S.migrate_io(hm, nio, ME, ME, ver) == {"skipped": True})
+    hm, oi, nio = old_io(); open(os.path.join(oi, "consent", "decisions.jsonl"), "a").write('{"n": 9, "verdict": "granted"}\n')
+    check("io: подделанная цепочка — тоже карантин, с пометкой «broken»", S.migrate_io(hm, nio, ME, ME, ver)["decisions"] == "quarantine (chain broken)")
+    hm, oi, nio = old_io(); os.unlink(os.path.join(oi, "events.jsonl")); v = os.path.join(T, "victim-ev"); open(v, "w").write("SECRET"); os.symlink(v, os.path.join(oi, "events.jsonl"))
+    os.unlink(os.path.join(oi, "taps.jsonl")); v2 = os.path.join(T, "victim-hl"); open(v2, "w").write("SECRET2"); os.link(v2, os.path.join(oi, "taps.jsonl"))
+    S.migrate_io(hm, nio, ME, ME, ver)
+    check("io: журнал-ссылка и журнал — жёсткая ссылка не переносятся", not os.path.exists(os.path.join(nio, "events.jsonl")) and not os.path.exists(os.path.join(nio, "taps.jsonl")))
+    hm = tempfile.mkdtemp(dir=T); os.makedirs(os.path.join(hm, ".claude", "channels", "telegram")); real = tempfile.mkdtemp(dir=T)
+    open(os.path.join(real, "events.jsonl"), "w").write("x"); os.symlink(real, os.path.join(hm, ".claude", "channels", "telegram", "io")); nio = tempfile.mkdtemp(dir=T)
+    r = S.migrate_io(hm, nio, ME, ME, ver)
+    check("io: старая io/ — ссылка: ничего не переносится, метка ставится", r["journals"] == [] and os.path.exists(os.path.join(nio, ".migrated")), r)
     base = tempfile.mkdtemp(dir=T); S.own(os.path.join(base, "keys"), ME, ME, 0o700)
     check("own: новая папка 700 своего uid", oct(os.lstat(os.path.join(base, "keys")).st_mode & 0o7777) == "0o700")
     os.symlink(tempfile.mkdtemp(dir=T), os.path.join(base, "io"))
