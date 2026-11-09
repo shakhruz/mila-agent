@@ -15,7 +15,8 @@ def refuses(f, *a):
 ME = os.getuid()
 T = tempfile.mkdtemp(prefix="mila-state-")
 try:
-    L = S.layout({}); check("по умолчанию — тома: дом /home/agent, ключи и io в /var/lib/mila", L == {"kind": "volumes", "root": "/var/lib/mila", "home": "/home/agent", "keys": "/var/lib/mila/keys", "io": "/var/lib/mila/io"}, L)
+    L = S.layout({}); check("по умолчанию (решение Б) — один том /var/lib/mila: home, keys, io внутри", L == {"kind": "data", "root": "/var/lib/mila", "home": "/var/lib/mila/home", "keys": "/var/lib/mila/keys", "io": "/var/lib/mila/io"}, L)
+    L = S.layout({"MILA_STATE": "volumes"}); check("volumes — старый дом /home/agent (для тех, кто не сменил точку монтирования)", L["home"] == "/home/agent", L)
     L = S.layout({"MILA_STATE": "data:/data"}); check("Railway: /data/home, /data/keys, /data/io", (L["home"], L["keys"], L["io"]) == ("/data/home", "/data/keys", "/data/io"), L)
 
     def old_home():
@@ -38,6 +39,18 @@ try:
     r = tempfile.mkdtemp(dir=T); os.symlink(old_home(), os.path.join(r, "root-link"))
     check("корень тома — ссылка: отказ", refuses(S.move_old_home, os.path.join(r, "root-link"), ME))
 
+    # Claude finds memory by the folder named after the path: a moved home renames -home-agent… to the new prefix
+    hm = tempfile.mkdtemp(dir=T); pj = os.path.join(hm, ".claude", "projects"); new = S.slug(hm)
+    for d in ("-home-agent", "-home-agent-work", "-home-agent-work-razvitie-x", "-tmp-other", new + "-work-razvitie-x"):
+        os.makedirs(os.path.join(pj, d, "memory"))
+    open(os.path.join(pj, "-home-agent-file"), "w").close(); os.makedirs(os.path.join(pj, "-home-agentX"))
+    done = S.rename_projects(hm)
+    names = set(os.listdir(pj))
+    check("папки памяти: -home-agent… → новый путь дома", {new, new + "-work"} <= names and "-home-agent" not in names and "-home-agent-work" not in names, sorted(names))
+    check("столкновение имени — обе папки остаются как были", "-home-agent-work-razvitie-x" in names and new + "-work-razvitie-x" in names)
+    check("чужие (-tmp-other, -home-agentX) и не папки не тронуты", {"-tmp-other", "-home-agentX", "-home-agent-file"} <= names)
+    check("повтор — ничего не переименовывает", S.rename_projects(hm) == [])
+    check("дом без .claude — тихо пусто", S.rename_projects(tempfile.mkdtemp(dir=T)) == [])
     base = tempfile.mkdtemp(dir=T); S.own(os.path.join(base, "keys"), ME, ME, 0o700)
     check("own: новая папка 700 своего uid", oct(os.lstat(os.path.join(base, "keys")).st_mode & 0o7777) == "0o700")
     os.symlink(tempfile.mkdtemp(dir=T), os.path.join(base, "io"))

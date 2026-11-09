@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """mila_state.py — where Mila Agent keeps what the session must not change (audit 09.11, №1 + №9; docs: STATE-LAYOUT).
 
-Two layouts, one variable MILA_STATE:
-  volumes (default, compose/Hostinger) — home on its volume at /home/agent; keys and io on their own volumes under /var/lib/mila
-  data:<root>  (Railway, one volume)    — <root>/home, <root>/keys, <root>/io on one volume; <root> itself belongs to root,
-                                           so the session (which owns home) can neither rename keys/io nor put its own there
+Decision 09.11 (variant B, everywhere): ONE volume at /var/lib/mila — <root>/home, <root>/keys, <root>/io on it; <root> itself
+belongs to root, so the session (which owns home) can neither rename keys/io nor put its own there.
+  MILA_STATE=data:<root> (default data:/var/lib/mila); MILA_STATE=volumes — the old split (home on /home/agent), kept for a
+  self-host that has not moved its mount yet: it runs, and the owner gets a card about the mount.
 Root's step at each start, all by descriptor (no link followed, no -R over the home):
   1. data layout, first start after the update: the old volume WAS the home (its root has .claude/work and belongs to agent).
      Move every name of it into <root>/home one rename at a time; a crash in the middle is finished by the next start
@@ -27,7 +27,7 @@ class Refuse(Exception):
 
 def layout(env=None):
     env = os.environ if env is None else env
-    v = env.get("MILA_STATE") or "volumes"
+    v = env.get("MILA_STATE") or "data:/var/lib/mila"
     if v.startswith("data:"):
         root = v[5:] or "/data"
         return {"kind": "data", "root": root, "home": os.path.join(root, "home"), "keys": os.path.join(root, "keys"),
@@ -85,6 +85,40 @@ def move_old_home(root, agent_uid):
         os.close(rfd)
 
 
+def slug(path):
+    """the name Claude Code gives a project folder: the path with «/» and «.» as «-»."""
+    return path.replace("/", "-").replace(".", "-")
+
+
+def rename_projects(home, old_home="/home/agent"):
+    """memory and transcripts are found by the folder named after the path: home moved → rename -home-agent… to the new
+    prefix, or Mila wakes up with no memory and nobody notices. By descriptor; a clash is left as it is (both kept)."""
+    old, new = slug(old_home), slug(home)
+    if old == new:
+        return []
+    try: hfd = open_dir(home)
+    except Refuse: return []
+    done = []
+    try:
+        try: cfd = open_dir(".claude", hfd)
+        except Refuse: return []
+        try:
+            try: pfd = open_dir("projects", cfd)
+            except Refuse: return []
+            try:
+                for n in sorted(os.listdir(pfd)):
+                    if n == old or n.startswith(old + "-"):
+                        to = new + n[len(old):]
+                        if _exists(to, pfd): continue
+                        st = os.stat(n, dir_fd=pfd, follow_symlinks=False)
+                        if not stat.S_ISDIR(st.st_mode): continue
+                        os.rename(n, to, src_dir_fd=pfd, dst_dir_fd=pfd); done.append(to)
+            finally: os.close(pfd)
+        finally: os.close(cfd)
+    finally: os.close(hfd)
+    return done
+
+
 def own(path, uid, gid, mode):
     """a real folder (made if missing), owned by root or by uid already — else refuse; then uid:gid and mode by fd."""
     parent, name = os.path.split(path.rstrip("/"))
@@ -113,6 +147,7 @@ def prepare(env, agent_uid, keys_uid, io_uid):
     L = layout(env)
     if L["kind"] == "data":
         L["moved"] = len(move_old_home(L["root"], agent_uid))
+        L["projects_renamed"] = len(rename_projects(L["home"]))
         rfd = open_dir(L["root"])
         try: os.fchown(rfd, 0, 0); os.fchmod(rfd, 0o755)
         finally: os.close(rfd)
