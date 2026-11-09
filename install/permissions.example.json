@@ -87,13 +87,13 @@
   },
   {
    "tool": "Edit",
-   "match": "re:(/\\.ssh/|/\\.(bashrc|zshrc|profile|bash_profile|bash_login|bash_logout|zprofile|zshenv|zlogin)\\b|/\\.local/bin/|/\\.config/(autostart|systemd|fish|environment\\.d)/)",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*(/\\.ssh/|/\\.(bashrc|zshrc|profile|bash_profile|bash_login|bash_logout|zprofile|zshenv|zlogin)\"|/\\.local/bin/|/\\.config/(autostart|systemd|fish|environment\\.d)/|/\\.mcp\\.json\"|/\\.git/(hooks/|config\")|/\\.claude/)",
    "decision": "ask",
-   "why": "SSH, файлы запуска оболочки, свои программы и автозапуск — вход и исполнение вне рабочей папки (аудит 09.11 №14): только с человеком"
+   "why": "SSH, файлы запуска оболочки, свои программы, автозапуск, проектный MCP (.mcp.json), хуки и конфиг git, .claude/ (агенты, команды, навыки) — исполнение при следующем старте или коммите (аудит 09.11 №14): только с человеком"
   },
   {
    "tool": "Edit",
-   "match": "re:\\.\\./",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*\\.\\./",
    "decision": "ask",
    "why": "путь с «..» — мог бы уйти из рабочей папки, оставаясь похожим на неё"
   },
@@ -110,13 +110,13 @@
   },
   {
    "tool": "MultiEdit",
-   "match": "re:(/\\.ssh/|/\\.(bashrc|zshrc|profile|bash_profile|bash_login|bash_logout|zprofile|zshenv|zlogin)\\b|/\\.local/bin/|/\\.config/(autostart|systemd|fish|environment\\.d)/)",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*(/\\.ssh/|/\\.(bashrc|zshrc|profile|bash_profile|bash_login|bash_logout|zprofile|zshenv|zlogin)\"|/\\.local/bin/|/\\.config/(autostart|systemd|fish|environment\\.d)/|/\\.mcp\\.json\"|/\\.git/(hooks/|config\")|/\\.claude/)",
    "decision": "ask",
-   "why": "SSH, файлы запуска оболочки, свои программы и автозапуск — вход и исполнение вне рабочей папки (аудит 09.11 №14): только с человеком"
+   "why": "SSH, файлы запуска оболочки, свои программы, автозапуск, проектный MCP (.mcp.json), хуки и конфиг git, .claude/ (агенты, команды, навыки) — исполнение при следующем старте или коммите (аудит 09.11 №14): только с человеком"
   },
   {
    "tool": "MultiEdit",
-   "match": "re:\\.\\./",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*\\.\\./",
    "decision": "ask",
    "why": "путь с «..» — мог бы уйти из рабочей папки, оставаясь похожим на неё"
   },
@@ -139,13 +139,13 @@
   },
   {
    "tool": "Write",
-   "match": "re:(/\\.ssh/|/\\.(bashrc|zshrc|profile|bash_profile|bash_login|bash_logout|zprofile|zshenv|zlogin)\\b|/\\.local/bin/|/\\.config/(autostart|systemd|fish|environment\\.d)/)",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*(/\\.ssh/|/\\.(bashrc|zshrc|profile|bash_profile|bash_login|bash_logout|zprofile|zshenv|zlogin)\"|/\\.local/bin/|/\\.config/(autostart|systemd|fish|environment\\.d)/|/\\.mcp\\.json\"|/\\.git/(hooks/|config\")|/\\.claude/)",
    "decision": "ask",
-   "why": "SSH, файлы запуска оболочки, свои программы и автозапуск — вход и исполнение вне рабочей папки (аудит 09.11 №14): только с человеком"
+   "why": "SSH, файлы запуска оболочки, свои программы, автозапуск, проектный MCP (.mcp.json), хуки и конфиг git, .claude/ (агенты, команды, навыки) — исполнение при следующем старте или коммите (аудит 09.11 №14): только с человеком"
   },
   {
    "tool": "Write",
-   "match": "re:\\.\\./",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*\\.\\./",
    "decision": "ask",
    "why": "путь с «..» — мог бы уйти из рабочей папки, оставаясь похожим на неё"
   },
