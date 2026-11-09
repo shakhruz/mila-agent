@@ -76,6 +76,20 @@ try:
             os.makedirs(ST, exist_ok=True); open(mark, "w").write(day)
 except Exception:
     pass
+# Mila Agent after the update to layout B: the owners' list is not carried (the old io/ was the session's) — without OWNER_ID in
+# the platform's variables owner-only buttons and consents are off. Once a day: tell the paired person how to fix it.
+try:
+    io_ = "/var/lib/mila/io" if os.path.isdir("/var/lib/mila/io") else os.path.join(TG, "io")
+    if os.path.exists(os.path.join(io_, "owners.pending")):
+        day = time.strftime("%Y-%m-%d"); mark = os.path.join(ST, "owner-pending-told")
+        if (open(mark).read().strip() if os.path.exists(mark) else "") != day:
+            lines.append("⚠️ после обновления хозяин не определён (список владельцев не переносится) — кнопки «только хозяину» и "
+                         "согласия на действия выключены. Скажи тому, с кем бот спарен, ОДНОЙ карточкой сейчас: «Задайте OWNER_ID "
+                         "(ваш Telegram id) в переменных платформы и перезапустите; согласия на действия от вашего имени дайте заново». "
+                         "Сегодня больше не напоминай")
+            os.makedirs(ST, exist_ok=True); open(mark, "w").write(day)
+except Exception:
+    pass
 if lines:
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart",
                                              "additionalContext": "Старт сессии Компаньона: " + " · ".join(lines)}},

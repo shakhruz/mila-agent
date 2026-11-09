@@ -1,5 +1,24 @@
 # CHANGELOG · Mila
 
+## Unreleased — Mila Agent: keys and the owner's consents move out of the session's home (security audit 09.11)
+
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
+**Для хозяина (Mila Agent: Railway, Hostinger, docker compose) — прочтите ДО обновления**
+- Теперь у Милы один том на /var/lib/mila: внутри дом, ключи и согласия. Railway: в настройках тома поменяйте Mount path на /var/lib/mila. compose: возьмите новый docker-compose.yml.
+- Задайте OWNER_ID (ваш Telegram id) в переменных платформы: список владельцев после обновления не переносится.
+- Согласия на действия от вашего имени (посты, траты) нужно дать заново — старые сохранены отдельно, но в работу не берутся.
+- Если после обновления Мила молчит — посмотрите журнал контейнера, строки со словом mila-state: там сказано, что мешает старту.
+
+</details>
+
+**For the owner (Mila Agent)**
+- One volume at /var/lib/mila holds the home, the keys and the consents. Railway: set the volume's mount path to /var/lib/mila; compose: the new docker-compose.yml. Without it Mila runs, but a card says the sign-in will be lost at the next redeploy.
+- Set OWNER_ID: the owners' list is not carried over. Give consents again: old decisions are kept as evidence, not used.
+
+**For Milas**
+- `docker/mila_state.py` (root step instead of `chown -R`): moves an old volume-home into `home/` one rename at a time, owns folders by descriptor, renames Claude project folders to the new path, carries old `io/` journals only (decisions to `io/quarantine`). Key store `/var/lib/mila/keys`; `io/` at `/var/lib/mila/io`. No volume / no owner → a once-a-day line at session start asks Mila to tell the owner.
+
 ## v1.7.5 · 07.11 — the first start after an install opens a conversation
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>

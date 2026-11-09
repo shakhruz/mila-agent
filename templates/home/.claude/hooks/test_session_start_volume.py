@@ -24,6 +24,11 @@ try:
     os.unlink(sj)
     r = subprocess.run([sys.executable, "-I", os.path.join(H, "session-start.py")], env={"HOME": home, "MILA_STATE_JSON": sj, "PATH": "/usr/bin:/bin"}, capture_output=True, text=True, timeout=30)
     check("нет файла раскладки (не Mila Agent) — хук не падает, ничего про том", r.returncode == 0 and "томе" not in r.stdout, r.stderr)
+    # owners.pending after the update (old io/ in the home is the fallback place when /var/lib/mila/io is absent here)
+    io_ = os.path.join(home, ".claude", "channels", "telegram", "io"); os.makedirs(io_); open(os.path.join(io_, "owners.pending"), "w").close()
+    out = run({"persistent": True})
+    check("хозяин не определён → строка «скажи тому, с кем спарен: задайте OWNER_ID, согласия заново»", "OWNER_ID" in out and "согласия" in out, out)
+    check("в тот же день — без повтора", "OWNER_ID" not in run({"persistent": True}))
     print("итог %d/%d" % (ok, n))
 finally:
     shutil.rmtree(T, ignore_errors=True)
