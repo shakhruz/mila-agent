@@ -1490,7 +1490,7 @@ def io_uid():
     except KeyError: return None
 
 
-IO_DIR = os.path.join(HOME, ".claude", "channels", "telegram", "io")
+IO_DIR = "/var/lib/mila/io" if os.path.isdir("/var/lib/mila/io") else os.path.join(HOME, ".claude", "channels", "telegram", "io")   # layout B (09.11): io/ out of the home; the owner check below stays
 
 
 def receiver_journal(name, legacy):

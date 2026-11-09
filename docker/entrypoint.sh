@@ -32,7 +32,9 @@ if [ "$(id -u)" = 0 ]; then
   # It starts when the session's side says go (after the token page, pairing and the Claude sign-in, which read updates
   # themselves); from then on the key keeper gives updates to mila-io only. Needs the keeper; MILA_IO=off — the old way.
   if [ -n "${MILA_KEYD:-}" ] && [ "${MILA_IO:-on}" != off ] && id -u mila-io >/dev/null 2>&1; then
-    TGd="$HOME/.claude/channels/telegram"; IOD="$TGd/io"
+    TGd="$HOME/.claude/channels/telegram"
+    IOD="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("io") or "")' "$SJ" 2>/dev/null)"   # layout B: /var/lib/mila/io
+    [ -n "$IOD" ] || IOD="$TGd/io"   # MILA_STATE=volumes without a layout answer — the old place
     # root changes owners and rights here at every start: none of these may be a link the session put between starts
     for d in "$HOME/.claude" "$HOME/.claude/channels" "$TGd" "$TGd/inbound" "$IOD" "$IOD/consent"; do
       [ -L "$d" ] && { echo "mila-agent: $d is a link — refusing to start (root would follow it out of the home)"; exit 1; }

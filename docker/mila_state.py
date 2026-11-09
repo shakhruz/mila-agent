@@ -245,6 +245,14 @@ def prepare(env, agent_uid, keys_uid, io_uid):
     own(L["home"], agent_uid, agent_uid, 0o750)
     own(L["keys"], keys_uid, keys_uid, 0o700)
     own(L["io"], io_uid, agent_uid, 0o2750)
+    if L["kind"] == "data":   # the old io/ inside the home: journals carried, decisions to quarantine (see migrate_io)
+        verify = None
+        try:
+            sys.path.insert(0, os.path.join(env.get("MILA_KIT") or "/opt/mila/kit", "consent")); import decisions
+            verify = lambda p: decisions.verify(p)[0]
+        except ImportError:
+            pass
+        L["io_migrated"] = migrate_io(L["home"], L["io"], io_uid, agent_uid, verify)
     L["persistent"] = persistent(L["keys"])
     return L
 

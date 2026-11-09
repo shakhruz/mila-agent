@@ -55,7 +55,7 @@ def io_uid():
     except KeyError: return None
 
 
-IO_DIR = os.path.expanduser("~/.claude/channels/telegram/io")
+IO_DIR = "/var/lib/mila/io" if os.path.isdir("/var/lib/mila/io") else os.path.expanduser("~/.claude/channels/telegram/io")   # layout B (09.11)
 
 
 def io_file(name):

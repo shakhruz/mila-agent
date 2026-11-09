@@ -71,6 +71,11 @@ chk "дом со следами сессии (projects/*.jsonl), без журн
 rm -rf "${HR:?}"; HR=$(mktemp -d)
 env -i HOME="$HR" MILA_STATE_CMD="$SB/state" MILA_STATE_JSON="$SB/state.json" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
 chk "новый дом (ни журнала, ни сессии) — без pending: владельца запишет первый «go»" "[ ! -e $HR/.claude/channels/telegram/io/owners.pending ]"
+# layout B: the state step names io/ outside the home — the owners' list goes there, nothing into the home's io/
+rm -rf "${HR:?}"; HR=$(mktemp -d); NIO="$SB/var-lib-mila-io"; mkdir -p "$NIO"
+printf '#!/bin/sh\necho "state $*" >> "%s/log"\necho "{\\"persistent\\": true, \\"io\\": \\"%s\\"}"\n' "$SB" "$NIO" > "$SB/state-b"; chmod +x "$SB/state-b"
+env -i HOME="$HR" MILA_STATE_CMD="$SB/state-b" MILA_STATE_JSON="$SB/state.json" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x OWNER_ID="555"'000111' "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
+chk "раскладка Б: owners.json — в io/ вне дома (из OWNER_ID), в доме io/ нет" "grep -q '555''000111' $NIO/owners.json && [ ! -e $HR/.claude/channels/telegram/io ]"
 rm -rf "$SB" "$HR"
 HC=$(mktemp -d); mkdir -p "$HC/state" "$HC/.claude/channels/telegram"; echo 0 > "$HC/state/session.pid"; echo 0 > "$HC/.claude/channels/telegram/receiver.pid"
 chk "healthcheck: pid 0 — не «жив» (kill -0 0 бьёт по группе)" "! HOME=$HC bash docker/healthcheck.sh >/dev/null 2>&1"
