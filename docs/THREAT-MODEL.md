@@ -77,7 +77,7 @@ image and voice generation, payment links). Keys for those services are the main
 
 | Secret | File | Who can read it |
 |---|---|---|
-| Telegram bot token | Mila Agent: the key keeper (`/var/lib/mila-keys`, user `mila-keys`); elsewhere `~/.claude/channels/telegram/.env` (600) | Mila Agent: the keeper's user; elsewhere the session's OS user |
+| Telegram bot token | Mila Agent: the key keeper (`/var/lib/mila/keys`, user `mila-keys`); elsewhere `~/.claude/channels/telegram/.env` (600) | Mila Agent: the keeper's user; elsewhere the session's OS user |
 | Texts of outgoing messages on their way to the archive (Mila Agent) | `/run/mila-keyd/out/` in memory, a file per send, until the receiver takes it (every five seconds) | the keeper's and the receiver's users; not the session |
 | Keys the owner typed on the safe page | `~/work/secrets/<name>.env` (600) | the session's OS user |
 | Publishing key (e.g. Zernio) in the cloud setup, rolling out | consent proxy state (`mila-io`) | only `mila-io` |
@@ -109,7 +109,7 @@ image and voice generation, payment links). Keys for those services are the main
 allowlist and the group mode (layer 1), the key keeper below, the send-guard (layer 4), no open ports. Mount nothing into the
 container you would not hand to the session.
 
-The Claude token and the voice keys are with the key keeper (`docker/mila_keyd.py`, user `mila-keys`, `/var/lib/mila-keys` 700, outside the home): the
+The Claude token and the voice keys are with the key keeper (`docker/mila_keyd.py`, user `mila-keys`, `/var/lib/mila/keys` 700, outside the home): the
 session reaches Anthropic, Deepgram and Groq through it at 127.0.0.1 with a placeholder and never holds a key; the entrypoint's
 root step moves keys from variables and old files into it and drops them from the session's environment. Checked in CI by
 `docker/wall_probe.sh` as the session's user: files, the keeper's `/proc`, `ps`, the environment, a search of the home.

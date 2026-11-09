@@ -9,8 +9,15 @@ set -u
 # Root only for one step: the home volume to agent (Railway mounts volumes as root), then the same script as agent.
 if [ "$(id -u)" = 0 ]; then
   AU="${MILA_AGENT_UID:-1001}"
-  [ "$(stat -c %u "$HOME" 2>/dev/null)" = "$AU" ] || chown -R -h "$AU:$AU" "$HOME"
-  # The key keeper (mila_keyd.py): the Claude token and the voice keys move to its own user (/var/lib/mila-keys, 700 — outside the home the session owns) — variables and
+  # Layout B (docker/mila_state.py, audit 09.11): one volume at /var/lib/mila — home/ for the session, keys/ and io/ beside it,
+  # the volume's root to root. First start after the update: an old volume that WAS the home moves into home/ (one rename at a
+  # time, resumes after a crash; a clash refuses the start). Owners by descriptor — no chown -R over the home any more.
+  ST_CMD="${MILA_STATE_CMD:-python3 -I /usr/local/bin/mila_state.py}"   # tests put a stub here, as KEYD_BIN for the keeper
+  mkdir -p /run 2>/dev/null; SJ="${MILA_STATE_JSON:-/run/mila-state.json}"
+  ( cd / && $ST_CMD prepare --agent-uid "$AU" ) > "$SJ" 2> >(sed 's/^/mila-agent: /' >&2) \
+    || { echo "mila-agent: the state folders are not safe to use — see the line above; not starting"; exit 1; }
+  grep -q '"persistent": true' "$SJ" || echo "mila-agent: keys and io are NOT on a volume (mount it at /var/lib/mila) — the sign-in will be lost at the next redeploy" >&2
+  # The key keeper (mila_keyd.py): the Claude token and the voice keys move to its own user (/var/lib/mila/keys, 700 — outside the home the session owns) — variables and
   # files of earlier starts included; the session gets only the keeper's address and can use a key, not read it.
   # MILA_KEYD=off keeps the old way (keys readable by the session, see SECURITY.md).
   if [ "${MILA_KEYD:-on}" != off ] && python3 "${KEYD_BIN:-/usr/local/bin/mila_keyd.py}" boot --home "$HOME" --agent-uid "$AU" 2>&1 | sed 's/^/mila-agent: /'; [ "${PIPESTATUS[0]}" = 0 ]; then

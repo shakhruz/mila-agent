@@ -10,7 +10,7 @@ proxy will stand on.
 | User | What runs as it | Keys | Writes |
 |---|---|---|---|
 | `agent` (1001) | Claude Code session, feeder, sign-in helpers, Baraban | none — goes through the key keeper with a placeholder | the home; Telegram state shared with `mila-io` (cards, notes, settings) |
-| `mila-keys` (1002) | key keeper `docker/mila_keyd.py` | Claude, bot, Deepgram, Groq | `/var/lib/mila-keys` (700, outside the home) |
+| `mila-keys` (1002) | key keeper `docker/mila_keyd.py` | Claude, bot, Deepgram, Groq | `/var/lib/mila/keys` (700, outside the home) |
 | `mila-io` (1003, member of group `agent`) | receiver `receiver.ts` | none — keeper over a unix socket | `~/.claude/channels/telegram/io/` (journals) and shared Telegram state |
 
 The entrypoint's root step creates the folders and moves journals of earlier starts into `io/`. It then starts a supervisor as

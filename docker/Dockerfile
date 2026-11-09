@@ -26,18 +26,19 @@ RUN git clone "${PLUGIN_REPO}" /opt/mila/plugin/mila-telegram && git -C /opt/mil
  && printf '{"name":"mila-local","owner":{"name":"Mila"},"plugins":[{"name":"mila-telegram","source":"./mila-telegram","description":"Mila Telegram channel"}]}' \
       > /opt/mila/marketplace/.claude-plugin/marketplace.json
 
-RUN useradd -m -u 1001 -s /bin/bash agent \
+RUN mkdir -p /var/lib/mila/home && chmod 755 /var/lib/mila && ln -s /var/lib/mila/home /home/agent \
+ && useradd -M -d /var/lib/mila/home -u 1001 -s /bin/bash agent && chown agent:agent /var/lib/mila/home \
  && useradd -M -u 1002 -d /nonexistent -s /usr/sbin/nologin mila-keys \
  && useradd -M -u 1003 -d /nonexistent -s /usr/sbin/nologin -G agent mila-io \
  && groupadd -g 1004 mila-guest && useradd -M -u 1004 -g mila-guest -d /nonexistent -s /usr/sbin/nologin mila-guest \
  && usermod -aG mila-guest mila-io
 COPY . /opt/mila/kit
-COPY docker/entrypoint.sh docker/healthcheck.sh docker/claude_login.py docker/birth_claim.py docker/token_page.py docker/key_page.py docker/mila_keyd.py docker/mila_lane.py docker/io_perms.py docker/mila-face.webp /usr/local/bin/
-RUN chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh /usr/local/bin/claude_login.py /usr/local/bin/birth_claim.py /usr/local/bin/token_page.py /usr/local/bin/key_page.py /usr/local/bin/mila_keyd.py /usr/local/bin/mila_lane.py /usr/local/bin/io_perms.py /opt/mila/kit/install/transcribe-voice.sh \
+COPY docker/entrypoint.sh docker/healthcheck.sh docker/claude_login.py docker/birth_claim.py docker/token_page.py docker/key_page.py docker/mila_keyd.py docker/mila_lane.py docker/io_perms.py docker/mila_state.py docker/mila-face.webp /usr/local/bin/
+RUN chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh /usr/local/bin/claude_login.py /usr/local/bin/birth_claim.py /usr/local/bin/token_page.py /usr/local/bin/key_page.py /usr/local/bin/mila_keyd.py /usr/local/bin/mila_lane.py /usr/local/bin/io_perms.py /usr/local/bin/mila_state.py /opt/mila/kit/install/transcribe-voice.sh \
  && chown -R agent:agent /opt/mila/plugin /opt/mila/marketplace
 
-ENV HOME=/home/agent MILA_KIT=/opt/mila/kit \
-    TELEGRAM_STATE_DIR=/home/agent/.claude/channels/telegram \
+ENV HOME=/var/lib/mila/home MILA_KIT=/opt/mila/kit MILA_STATE=data:/var/lib/mila \
+    TELEGRAM_STATE_DIR=/var/lib/mila/home/.claude/channels/telegram \
     DISABLE_AUTOUPDATER=1 DISABLE_TELEMETRY=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 
 # Starts as root only to give the home volume to agent (Railway and some panels mount volumes as root),
@@ -46,7 +47,10 @@ ENV HOME=/home/agent MILA_KIT=/opt/mila/kit \
 # domain and suggests 8080). docker-compose sets PORT empty — there the token comes from a variable, no page.
 ENV PORT=8080
 EXPOSE 8080
-WORKDIR /home/agent
-# No VOLUME line: Railway refuses Dockerfiles with VOLUME. The home is a volume by the platform (compose: mila-home, Railway: Attach Volume → /home/agent).
+WORKDIR /var/lib/mila/home
+# No VOLUME line: Railway refuses Dockerfiles with VOLUME. ONE volume at /var/lib/mila (compose: mila-home; Railway: Attach Volume → /var/lib/mila):
+# home/ (agent), keys/ (mila-keys), io/ (mila-io) — the volume's root belongs to root, so the session cannot swap keys/ or io/.
+# /home/agent is a link to the home for old absolute paths; a volume still mounted at /home/agent lands on the home only — it runs,
+# and the owner gets a card to move the mount (keys/ and io/ would live in the container's layer).
 HEALTHCHECK --interval=60s --timeout=10s --start-period=180s --retries=3 CMD ["/usr/local/bin/healthcheck.sh"]
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]

@@ -13,11 +13,11 @@ Putting a key in: a unix socket (KEYD_SOCK), one JSON line {"kind": "anthropic|d
 "bad". There is no way to read a key back. Whatever the caller sent as auth is dropped; request and response bodies and
 headers are not logged — only method, route and status. Only stdlib.
 
-Env: KEYS_DIR (default /var/lib/mila-keys — outside the session's home: a folder agent owns is a folder agent can swap), KEYD_PORT (8790), KEYD_BIND (127.0.0.1), KEYD_SOCK (/run/mila-keyd/put.sock),
+Env: KEYS_DIR (default /var/lib/mila/keys — outside the session's home: a folder agent owns is a folder agent can swap), KEYD_PORT (8790), KEYD_BIND (127.0.0.1), KEYD_SOCK (/run/mila-keyd/put.sock),
 KEYD_UPSTREAM_<KIND> (tests only: another upstream base)."""
 import http.client, http.server, json, os, re, socket, socketserver, ssl, stat, sys, threading, time, urllib.parse
 
-STORE = "/var/lib/mila-keys"
+STORE = "/var/lib/mila/keys"   # layout B (docker/mila_state.py): on the one volume, beside the home, not inside it
 KEYS = os.environ.get("KEYS_DIR") or STORE
 ROUTES = {"anthropic": "https://api.anthropic.com", "deepgram": "https://api.deepgram.com", "groq": "https://api.groq.com",
           "telegram": "https://api.telegram.org",
@@ -402,7 +402,7 @@ def own_store(path, keys_uid):
 
 
 def boot(home, agent_uid, keys_uid, port):
-    """root, once per start: keys into the store outside the home (/var/lib/mila-keys) of their own user, the put socket for agent, the keeper as that user."""
+    """root, once per start: keys into the store outside the home (/var/lib/mila/keys) of their own user, the put socket for agent, the keeper as that user."""
     if os.geteuid() != 0: sys.exit("keyd boot: needs root (the entrypoint's first step)")
     global KEYS
     KEYS = os.environ.get("KEYS_DIR") or STORE
