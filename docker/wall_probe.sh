@@ -23,7 +23,7 @@ chk "под agent: ни файлы, ни /proc хранителя, ни ps, ни
 chk "в доме сессии хранилища нет (~/.keys)" "[ ! -e $HOME/.keys ]"
 # audit №1 under real root: a store of a foreign uid stops the start; a root-owned one is handed to the keeper, 700
 FS=$(mktemp -d); chown 4242:4242 "$FS"; RS=$(mktemp -d)
-chk "хранилище чужого uid (4242) — старт отказывает (под root)" "! python3 -I -c 'import sys; sys.path.insert(0, \"/usr/local/bin\"); import mila_keyd as K; K.own_store(sys.argv[1], 1002)' $FS"
+chk "хранилище чужого uid (4242) — старт отказывает именно поэтому (под root)" "python3 -I -c 'import sys; sys.path.insert(0, \"/usr/local/bin\"); import mila_keyd as K; K.own_store(sys.argv[1], 1002)' $FS 2>&1 | grep -q 'belongs to uid 4242'"
 chk "хранилище root — отдаётся хранителю, 700" "python3 -I -c 'import sys, os; sys.path.insert(0, \"/usr/local/bin\"); import mila_keyd as K; os.close(K.own_store(sys.argv[1], 1002))' $RS && [ \"\$(stat -c %u:%a $RS)\" = 1002:700 ]"
 rm -rf "$FS" "$RS"
 # a hard link the session plants to a root file in place of an old key file: root must neither read nor wipe the target
