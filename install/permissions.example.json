@@ -87,13 +87,49 @@
   },
   {
    "tool": "Edit",
+   "match": "re:(/\\.ssh/|/\\.(bashrc|zshrc|profile|bash_profile|bash_login|bash_logout|zprofile|zshenv|zlogin)\\b|/\\.local/bin/|/\\.config/(autostart|systemd|fish|environment\\.d)/)",
+   "decision": "ask",
+   "why": "SSH, файлы запуска оболочки, свои программы и автозапуск — вход и исполнение вне рабочей папки (аудит 09.11 №14): только с человеком"
+  },
+  {
+   "tool": "Edit",
+   "match": "re:\\.\\./",
+   "decision": "ask",
+   "why": "путь с «..» — мог бы уйти из рабочей папки, оставаясь похожим на неё"
+  },
+  {
+   "tool": "Edit",
    "decision": "allow",
-   "why": "правка остальных файлов — основная работа"
+   "why": "правка остальных файлов — основная работа — внутри рабочей папки ~/work (аудит 09.11 №14)",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*/work/"
+  },
+  {
+   "tool": "Edit",
+   "decision": "ask",
+   "why": "вне рабочей папки — с человеком (аудит 09.11 №14)"
+  },
+  {
+   "tool": "MultiEdit",
+   "match": "re:(/\\.ssh/|/\\.(bashrc|zshrc|profile|bash_profile|bash_login|bash_logout|zprofile|zshenv|zlogin)\\b|/\\.local/bin/|/\\.config/(autostart|systemd|fish|environment\\.d)/)",
+   "decision": "ask",
+   "why": "SSH, файлы запуска оболочки, свои программы и автозапуск — вход и исполнение вне рабочей папки (аудит 09.11 №14): только с человеком"
+  },
+  {
+   "tool": "MultiEdit",
+   "match": "re:\\.\\./",
+   "decision": "ask",
+   "why": "путь с «..» — мог бы уйти из рабочей папки, оставаясь похожим на неё"
   },
   {
    "tool": "MultiEdit",
    "decision": "allow",
-   "why": "правка остальных файлов — основная работа"
+   "why": "правка остальных файлов — основная работа — внутри рабочей папки ~/work (аудит 09.11 №14)",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*/work/"
+  },
+  {
+   "tool": "MultiEdit",
+   "decision": "ask",
+   "why": "вне рабочей папки — с человеком (аудит 09.11 №14)"
   },
   {
    "tool": "Write",
@@ -103,8 +139,26 @@
   },
   {
    "tool": "Write",
+   "match": "re:(/\\.ssh/|/\\.(bashrc|zshrc|profile|bash_profile|bash_login|bash_logout|zprofile|zshenv|zlogin)\\b|/\\.local/bin/|/\\.config/(autostart|systemd|fish|environment\\.d)/)",
+   "decision": "ask",
+   "why": "SSH, файлы запуска оболочки, свои программы и автозапуск — вход и исполнение вне рабочей папки (аудит 09.11 №14): только с человеком"
+  },
+  {
+   "tool": "Write",
+   "match": "re:\\.\\./",
+   "decision": "ask",
+   "why": "путь с «..» — мог бы уйти из рабочей папки, оставаясь похожим на неё"
+  },
+  {
+   "tool": "Write",
    "decision": "allow",
-   "why": "запись остальных файлов — основная работа"
+   "why": "запись остальных файлов — основная работа — внутри рабочей папки ~/work (аудит 09.11 №14)",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*/work/"
+  },
+  {
+   "tool": "Write",
+   "decision": "ask",
+   "why": "вне рабочей папки — с человеком (аудит 09.11 №14)"
   },
   {
    "tool": "mcp__plugin_mila-telegram_telegram__reply",
