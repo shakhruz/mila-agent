@@ -149,7 +149,7 @@ for rx, name in KITCHEN:
 
 # apologies and excuses do not go out — neither to a client nor to the owner (constitution, law 7: fact · conclusion · step,
 # not «sorry»). Exception: the development chat, and a report on a problem from the problem journal (skill problemy): the text
-# names a number P-0001 that IS in work/problemy.jsonl and is open, or was closed today. A number alone opens nothing — any text
+# names a number P-0001 that IS in work/problemy.jsonl and is open, or was closed today — and only in the owner's chat. A number alone opens nothing — any text
 # could carry one; a journal that cannot be read opens nothing either.
 def _problem_report(text):
     nums = set(re.findall(r"(?<![\w-])P-\d{4,6}(?![\w-])", text))
@@ -166,13 +166,17 @@ def _problem_report(text):
         except ValueError: continue
         if not isinstance(r, dict) or r.get("n") not in nums: continue
         step = r.get("шаг")
-        if step == "найдено": st.setdefault(r["n"], "open")
+        if step == "найдено":   # a whole line as problemy.py writes it: the fact and a pointer to evidence — a bare line typed by hand does not count
+            if isinstance(r.get("что"), str) and r["что"].strip() and re.fullmatch(r"(msg|file|link|journal|kassa|commit):\S{1,300}", str(r.get("улика") or "")):
+                st.setdefault(r["n"], "open")
         elif r["n"] in st and step == "закрыто": st[r["n"]] = str(r.get("ts") or "")[:10]
         elif r["n"] in st and step == "повтор": st[r["n"]] = "open"
     return any(v == "open" or v == time.strftime("%Y-%m-%d") for v in st.values())
 
 _APOLOGY = re.compile(r"(?:\bизвин\w*|\bпрост(?:и|ите)\b|прошу прощения|\bмо[яй] (?:ошибк|вин|дыр)\w*|\bвиноват\w*|с опозданием|\bоправд\w*|к сожалению,? (?:я )?не (?:успел|смогл)\w*|\bsorry\b|\bapolog\w*)", re.I)
-if not TOPIC and chat_id != os.environ.get("MILA_DEV_CHAT", "") and not _problem_report(text):
+# A report on a problem goes to the owner: the number opens the filter only in the owner's own chat (OWNER_ID — the id the owners'
+# list is made from), never in a group or a client's chat.
+if not TOPIC and chat_id != os.environ.get("MILA_DEV_CHAT", "") and not (owner and chat_id == owner and _problem_report(text)):
     _m = _APOLOGY.search(text)
     if _m:
         why.append("извинение/оправдание («%s») — в чат не уходит: человеку только дело и следующий шаг (закон 7)" % _m.group(0))

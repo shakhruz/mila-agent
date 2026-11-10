@@ -26,13 +26,17 @@ chk("извинение хозяину — стоп (закон 7)", {"tool_name
 # apology filter and the problem journal: a number opens the way only if the journal holds it, open or closed today
 import datetime as _dt
 _w = os.path.join(home, "work"); os.makedirs(_w); _J = os.path.join(_w, "problemy.jsonl"); _now = _dt.datetime.now().astimezone()
-def _row(n, step, days_ago=0): return json.dumps({"n": n, "ts": (_now - _dt.timedelta(days=days_ago)).isoformat(timespec="seconds"), "шаг": step}, ensure_ascii=False) + "\n"
+def _row(n, step, days_ago=0, **kw):
+    r = {"n": n, "ts": (_now - _dt.timedelta(days=days_ago)).isoformat(timespec="seconds"), "шаг": step}
+    if step == "найдено": r.update({"что": "отчёт ушёл без числа проверок", "улика": "msg:abc:15"})
+    r.update(kw); return json.dumps({k: v for k, v in r.items() if v is not None}, ensure_ascii=False) + "\n"
 _AP = lambda num: {"tool_name": R, "tool_input": {"chat_id": "111", "text": "Виновата, отчёт ушёл без числа. %s: причина — число из памяти." % num}}
 chk("извинение с номером P-0001, журнала нет — стоп", _AP("P-0001"), "deny")
 chk("извинение с номером D-0123 — стоп (номер сам ничего не открывает)", _AP("D-0123"), "deny")
 open(_J, "w", encoding="utf-8").write(_row("P-0001", "найдено", 3) + "битая строка\n" + _row("P-0002", "найдено", 9) + _row("P-0002", "закрыто", 1)
                                       + _row("P-0003", "найдено", 2) + _row("P-0003", "закрыто", 0) + _row("P-0004", "найдено", 9) + _row("P-0004", "закрыто", 5) + _row("P-0004", "повтор", 0)
-                                      + _row("P-0005", "закрыто", 0))
+                                      + _row("P-0005", "закрыто", 0) + _row("P-0006", "найдено", 0, улика=None) + _row("P-0007", "найдено", 0, улика="он сказал")
+                                      + _row("P-0008", "найдено", 0, что="  "))
 chk("отчёт об открытой проблеме P-0001 из журнала — уходит", _AP("P-0001"), "pass")
 chk("номера P-0099 в журнале нет — стоп", _AP("P-0099"), "deny")
 chk("P-0002 закрыта вчера — стоп", _AP("P-0002"), "deny")
@@ -40,6 +44,15 @@ chk("P-0003 закрыта сегодня — уходит", _AP("P-0003"), "pas
 chk("P-0004 закрыта и повторилась — открыта, уходит", _AP("P-0004"), "pass")
 chk("P-0005: строка «закрыто» без «найдено» — стоп", _AP("P-0005"), "deny")
 chk("номер открытой проблемы внутри чужого слова — стоп", _AP("код" + "P-0001"), "deny")
+chk("P-0006: «найдено» без улики (строка руками) — стоп", _AP("P-0006"), "deny")
+chk("P-0007: улика текстом, а не указателем — стоп", _AP("P-0007"), "deny")
+chk("P-0008: пустое «что» — стоп", _AP("P-0008"), "deny")
+_to = lambda chat: {"tool_name": R, "tool_input": {"chat_id": chat, "text": "Виновата, отчёт ушёл без числа. P-0001: причина — число из памяти."}}
+chk("отчёт с открытым номером в группу — стоп: отчёт о проблеме идёт хозяину", _to("-1001"), "deny")
+chk("отчёт с открытым номером в личку другого разрешённого человека — стоп", _to("555"), "deny")
+_env_keep = env; env = {k: v for k, v in env.items() if k != "OWNER_ID"}
+chk("OWNER_ID не задан — номер ничего не открывает и в разрешённой личке", _to("555"), "deny")
+env = _env_keep
 chk("извинение без номера при живом журнале — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "Извините, я не успела"}}, "deny")
 os.remove(_J); os.makedirs(_J)
 chk("вместо журнала папка — стоп, сторож не падает", _AP("P-0001"), "deny")
