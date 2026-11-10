@@ -1,5 +1,20 @@
 # CHANGELOG · Mila
 
+## Unreleased — the problem journal
+
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
+**Для хозяина**
+- Журнал проблем: каждый мой сбой записан — что случилось, что исправлено, чем проверено. Третий повтор одной причины я закрываю не обещанием, а проверкой или настройкой. Спросите «что пошло не так» — отвечу из журнала.
+
+</details>
+
+**For the owner**
+- The problem journal: every slip of mine is written down — what happened, what was fixed, how it was verified. A third repeat of one cause is closed with a check or a setting, not a promise. Ask «what went wrong» — I answer from the journal.
+
+**For Milas**
+- New skill `problemy` (`work/problemy.jsonl`, 600, append-only, number and line under one lock): found → cause → fix → verified → closed, each stage with evidence (the rules of `dela`); places and classes are closed lists; the verification is another pointer and later than the fix; the third case of one class in one place (a reopen and a new problem — one count) refuses a promise and writes the refusal; `itog`, `list --open`, `povtory`. The evening `self-check` asks whether the owner corrected Mila today.
+
 ## v1.7.7 · 10.11 — the pack library: free packs from Mila Library
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
