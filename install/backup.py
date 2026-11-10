@@ -85,6 +85,11 @@ SECRET_PATTERNS = [
                 r"-----END [A-Z ]*PRIV" r"ATE KEY-----"), "private-key"),
     (re.compile(r"(?i)\b(pass(?:word)?|secret|api[_-]?key|access[_-]?token|"
                 r"bearer)\b\s*[:=]\s*[\"']?([^\s\"',}]{8,})"), "assignment"),
+    # audit 09.11 №16: a Groq key (gsk_…) — «sk_» needs a word boundary before it, which «gsk_» does not have
+    (re.compile(r"\bgs" r"k_[A-Za-z0-9]{20,}"), "groq-key"),
+    # …and an opaque value under a key-named field: «"<PROVIDER>_API_KEY": "…"» (no \b before «API» inside the name)
+    (re.compile(r'(?i)("[A-Z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*"\s*:\s*")([^"\s]{8,})(?=")'), "json-key-field"),
+    (re.compile(r"(?im)^(\s*(?:export\s+)?[A-Z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*\s*=\s*[\"']?)([^\s\"']{8,})"), "env-key"),
 ]
 
 
