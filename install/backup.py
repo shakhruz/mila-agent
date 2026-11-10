@@ -71,6 +71,8 @@ NEVER = [
 # (блок env — штатное место ключа модели), внутри журнала входящих (человек
 # прислал ключ в чат), внутри карточки чата, куда его переписали. Исключить
 # файл по имени недостаточно: надо чистить содержимое.
+KEY_NAME = (r"(?![A-Z0-9_]*PAGE_TOKEN\b)(?:[A-Z0-9]+_)*(?:API_?KEY|TOKEN|SECRET|PASSWORD)"
+            r"(?:_(?!HINT\b|USED\b|COUNT\b|COUNTS\b)[A-Z0-9]+)*")
 SECRET_PATTERNS = [
     (re.compile(r"\bsk[-_][A-Za-z0-9][A-Za-z0-9_-]{18,}", re.I), "api-key"),
     (re.compile(r"\b(?:pk|rk|tok|glpat|dop_v1|npm|shpat|shpss)[-_]"
@@ -88,9 +90,13 @@ SECRET_PATTERNS = [
     # audit 09.11 №16: a Groq key (gsk_…) — «sk_» needs a word boundary before it, which «gsk_» does not have
     (re.compile(r"\bgs" r"k_[A-Za-z0-9]{20,}"), "groq-key"),
     # …and an opaque value under a key-named field: «"<PROVIDER>_API_KEY": "…"» (no \b before «API» inside the name)
-    (re.compile(r'(?i)("[A-Z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*"\s*:\s*")([^"\s]{8,})(?=")'), "json-key-field"),
-    (re.compile(r"(?im)^(\s*(?:export\s+)?[A-Z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*\s*=\s*[\"']?)([^\s\"']{8,})"), "env-key"),
+    # The key word must be a whole segment of the name between «_» (Quality 09.11: «secretary», TOKENS_USED, next_page_token,
+    # password_hint are a client's data, not keys — the backup is the history, it must not quietly change it).
+    (re.compile(r'(?i)("' + KEY_NAME + r'"\s*:\s*")([^"\s]{8,})(?=")'), "json-key-field"),
+    (re.compile(r"(?im)^(\s*(?:export\s+)?" + KEY_NAME + r"\s*=\s*[\"']?)([^\s\"']{8,})"), "env-key"),
 ]
+FIELD_RX = {rx for rx, kind in SECRET_PATTERNS if kind in ("json-key-field", "env-key")}
+CUT_BY_FIELD = {}   # field name → how many values were cut: a false cut is seen in the report, not discovered later
 
 
 def walk_files(src):
@@ -115,6 +121,9 @@ def scrub(text):
         hits += 1
         # У правила про присваивание маскируем только значение, иначе из
         # архива исчезнет и само имя поля — а по нему потом ищут.
+        if m.re in FIELD_RX:
+            name = re.sub(r'^\s*(?:export\s+)?"?|"?\s*[:=].*$', "", m.group(1), flags=re.S)
+            CUT_BY_FIELD[name] = CUT_BY_FIELD.get(name, 0) + 1
         if m.re.groups >= 2 and m.group(2):
             return m.group(0).replace(m.group(2), "[секрет вырезан]")
         return "[секрет вырезан]"
@@ -321,6 +330,8 @@ def cmd_run(out_dir, target=None, keep=7):
     print("🟢 %s" % path)
     print("   %s · частей: %d · вырезано секретов: %d"
           % (human_size(size), added, cleaned))
+    if CUT_BY_FIELD:   # by field name: a client's field cut by mistake shows here
+        print("   по именам полей: " + ", ".join("%s ×%d" % kv for kv in sorted(CUT_BY_FIELD.items())))
 
     # Проверяем то, что записали: архив, который не открывается, хуже, чем
     # его отсутствие — на него рассчитывают. И проверяем содержимое: раньше
