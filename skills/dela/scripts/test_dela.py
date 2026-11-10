@@ -30,5 +30,13 @@ D("add", "--delo", "Пост канал 04.11", "--tip", "пост", "--ulika", 
 it = json.loads(D("itog", "--json").stdout)
 chk("итог накопительный: КП 3/1/0, пост 1/1/1", it["КП"] == {"сделала": 3, "приняли": 1, "результат": 0} and it["пост"] == {"сделала": 1, "приняли": 1, "результат": 1}, it)
 chk("итог — только числа, без «для» и улик", "лид·12" not in D("itog").stdout and "msg:" not in D("itog").stdout)
+import fcntl, time
+hold = open(L, "a"); fcntl.flock(hold, fcntl.LOCK_EX)   # the journal is busy: both writers start and wait; old code had already read «no such line» by then
+ps = [subprocess.Popen([sys.executable, "-I", os.path.join(H, "dela.py"), "add", "--delo", "КП разом 04.11", "--tip", "КП", "--ulika", "msg:r:1", "--stupen", "сделала"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env) for _ in range(2)]
+time.sleep(1.5); busy = [p.poll() for p in ps]; fcntl.flock(hold, fcntl.LOCK_UN); hold.close()
+rcs = [p.wait(timeout=30) for p in ps]
+got = [l for l in open(L, encoding="utf-8").read().splitlines() if json.loads(l)["дело"] == "КП разом 04.11"]
+chk("журнал занят — оба писателя ждут; после — одна строка, второму «уже записано»", busy == [None, None] and len(got) == 1 and sorted(rcs) == [0, 1], (busy, len(got), rcs))
 import shutil; shutil.rmtree(T)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

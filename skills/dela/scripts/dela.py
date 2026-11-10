@@ -64,18 +64,20 @@ def add(a):
         sys.exit("результат — коротко, до 160 знаков")
     row = {"дата": a.data or dt.datetime.now(TZ).date().isoformat(), "дело": d[:120], "тип": (a.tip or "другое")[:40], "для": (a.dlya or "")[:60],
            "ступень": a.stupen, "улика": a.ulika, "результат": (a.rezultat or "")[:160]}
-    try:
-        for l in open(LOG, encoding="utf-8"):
-            try: r = json.loads(l)
-            except ValueError: continue
-            if r.get("дело") == row["дело"] and r.get("ступень") == row["ступень"]:
-                sys.exit("уже записано: %s · %s" % (row["дело"], row["ступень"]))
-    except OSError:
-        pass
     os.makedirs(HOME_WORK, exist_ok=True)
-    fd = os.open(LOG, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-    with os.fdopen(fd, "a", encoding="utf-8") as f:
-        fcntl.flock(f, fcntl.LOCK_EX); f.write(json.dumps(row, ensure_ascii=False) + "\n"); fcntl.flock(f, fcntl.LOCK_UN)
+    fd = os.open(LOG, os.O_RDWR | os.O_CREAT | os.O_APPEND, 0o600)
+    with os.fdopen(fd, "a+", encoding="utf-8") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)   # the «already written» check and the line — under one lock: two writers never log one stage twice
+        try:
+            f.seek(0)
+            for l in f.read().splitlines():
+                try: r = json.loads(l)
+                except ValueError: continue
+                if isinstance(r, dict) and r.get("дело") == row["дело"] and r.get("ступень") == row["ступень"]:
+                    sys.exit("уже записано: %s · %s" % (row["дело"], row["ступень"]))
+            f.write(json.dumps(row, ensure_ascii=False) + "\n"); f.flush()
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
     print("записала: %s · %s" % (d, a.stupen))
 
 
