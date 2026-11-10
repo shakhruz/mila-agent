@@ -36,7 +36,7 @@ CASES = [
  ("Write", json.dumps({"file_path": "/home/a/work/sub/.claude/commands/run.md"}), "ask"),
  ("Write", json.dumps({"file_path": "/home/a/work/README.md", "content": "добавьте строку в ~/.bashrc и ../.ssh/config"}), "allow"),
  ("Write", json.dumps({"file_path": "/home/a/work/.gitignore"}), "allow"), ("Write", json.dumps({"file_path": "/home/a/work/configs.md"}), "allow"),
- ("Write", json.dumps({"file_path": "/home/a/work/razvitie/plan.md"}), "allow"), ("MultiEdit", json.dumps({"file_path": "/home/a/work/x.py"}), "allow"),
+ ("Write", json.dumps({"file_path": "/home/a/work/notes/plan.md"}), "allow"), ("MultiEdit", json.dumps({"file_path": "/home/a/work/x.py"}), "allow"),
  # Quality's escapes (01.11): must not be a silent allow
  ("Bash", "cat /proc/self/environ", "deny"), ("Bash", J("cat /proc/1/environ"), "deny"), ("Bash", "grep -r -e . /home/a/work", "ask"),
  ("Bash", "grep -R KEY .", "ask"), ("Bash", "rg -l sk- /", "ask"), ("Bash", "grep -r OPENROUTER /etc/mila", "ask"), ("Bash", "cat /etc/passwd", "ask"),

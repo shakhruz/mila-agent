@@ -50,13 +50,13 @@ try:
 
     # Claude finds memory by the folder named after the path: a moved home renames -home-agent… to the new prefix
     hm = tempfile.mkdtemp(dir=T); pj = os.path.join(hm, ".claude", "projects"); new = S.slug(hm)
-    for d in ("-home-agent", "-home-agent-work", "-home-agent-work-razvitie-x", "-tmp-other", new + "-work-razvitie-x"):
+    for d in ("-home-agent", "-home-agent-work", "-home-agent-work-drafts-x", "-tmp-other", new + "-work-drafts-x"):
         os.makedirs(os.path.join(pj, d, "memory"))
     open(os.path.join(pj, "-home-agent-file"), "w").close(); os.makedirs(os.path.join(pj, "-home-agentX"))
     done = S.rename_projects(hm)
     names = set(os.listdir(pj))
     check("папки памяти: -home-agent… → новый путь дома", {new, new + "-work"} <= names and "-home-agent" not in names and "-home-agent-work" not in names, sorted(names))
-    check("столкновение имени — обе папки остаются как были", "-home-agent-work-razvitie-x" in names and new + "-work-razvitie-x" in names)
+    check("столкновение имени — обе папки остаются как были", "-home-agent-work-drafts-x" in names and new + "-work-drafts-x" in names)
     check("чужие (-tmp-other, -home-agentX) и не папки не тронуты", {"-tmp-other", "-home-agentX", "-home-agent-file"} <= names)
     check("повтор — ничего не переименовывает", S.rename_projects(hm) == [])
     check("дом без .claude — тихо пусто", S.rename_projects(tempfile.mkdtemp(dir=T)) == [])
