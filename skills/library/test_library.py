@@ -123,6 +123,13 @@ try:
              and "/packs-in/" not in "/" + x and "/mila-update/" not in "/" + x]
     check("удаление: в доме ничего лишнего от пака (кроме журналов, бэкапа и данных человека)", extra == [], extra)
 
+    # root never loads library.py from the session's home (fleet mode runs update.py as root)
+    probe = ("import os, sys, json; os.geteuid = lambda: 0; sys.argv = ['update.py']; sys.path.insert(0, %r); import update as UP\n"
+             "try: UP.library_archive('biznes-profil'); print('LOADED')\n"
+             "except SystemExit as e: print(e)") % os.path.dirname(U)
+    r = subprocess.run([sys.executable, "-c", probe], env=ENV, capture_output=True, text=True, timeout=60)
+    check("от root (euid 0) библиотека не грузится — отказ до импорта library.py", "не root" in r.stdout and "LOADED" not in r.stdout, r.stdout + r.stderr[-200:])
+
     # 4. «not now» and the tutorial
     rc, d = run(L, "tutorial", "biznes-profil", "stopped:2"); jl = os.path.join(CL, "mila-library", "journal.jsonl")
     check("туториал: итог в журнале библиотеки, файл 600", rc == 0 and '"stopped:2"' in open(jl).read() and oct(os.stat(jl).st_mode & 0o777) == "0o600", d)

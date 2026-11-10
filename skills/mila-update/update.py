@@ -1729,6 +1729,8 @@ def cmd_packs(a):
 
 def library_archive(pid):
     """архив пака библиотеки: индекс сверен с library.lock выпуска ядра, архив — с суммой индекса."""
+    # library.py lives in the session's home: root (fleet mode, MILA_HOME) never loads it — the session's user installs from the library
+    if os.geteuid() == 0: _refuse("пак из библиотеки ставит сам хозяин дома, не root — библиотека от root не грузится")
     import importlib.util
     lp = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "library", "library.py")
     try:
