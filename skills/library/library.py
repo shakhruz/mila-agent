@@ -26,7 +26,7 @@ ARCHIVE_MAX = 10 * 1024 * 1024
 ID = re.compile(r"^[a-z0-9][a-z0-9-]{1,40}$")
 # for_whom is shown to the person and read by the model before any «yes»: a short plain line, nothing that acts
 # imperatives by their forms (установи/установите…), not by the root: «если вы отправляете товар» is a plain description
-IMPER = r"(?:установи|игнорируй|забудь|выполни|запусти|отправь|удали|покажи|прочитай|скачай)(?:те)?|" \
+IMPER = r"(?:установи|игнорируй|забудь|выполни|запусти|отправь|удали|покажи|прочитай|скачай|напиши|сообщи|передай|перейди)(?:те)?|" \
         r"(?:ignore|disregard|forget|execute|install|run|send|delete|reveal)|o['‘ʻ]rnat(?:ing)?|bajar(?:ing)?|yubor(?:ing)?|unut(?:ing)?"
 BAD = re.compile(r"https?:|www\.|[@`<>{}\[\]\\$|]|\b(?:t\.me|bit\.ly)\b|\b(?:python3?|bash|sudo|curl|rm|sh)\b|(?i:(?<![\w-])(?:%s)(?![\w-]))" % IMPER, re.U)
 
@@ -35,10 +35,15 @@ def out(x, code=0):
     print(json.dumps(x, ensure_ascii=False, indent=1)); sys.exit(code)
 
 
+# a word that mixes Latin and Cyrillic letters («Ignоre» with a Cyrillic «о») hides a word from the list above
+MIXED = re.compile(r"(?=\w*[A-Za-z])(?=\w*[А-Яа-яЁё])\b\w+\b")
+
+
 def clean_for_whom(s):
     """'' when the line is not a plain description: ≤120 chars, one line, no links, @, `, commands or imperatives."""
     s = str(s or "")
     if not s or len(s) > 120 or re.search(r"[\x00-\x1f\x7f]", s) or BAD.search(s): return ""
+    if MIXED.search(s): return ""
     return s.strip()
 
 
