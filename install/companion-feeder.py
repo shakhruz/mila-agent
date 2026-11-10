@@ -20,7 +20,7 @@ COMPANION_STATE = os.environ.get("COMPANION_STATE", os.path.expanduser("~/.mila-
 
 STATE = os.environ.get("TELEGRAM_STATE_DIR", os.path.expanduser("~/.claude/channels/telegram"))
 EV_LEGACY = os.path.join(STATE, "inbound", "events.jsonl")
-IO_EV = os.path.expanduser("~/.claude/channels/telegram/io/events.jsonl")
+IO_EV = os.path.join("/var/lib/mila/io" if os.path.isdir("/var/lib/mila/io") else os.path.expanduser("~/.claude/channels/telegram/io"), "events.jsonl")   # layout B (09.11)
 
 
 def io_uid():

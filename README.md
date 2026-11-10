@@ -192,7 +192,7 @@ Channel diagnosis · ~/.claude/channels/telegram
 ```
 Server install: see [deploy/README.md](deploy/README.md).
 
-One container instead (Docker, no open ports): fill the variables of [docker-compose.yml](docker-compose.yml) and run `docker compose up -d`. You paste the bot token from @BotFather; the pairing code from the container log and the Claude sign-in go through the chat. A paid Claude plan of your own is still needed.
+One container instead (Docker, no open ports): fill the variables of [docker-compose.yml](docker-compose.yml) and run `docker compose up -d`. Everything Mila keeps lives on one volume at `/var/lib/mila`. Mila silent after an update? Look in the container log for lines with `mila-state` — they say what stopped the start. You paste the bot token from @BotFather; the pairing code from the container log and the Claude sign-in go through the chat. A paid Claude plan of your own is still needed.
 
 
 ## Moving from OpenClaw or Hermes

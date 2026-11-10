@@ -12,11 +12,12 @@ chk() { n=$((n+1)); if eval "$2"; then ok=$((ok+1)); echo "✅ $1"; else echo "�
 chk "помощник входа: тест поддельного Telegram и setup-token" "python3 docker/test_claude_login.py >/dev/null 2>&1"
 chk "страница токена: тест поддельного Telegram" "python3 docker/test_token_page.py >/dev/null 2>&1"
 chk "код рождения: тест поддельного relay и entrypoint" "python3 docker/test_birth_claim.py >/dev/null 2>&1"
-chk "compose: один сервис mila, том mila-home, портов нет" "python3 -c \"import yaml;d=yaml.safe_load(open('docker-compose.yml'));s=d['services']['mila'];assert 'ports' not in s and 'mila-home:/home/agent' in s['volumes'][0]\""
+chk "compose: один сервис mila, один том mila-home на /var/lib/mila, портов нет" "python3 -c \"import yaml;d=yaml.safe_load(open('docker-compose.yml'));s=d['services']['mila'];assert 'ports' not in s and 'mila-home:/var/lib/mila' in s['volumes'][0] and len(s['volumes']) == 1\""
 chk "compose: переменные — только подстановкой \${…}, значений нет" "! grep -E '(TOKEN|KEY): [^\$ ]' docker-compose.yml"
 chk "Dockerfile: install.sh и onboard.py, на которые опирается entrypoint, есть в репозитории" "[ -f install/install.sh ] && [ -f install/onboard.py ] && grep -q 'COPY docker/entrypoint.sh docker/healthcheck.sh' docker/Dockerfile"
 chk "плагин в образе закреплён коммитом (40 знаков), не веткой main" "grep -qE '^ARG PLUGIN_REF=[0-9a-f]{40}$' docker/Dockerfile && grep -q 'checkout -q \"\${PLUGIN_REF}\"' docker/Dockerfile"
 chk "Dockerfile в корне = docker/Dockerfile (Railway и панели «из GitHub» ищут ./Dockerfile)" "cmp -s Dockerfile docker/Dockerfile"
+chk "WORKDIR вне тома (/var/lib/mila): среда запуска создаёт WORKDIR до entrypoint — пустой home/ прятал старый дом (стенд 10.11)" "w=\$(grep -E '^WORKDIR ' docker/Dockerfile | tail -1 | cut -d' ' -f2); [ -n \"\$w\" ] && case \"\$w/\" in /var/lib/mila/*) false;; *) true;; esac"
 chk "в Dockerfile нет VOLUME (Railway такой не собирает) и нет USER (entrypoint сам переходит в agent)" "! grep -qE '^(VOLUME|USER)' docker/Dockerfile"
 chk "страница токена: PORT=8080 и EXPOSE 8080 в образе (подсказка Railway совпадает), compose отключает страницу" "grep -q '^ENV PORT=8080' docker/Dockerfile && grep -q '^EXPOSE 8080' docker/Dockerfile && python3 -c \"import yaml;assert yaml.safe_load(open('docker-compose.yml'))['services']['mila']['environment']['PORT']==''\""
 chk "railway.json: сборка по Dockerfile, перезапуск при сбое" "python3 -c \"import json;d=json.load(open('railway.json'));assert d['build']['builder']=='DOCKERFILE' and d['deploy']['restartPolicyType']=='ON_FAILURE'\""
@@ -42,34 +43,40 @@ o=$(run_ep TELEGRAM_BOT_TOKEN="$T" ANTHROPIC_API_KEY=x OWNER_ID=abc); chk "OWNER
 SB=$(mktemp -d); HR=$(mktemp -d)
 printf '#!/bin/sh\necho 0\n' > "$SB/id"; printf '#!/bin/sh\necho 0\n' > "$SB/stat"
 printf '#!/bin/sh\necho "chown $*" >> "%s/log"\n' "$SB" > "$SB/chown"; printf '#!/bin/sh\necho "setpriv $*" >> "%s/log"\nexit 0\n' "$SB" > "$SB/setpriv"
-chmod +x "$SB"/*; env -i HOME="$HR" PATH="$SB:/usr/bin:/bin" "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
-chk "запуск от root: дом отдаётся agent (chown -R -h 1001), затем тот же скрипт под 1001 через setpriv" "grep -q 'chown -R -h 1001:1001 $HR' $SB/log && grep -q 'setpriv --reuid=1001 --regid=1001 --init-groups -- bash docker/entrypoint.sh' $SB/log"
-printf '#!/bin/sh\necho 1001\n' > "$SB/stat"; : > "$SB/log"; env -i HOME="$HR" PATH="$SB:/usr/bin:/bin" "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
-chk "дом уже agent — chown не нужен, только setpriv" "! grep -q chown $SB/log && grep -q setpriv $SB/log"
+printf '#!/bin/sh\necho "state $*" >> "%s/log"\necho "{\\"persistent\\": true}"\nexit ${STATE_RC:-0}\n' "$SB" > "$SB/state"
+chmod +x "$SB"/*; env -i HOME="$HR" MILA_STATE_CMD="$SB/state" MILA_STATE_JSON="$SB/state.json" MILA_KEYD=off PATH="$SB:/usr/bin:/bin" "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
+chk "запуск от root: шаг раскладки (mila_state prepare --agent-uid 1001), никакого chown -R по дому, затем setpriv под 1001" "grep -q 'state prepare --agent-uid 1001' $SB/log && ! grep -q 'chown -R' $SB/log && grep -q 'setpriv --reuid=1001 --regid=1001 --init-groups -- bash docker/entrypoint.sh' $SB/log"
+: > "$SB/log"; env -i HOME="$HR" MILA_STATE_CMD="$SB/state" MILA_STATE_JSON="$SB/state.json" PATH="$SB:/usr/bin:/bin" MILA_STATE_CMD="$SB/state" STATE_RC=1 MILA_STATE_JSON="$SB/state.json" "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
+chk "раскладка отказала (ссылка, чужой владелец, столкновение) — старт останавливается до setpriv" "grep -q 'state prepare' $SB/log && ! grep -q setpriv $SB/log"
 PYD="$(dirname "$(command -v python3)")"
 # root → the key keeper first: on success the session gets only its address, the token variables are gone
 printf '#!/bin/sh\necho "setpriv $*" >> "%s/log"; env | grep -E "^(MILA_KEYD|KEYD_SOCK|CLAUDE_CODE_OAUTH_TOKEN|GROQ_API_KEY|MILA_IO|MILA_TG_JOURNAL)=" | sed "s/=.*//" >> "%s/log"\nexit 0\n' "$SB" "$SB" > "$SB/setpriv"
 printf 'import os, sys\nopen("%s/log", "a").write("keyd " + " ".join(sys.argv[1:]) + "\\n")\nsys.exit(int(os.environ.get("KEYD_RC", "0")))\n' "$SB" > "$SB/keyd"; chmod +x "$SB"/*
-: > "$SB/log"; env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x GROQ_API_KEY=y "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
+: > "$SB/log"; env -i HOME="$HR" MILA_STATE_CMD="$SB/state" MILA_STATE_JSON="$SB/state.json" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x GROQ_API_KEY=y "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
 chk "root: хранитель ключей запущен (boot --home --agent-uid 1001), сессии — только его адрес, переменных с токеном нет" "grep -q 'keyd boot --home $HR --agent-uid 1001' $SB/log && grep -qx MILA_KEYD $SB/log && grep -qx KEYD_SOCK $SB/log && ! grep -qx CLAUDE_CODE_OAUTH_TOKEN $SB/log && ! grep -qx GROQ_API_KEY $SB/log"
 chk "приёмник — своим пользователем mila-io (фоном, ждёт «go»), сессии — MILA_IO" "grep -q 'setpriv --reuid=mila-io --regid=mila-io --groups=1001' $SB/log && grep -qx MILA_IO $SB/log"
-: > "$SB/log"; env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" KEYD_RC=1 CLAUDE_CODE_OAUTH_TOKEN=x "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
-chk "хранитель не поднялся — без его адреса, токен как раньше (старт не ломается)" "! grep -qx MILA_KEYD $SB/log && grep -qx CLAUDE_CODE_OAUTH_TOKEN $SB/log && grep -q setpriv $SB/log"
-: > "$SB/log"; env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" MILA_KEYD=off "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
+: > "$SB/log"; env -i HOME="$HR" MILA_STATE_CMD="$SB/state" MILA_STATE_JSON="$SB/state.json" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" KEYD_RC=1 CLAUDE_CODE_OAUTH_TOKEN=x "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
+chk "№10: хранитель включён, но не поднялся — старт остановлен до setpriv (ключи платформы сессии не достаются)" "! grep -q setpriv $SB/log"
+: > "$SB/log"; env -i HOME="$HR" MILA_STATE_CMD="$SB/state" MILA_STATE_JSON="$SB/state.json" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" MILA_KEYD=off "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
 chk "MILA_KEYD=off — хранитель не запускается" "! grep -q 'keyd boot' $SB/log && grep -q setpriv $SB/log"
 # an updated home (journals from before mila-io) and no OWNER_ID: owners only from the platform — a «pending» mark, a log line
 rm -rf "${HR:?}"; HR=$(mktemp -d); mkdir -p "$HR/.claude/channels/telegram/inbound"; echo '{"x":1}' > "$HR/.claude/channels/telegram/inbound/events.jsonl"
-OUT_UP=$(env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh 2>&1)
+OUT_UP=$(env -i HOME="$HR" MILA_STATE_CMD="$SB/state" MILA_STATE_JSON="$SB/state.json" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh 2>&1)
 chk "обновлённый дом без OWNER_ID: владелец только с платформы (owners.pending), строка «set OWNER_ID»" "[ -e $HR/.claude/channels/telegram/io/owners.pending ] && [ ! -e $HR/.claude/channels/telegram/io/owners.json ] && printf '%s' \"\$OUT_UP\" | grep -q 'set OWNER_ID'"
-OUT_UP2=$(env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x OWNER_ID="555"'000111' "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh 2>&1)
+OUT_UP2=$(env -i HOME="$HR" MILA_STATE_CMD="$SB/state" MILA_STATE_JSON="$SB/state.json" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x OWNER_ID="555"'000111' "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh 2>&1)
 chk "с OWNER_ID платформы — owners.json из него, pending снят" "grep -q '555''000111' $HR/.claude/channels/telegram/io/owners.json && [ ! -e $HR/.claude/channels/telegram/io/owners.pending ]"
 # a home where a session ran but the receiver kept no journal (no inbound/events.jsonl) — updated too, by the session's transcripts
 rm -rf "${HR:?}"; HR=$(mktemp -d); mkdir -p "$HR/.claude/projects/-home-x"; echo '{}' > "$HR/.claude/projects/-home-x/s.jsonl"
-env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
+env -i HOME="$HR" MILA_STATE_CMD="$SB/state" MILA_STATE_JSON="$SB/state.json" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
 chk "дом со следами сессии (projects/*.jsonl), без журнала приёмника — тоже обновлённый: owners.pending" "[ -e $HR/.claude/channels/telegram/io/owners.pending ] && [ ! -e $HR/.claude/channels/telegram/io/owners.json ]"
 rm -rf "${HR:?}"; HR=$(mktemp -d)
-env -i HOME="$HR" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
+env -i HOME="$HR" MILA_STATE_CMD="$SB/state" MILA_STATE_JSON="$SB/state.json" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
 chk "новый дом (ни журнала, ни сессии) — без pending: владельца запишет первый «go»" "[ ! -e $HR/.claude/channels/telegram/io/owners.pending ]"
+# layout B: the state step names io/ outside the home — the owners' list goes there, nothing into the home's io/
+rm -rf "${HR:?}"; HR=$(mktemp -d); NIO="$SB/var-lib-mila-io"; mkdir -p "$NIO"
+printf '#!/bin/sh\necho "state $*" >> "%s/log"\necho "{\\"persistent\\": true, \\"io\\": \\"%s\\"}"\n' "$SB" "$NIO" > "$SB/state-b"; chmod +x "$SB/state-b"
+env -i HOME="$HR" MILA_STATE_CMD="$SB/state-b" MILA_STATE_JSON="$SB/state.json" PATH="$SB:$PYD:/usr/bin:/bin" KEYD_BIN="$SB/keyd" CLAUDE_CODE_OAUTH_TOKEN=x OWNER_ID="555"'000111' "$PERL" -e "$TMO" 3 bash docker/entrypoint.sh >/dev/null 2>&1
+chk "раскладка Б: owners.json — в io/ вне дома (из OWNER_ID), в доме io/ нет" "grep -q '555''000111' $NIO/owners.json && [ ! -e $HR/.claude/channels/telegram/io ]"
 rm -rf "$SB" "$HR"
 HC=$(mktemp -d); mkdir -p "$HC/state" "$HC/.claude/channels/telegram"; echo 0 > "$HC/state/session.pid"; echo 0 > "$HC/.claude/channels/telegram/receiver.pid"
 chk "healthcheck: pid 0 — не «жив» (kill -0 0 бьёт по группе)" "! HOME=$HC bash docker/healthcheck.sh >/dev/null 2>&1"
@@ -152,4 +159,8 @@ CP=$(grep -o "find \"\$KD\" -maxdepth 1 .*2>/dev/null" docker/entrypoint.sh | se
 eval "$CP"
 chk "знания для людей: копируются только обычные небольшие .md/.txt — не ссылка, не жёсткая ссылка, не большой, не .sh" "[ \"\$(ls $KQ/dst | tr '\n' ' ')\" = 'prices.md ' ]"
 rm -rf "${KQ:?}"
+chk "№5/№6: корневой шаг — cd /, Python под root только с -I, cards.jsonl через own-file (по дескриптору)" "python3 -I docker/check_root_python.py docker/entrypoint.sh"
+chk "№5: python3 в строке ДО setpriv — тоже root, ловится" "M=\$(mktemp); awk '{print} /^  cd \\/ \\|\\| exit 1/{print \"  python3 -c pass; exec setpriv --reuid=1001 true\"}' docker/entrypoint.sh > \$M; python3 -I docker/check_root_python.py \$M >/dev/null; r=\$?; rm -f \$M; [ \$r = 1 ]"
+chk "№5: сторож видит root-шаги и после setpriv других пользователей — мутант «io_perms без -I» ловится" "M=\$(mktemp); sed 's|python3 -I /usr/local/bin/io_perms.py|python3 /usr/local/bin/io_perms.py|' docker/entrypoint.sh > \$M; python3 -I docker/check_root_python.py \$M >/dev/null; r=\$?; rm -f \$M; [ \$r = 1 ]"
+chk "№24: .dockerignore убирает .git и локальные секреты; checkout во всех workflow без persist-credentials" "grep -qx '.git' .dockerignore && grep -q '\\*.env' .dockerignore && grep -q 'secrets/' .dockerignore && [ \$(grep -c 'actions/checkout@' .github/workflows/*.yml | awk -F: '{s+=\$2} END {print s}') = \$(grep -c 'persist-credentials: false' .github/workflows/*.yml | awk -F: '{s+=\$2} END {print s}') ]"
 echo "итог $ok/$n"; [ $ok -eq $n ]

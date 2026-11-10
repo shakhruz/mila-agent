@@ -8,15 +8,30 @@
 set -u
 # Root only for one step: the home volume to agent (Railway mounts volumes as root), then the same script as agent.
 if [ "$(id -u)" = 0 ]; then
+  cd / || exit 1   # audit №5: root never runs from the session's home — python3 -c / python3 - put the current folder on the import path
   AU="${MILA_AGENT_UID:-1001}"
-  [ "$(stat -c %u "$HOME" 2>/dev/null)" = "$AU" ] || chown -R -h "$AU:$AU" "$HOME"
-  # The key keeper (mila_keyd.py): the Claude token and the voice keys move to its own user (~/.keys, 700) — variables and
+  # Layout B (docker/mila_state.py, audit 09.11): one volume at /var/lib/mila — home/ for the session, keys/ and io/ beside it,
+  # the volume's root to root. First start after the update: an old volume that WAS the home moves into home/ (one rename at a
+  # time, resumes after a crash; a clash refuses the start). Owners by descriptor — no chown -R over the home any more.
+  ST_CMD="${MILA_STATE_CMD:-python3 -I /usr/local/bin/mila_state.py}"   # tests put a stub here, as KEYD_BIN for the keeper
+  mkdir -p /run 2>/dev/null; SJ="${MILA_STATE_JSON:-/run/mila-state.json}"
+  ( cd / && $ST_CMD prepare --agent-uid "$AU" ) > "$SJ" 2> >(sed 's/^/mila-agent: /' >&2) \
+    || { echo "mila-agent: the state folders are not safe to use — see the line above; not starting"; exit 1; }
+  chmod 644 "$SJ" 2>/dev/null   # paths and flags only, no secret: the session's start hook reads it (no volume → a card to the owner)
+  grep -q '"persistent": true' "$SJ" || echo "mila-agent: keys and io are NOT on a volume (mount it at /var/lib/mila) — the sign-in will be lost at the next redeploy" >&2
+  # The key keeper (mila_keyd.py): the Claude token and the voice keys move to its own user (/var/lib/mila/keys, 700 — outside the home the session owns) — variables and
   # files of earlier starts included; the session gets only the keeper's address and can use a key, not read it.
   # MILA_KEYD=off keeps the old way (keys readable by the session, see SECURITY.md).
-  if [ "${MILA_KEYD:-on}" != off ] && python3 "${KEYD_BIN:-/usr/local/bin/mila_keyd.py}" boot --home "$HOME" --agent-uid "$AU" 2>&1 | sed 's/^/mila-agent: /'; [ "${PIPESTATUS[0]}" = 0 ]; then
+  KEYD_WANT="${MILA_KEYD:-on}"
+  if [ "$KEYD_WANT" != off ] && python3 -I "${KEYD_BIN:-/usr/local/bin/mila_keyd.py}" boot --home "$HOME" --agent-uid "$AU" 2>&1 | sed 's/^/mila-agent: /'; [ "${PIPESTATUS[0]}" = 0 ]; then
     export MILA_KEYD=http://127.0.0.1:8790 KEYD_SOCK=/run/mila-keyd/put.sock
     unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY DEEPGRAM_API_KEY GROQ_API_KEY ANTHROPIC_GUEST_API_KEY
     curl -s --max-time 5 http://127.0.0.1:8790/status | grep -q '"telegram": true' && unset TELEGRAM_BOT_TOKEN
+  elif [ "$KEYD_WANT" != off ]; then
+    # audit №10: a keeper that did not start must not mean «keys stay in the session's environment» — a broken old file a
+    # session left behind would otherwise hand it the platform's keys. The old way is only the operator's explicit MILA_KEYD=off.
+    echo "mila-agent: the key keeper did not start — not starting (keys would stay where the session reads them). Fix the line above, or set MILA_KEYD=off on purpose."
+    exit 1
   else
     unset MILA_KEYD KEYD_SOCK
   fi
@@ -25,10 +40,16 @@ if [ "$(id -u)" = 0 ]; then
   # It starts when the session's side says go (after the token page, pairing and the Claude sign-in, which read updates
   # themselves); from then on the key keeper gives updates to mila-io only. Needs the keeper; MILA_IO=off — the old way.
   if [ -n "${MILA_KEYD:-}" ] && [ "${MILA_IO:-on}" != off ] && id -u mila-io >/dev/null 2>&1; then
-    TGd="$HOME/.claude/channels/telegram"; IOD="$TGd/io"
+    TGd="$HOME/.claude/channels/telegram"
+    IOD="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("io") or "")' "$SJ" 2>/dev/null)"   # layout B: /var/lib/mila/io
+    [ -n "$IOD" ] || IOD="$TGd/io"   # MILA_STATE=volumes without a layout answer — the old place
+    # root changes owners and rights here at every start: none of these may be a link the session put between starts
+    for d in "$HOME/.claude" "$HOME/.claude/channels" "$TGd" "$TGd/inbound" "$IOD" "$IOD/consent"; do
+      [ -L "$d" ] && { echo "mila-agent: $d is a link — refusing to start (root would follow it out of the home)"; exit 1; }
+    done
     mkdir -p "$TGd/inbound" "$IOD" /run/mila-io
     chown "$AU:$AU" "$HOME/.claude" "$HOME/.claude/channels" "$TGd" "$TGd/inbound"
-    chmod 2770 "$TGd" "$TGd/inbound"; chmod g+rwX -R "$TGd" 2>/dev/null; rm -f "$TGd/receiver.go"
+    chmod 2770 "$TGd" "$TGd/inbound"; rm -f "$TGd/receiver.go"   # group rights for the shared state — io_perms.py below, not chmod -R
     chmod 750 "$HOME" "$HOME/.claude" "$HOME/.claude/channels"
     chown mila-io:"$AU" "$IOD" /run/mila-io; chmod 2750 "$IOD"; chmod 2755 /run/mila-io   # setgid: sockets there belong to the session's group
     UPGRADED=; [ -s "$TGd/inbound/events.jsonl" ] && [ ! -L "$TGd/inbound/events.jsonl" ] && UPGRADED=1   # a home from before mila-io
@@ -36,15 +57,16 @@ if [ "$(id -u)" = 0 ]; then
     [ -n "$(find "$HOME/.claude/projects" -name '*.jsonl' -print -quit 2>/dev/null)" ] && UPGRADED=1
     for p in inbound/events.jsonl taps.jsonl auth-log.jsonl suspicious.jsonl; do   # journals of earlier starts move in once
       b="${p##*/}"
-      if [ -f "$TGd/$p" ] && [ ! -L "$TGd/$p" ]; then cat "$TGd/$p" >> "$IOD/$b"; rm -f "$TGd/$p"; fi
+      if [ -f "$TGd/$p" ] && [ ! -L "$TGd/$p" ] && [ "$(stat -c %h "$TGd/$p")" = 1 ]; then cat "$TGd/$p" >> "$IOD/$b"; fi   # one name only: a hard link to a system file is not a journal
+      [ -L "$TGd/$p" ] || rm -f "$TGd/$p"
       touch "$IOD/$b"; chown mila-io:"$AU" "$IOD/$b"; chmod 640 "$IOD/$b"
       ln -sfn "$IOD/$b" "$TGd/$p"
     done
-    touch "$TGd/cards.jsonl"; chown "$AU:$AU" "$TGd/cards.jsonl"; chmod 660 "$TGd/cards.jsonl"
+    $ST_CMD own-file "$TGd" cards.jsonl "$AU" "$AU" 660 || exit 1   # audit №6: by descriptor — a link the session left is replaced, never followed
     # Who is an owner: the receiver's own list. From the platform's OWNER_ID / OWNERS (the owner set it; the session cannot),
     # otherwise written once by the receiver at the first «go» (before the session ever ran). Never from access.json.
     if [ -n "${OWNERS:-}${OWNER_ID:-}" ]; then
-      python3 -c 'import json, re, sys; json.dump({"owners": [x for x in re.split(r"[ ,;]+", sys.argv[1]) if x.isdigit()]}, open(sys.argv[2], "w"))' \
+      python3 -I -c 'import json, re, sys; json.dump({"owners": [x for x in re.split(r"[ ,;]+", sys.argv[1]) if x.isdigit()]}, open(sys.argv[2], "w"))' \
         "${OWNERS:-$OWNER_ID}" "$IOD/owners.json" && chown mila-io:"$AU" "$IOD/owners.json" && chmod 640 "$IOD/owners.json"
       rm -f "$IOD/owners.pending"
     elif [ ! -s "$IOD/owners.json" ] && [ -n "$UPGRADED" ]; then
@@ -75,7 +97,9 @@ if [ "$(id -u)" = 0 ]; then
     # card the proxy draws itself; the owner's decisions go to io/consent/decisions.jsonl (a hash chain the session reads).
     # Its categories come from the image, never from the session's files: the session only asks over consent.sock.
     mkdir -p "$IOD/consent"; chown mila-io:"$AU" "$IOD/consent"; chmod 2750 "$IOD/consent"
-    python3 - "$HOME" "$IOD/consent" "${MILA_KIT:-/opt/mila/kit}/consent/categories.json" "$TGd/langs.json" > /run/mila-io/consent.json <<'PYC'
+    # the session's own shared files get group rights; io/ (journals, consent, hmac key, owners) loses every write but its own
+    ( cd / && python3 -I /usr/local/bin/io_perms.py "$TGd" "$IOD" "$AU" | sed 's/^/mila-agent: /' )
+    python3 -I - "$HOME" "$IOD/consent" "${MILA_KIT:-/opt/mila/kit}/consent/categories.json" "$TGd/langs.json" > /run/mila-io/consent.json <<'PYC'
 import json, sys
 home, state, cats, langs = sys.argv[1:5]
 try: categories = json.load(open(cats))

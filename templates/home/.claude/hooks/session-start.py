@@ -59,6 +59,37 @@ try:
         lines.append("расход подписки сегодня ≈ $%.2f по прайсу API (мера, не счёт)" % float(cost))
 except Exception:
     pass
+# Mila Agent, layout B (09.11): keys and io/ not on a volume — the sign-in and keys vanish at the next redeploy. The start
+# writes /run/mila-state.json (paths and flags only). Once a day: ask Mila to tell the owner in ONE card how to fix it.
+try:
+    sj = os.environ.get("MILA_STATE_JSON") or "/run/mila-state.json"
+    st_ = json.load(open(sj, encoding="utf-8"))
+    if st_.get("persistent") is False:
+        day = time.strftime("%Y-%m-%d")
+        mark = os.path.join(ST, "no-volume-told")
+        told = open(mark).read().strip() if os.path.exists(mark) else ""
+        if told != day:
+            lines.append("⚠️ ключи и согласия Милы НЕ на постоянном томе — при следующем обновлении вход в подписку и ключи пропадут. "
+                         "Скажи владельцу ОДНОЙ карточкой сейчас: «Чтобы я не теряла вход при обновлении, подключите том на "
+                         "/var/lib/mila (Railway: Settings → Volumes → Mount path /var/lib/mila; compose: обновите docker-compose.yml) "
+                         "и перезапустите» — с кнопкой «Как?». Сегодня больше не напоминай")
+            os.makedirs(ST, exist_ok=True); open(mark, "w").write(day)
+except Exception:
+    pass
+# Mila Agent after the update to layout B: the owners' list is not carried (the old io/ was the session's) — without OWNER_ID in
+# the platform's variables owner-only buttons and consents are off. Once a day: tell the paired person how to fix it.
+try:
+    io_ = "/var/lib/mila/io" if os.path.isdir("/var/lib/mila/io") else os.path.join(TG, "io")
+    if os.path.exists(os.path.join(io_, "owners.pending")):
+        day = time.strftime("%Y-%m-%d"); mark = os.path.join(ST, "owner-pending-told")
+        if (open(mark).read().strip() if os.path.exists(mark) else "") != day:
+            lines.append("⚠️ после обновления хозяин не определён (список владельцев не переносится) — кнопки «только хозяину» и "
+                         "согласия на действия выключены. Скажи тому, с кем бот спарен, ОДНОЙ карточкой сейчас: «Задайте OWNER_ID "
+                         "(ваш Telegram id) в переменных платформы и перезапустите; согласия на действия от вашего имени дайте заново». "
+                         "Сегодня больше не напоминай")
+            os.makedirs(ST, exist_ok=True); open(mark, "w").write(day)
+except Exception:
+    pass
 if lines:
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart",
                                              "additionalContext": "Старт сессии Компаньона: " + " · ".join(lines)}},

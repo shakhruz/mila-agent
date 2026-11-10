@@ -16,9 +16,27 @@ CASES = [
  ("Bash", "python3 safe_read.py --key-file ~/work/secrets/x.key", "ask"), ("Bash", "rm -rf ~/work", "deny"),
  ("Read", json.dumps({"file_path": "/home/a/work/.env"}), "deny"), ("Read", json.dumps({"file_path": "/home/a/.claude/channels/telegram/.env"}), "deny"),
  ("Read", json.dumps({"file_path": "/home/a/work/NOW.md"}), "allow"),
+ # audit 09.11 №13: search and listing follow the same rules as reading
+ ("Grep", json.dumps({"pattern": "TOKEN", "path": "/home/a/.claude/channels/telegram/.env", "output_mode": "content"}), "deny"),
+ ("Grep", json.dumps({"pattern": "KEY", "path": "/home/a/work/secrets"}), "deny"), ("Glob", json.dumps({"pattern": "*.env", "path": "/home/a/work/secrets/"}), "deny"),
+ ("Grep", json.dumps({"pattern": "todo", "path": "/home/a/work"}), "allow"), ("Glob", json.dumps({"pattern": "**/*.md"}), "allow"),
  ("Edit", json.dumps({"file_path": "/home/a/.claude/settings.json"}), "ask"), ("Edit", json.dumps({"file_path": "/home/a/.claude/hooks/send-guard.py"}), "ask"),
  ("MultiEdit", json.dumps({"file_path": "/home/a/.claude/channels/telegram/access.json"}), "ask"),
  ("Edit", json.dumps({"file_path": "/home/a/work/NOW.md"}), "allow"),
+ # audit 09.11 №14: SSH, shell start files, own programs — ask; only ~/work is a silent allow; «..» never counts as inside
+ ("Write", json.dumps({"file_path": "/home/a/.ssh/authorized_keys", "content": "ssh-ed25519 AAAA"}), "ask"),
+ ("Edit", json.dumps({"file_path": "/home/a/.bashrc"}), "ask"), ("Write", json.dumps({"file_path": "/home/a/.profile"}), "ask"),
+ ("MultiEdit", json.dumps({"file_path": "/home/a/.zshrc"}), "ask"), ("Write", json.dumps({"file_path": "/home/a/.local/bin/ls"}), "ask"),
+ ("Write", json.dumps({"file_path": "/home/a/.config/systemd/user/x.service"}), "ask"),
+ ("Write", json.dumps({"file_path": "/home/a/work/../.ssh/authorized_keys"}), "ask"), ("Edit", json.dumps({"file_path": "/home/a/work/../../etc/hosts"}), "ask"),
+ ("Write", json.dumps({"file_path": "/tmp/x.txt"}), "ask"), ("Edit", json.dumps({"file_path": "/home/a/notes.md"}), "ask"),
+ # Quality 09.11: what runs later from inside ~/work — ask; a word in the text is not a path
+ ("Write", json.dumps({"file_path": "/home/a/work/.mcp.json"}), "ask"), ("Write", json.dumps({"file_path": "/home/a/work/.git/hooks/pre-commit"}), "ask"),
+ ("Edit", json.dumps({"file_path": "/home/a/work/.git/config"}), "ask"), ("Write", json.dumps({"file_path": "/home/a/work/.claude/agents/x.md"}), "ask"),
+ ("Write", json.dumps({"file_path": "/home/a/work/sub/.claude/commands/run.md"}), "ask"),
+ ("Write", json.dumps({"file_path": "/home/a/work/README.md", "content": "добавьте строку в ~/.bashrc и ../.ssh/config"}), "allow"),
+ ("Write", json.dumps({"file_path": "/home/a/work/.gitignore"}), "allow"), ("Write", json.dumps({"file_path": "/home/a/work/configs.md"}), "allow"),
+ ("Write", json.dumps({"file_path": "/home/a/work/razvitie/plan.md"}), "allow"), ("MultiEdit", json.dumps({"file_path": "/home/a/work/x.py"}), "allow"),
  # Quality's escapes (01.11): must not be a silent allow
  ("Bash", "cat /proc/self/environ", "deny"), ("Bash", J("cat /proc/1/environ"), "deny"), ("Bash", "grep -r -e . /home/a/work", "ask"),
  ("Bash", "grep -R KEY .", "ask"), ("Bash", "rg -l sk- /", "ask"), ("Bash", "grep -r OPENROUTER /etc/mila", "ask"), ("Bash", "cat /etc/passwd", "ask"),

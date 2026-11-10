@@ -1,0 +1,17 @@
+# audit 09.11 №24: the image takes the kit, not the checkout's history, local secrets or build junk
+.git
+.github
+**/.env
+**/*.env
+**/secrets/
+**/*.pem
+**/*.key
+**/id_*
+**/node_modules/
+**/__pycache__/
+**/*.pyc
+**/.venv/
+**/.DS_Store
+outbox/
+tmp/
+*.log

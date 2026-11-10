@@ -60,6 +60,18 @@
   },
   {
    "tool": "Grep",
+   "match": "re:(\\.env\\b|/secrets?(?:/|\\s|\\\"|$)|secrets?/[^\\s\\\"]*\\.env|channels/[^/\\s\\\"]+/\\.env|\\.credentials\\.json|pd\\.key|/proc/[^/\\s\\\"]*/environ)",
+   "decision": "deny",
+   "why": "поиск по файлам ключей — те же правила, что и для чтения: строки с ключом попали бы в разговор (аудит 09.11 №13)"
+  },
+  {
+   "tool": "Glob",
+   "match": "re:(\\.env\\b|/secrets?(?:/|\\s|\\\"|$)|secrets?/[^\\s\\\"]*\\.env|channels/[^/\\s\\\"]+/\\.env|\\.credentials\\.json|pd\\.key|/proc/[^/\\s\\\"]*/environ)",
+   "decision": "deny",
+   "why": "то же для перечисления файлов ключей"
+  },
+  {
+   "tool": "Grep",
    "decision": "allow",
    "why": "поиск по файлам безвреден"
   },
@@ -87,13 +99,49 @@
   },
   {
    "tool": "Edit",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*(/\\.ssh/|/\\.(bashrc|zshrc|profile|bash_profile|bash_login|bash_logout|zprofile|zshenv|zlogin)\"|/\\.local/bin/|/\\.config/(autostart|systemd|fish|environment\\.d)/|/\\.mcp\\.json\"|/\\.git/(hooks/|config\")|/\\.claude/)",
+   "decision": "ask",
+   "why": "SSH, файлы запуска оболочки, свои программы, автозапуск, проектный MCP (.mcp.json), хуки и конфиг git, .claude/ (агенты, команды, навыки) — исполнение при следующем старте или коммите (аудит 09.11 №14): только с человеком"
+  },
+  {
+   "tool": "Edit",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*\\.\\./",
+   "decision": "ask",
+   "why": "путь с «..» — мог бы уйти из рабочей папки, оставаясь похожим на неё"
+  },
+  {
+   "tool": "Edit",
    "decision": "allow",
-   "why": "правка остальных файлов — основная работа"
+   "why": "правка остальных файлов — основная работа — внутри рабочей папки ~/work (аудит 09.11 №14)",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*/work/"
+  },
+  {
+   "tool": "Edit",
+   "decision": "ask",
+   "why": "вне рабочей папки — с человеком (аудит 09.11 №14)"
+  },
+  {
+   "tool": "MultiEdit",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*(/\\.ssh/|/\\.(bashrc|zshrc|profile|bash_profile|bash_login|bash_logout|zprofile|zshenv|zlogin)\"|/\\.local/bin/|/\\.config/(autostart|systemd|fish|environment\\.d)/|/\\.mcp\\.json\"|/\\.git/(hooks/|config\")|/\\.claude/)",
+   "decision": "ask",
+   "why": "SSH, файлы запуска оболочки, свои программы, автозапуск, проектный MCP (.mcp.json), хуки и конфиг git, .claude/ (агенты, команды, навыки) — исполнение при следующем старте или коммите (аудит 09.11 №14): только с человеком"
+  },
+  {
+   "tool": "MultiEdit",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*\\.\\./",
+   "decision": "ask",
+   "why": "путь с «..» — мог бы уйти из рабочей папки, оставаясь похожим на неё"
   },
   {
    "tool": "MultiEdit",
    "decision": "allow",
-   "why": "правка остальных файлов — основная работа"
+   "why": "правка остальных файлов — основная работа — внутри рабочей папки ~/work (аудит 09.11 №14)",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*/work/"
+  },
+  {
+   "tool": "MultiEdit",
+   "decision": "ask",
+   "why": "вне рабочей папки — с человеком (аудит 09.11 №14)"
   },
   {
    "tool": "Write",
@@ -103,8 +151,26 @@
   },
   {
    "tool": "Write",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*(/\\.ssh/|/\\.(bashrc|zshrc|profile|bash_profile|bash_login|bash_logout|zprofile|zshenv|zlogin)\"|/\\.local/bin/|/\\.config/(autostart|systemd|fish|environment\\.d)/|/\\.mcp\\.json\"|/\\.git/(hooks/|config\")|/\\.claude/)",
+   "decision": "ask",
+   "why": "SSH, файлы запуска оболочки, свои программы, автозапуск, проектный MCP (.mcp.json), хуки и конфиг git, .claude/ (агенты, команды, навыки) — исполнение при следующем старте или коммите (аудит 09.11 №14): только с человеком"
+  },
+  {
+   "tool": "Write",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*\\.\\./",
+   "decision": "ask",
+   "why": "путь с «..» — мог бы уйти из рабочей папки, оставаясь похожим на неё"
+  },
+  {
+   "tool": "Write",
    "decision": "allow",
-   "why": "запись остальных файлов — основная работа"
+   "why": "запись остальных файлов — основная работа — внутри рабочей папки ~/work (аудит 09.11 №14)",
+   "match": "re:\"file_path\"\\s*:\\s*\"[^\"]*/work/"
+  },
+  {
+   "tool": "Write",
+   "decision": "ask",
+   "why": "вне рабочей папки — с человеком (аудит 09.11 №14)"
   },
   {
    "tool": "mcp__plugin_mila-telegram_telegram__reply",

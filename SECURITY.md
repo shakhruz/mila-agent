@@ -25,7 +25,7 @@ Out of scope: vulnerabilities in Claude Code, Telegram or other upstream softwar
 ## The Claude token in the one-container setup
 
 In the container (Railway, docker-compose) the Claude token, the bot token and the voice keys are with the key keeper (`docker/mila_keyd.py`):
-its own user (`mila-keys`), files in `~/.keys` (700) the session's user cannot read, keys from earlier starts and from platform
+its own user (`mila-keys`), files in `/var/lib/mila/keys` (700, outside the home the session owns — a folder it owns it could swap) the session's user cannot read, keys from earlier starts and from platform
 variables moved there by the entrypoint's root step. Claude Code and the voice script talk to the keeper at 127.0.0.1 with a
 placeholder; the keeper puts the key into the request to Anthropic, Deepgram or Groq. The model can use a key, not read it:
 only Mila's own calls pass (messages, speech-to-text), account, usage and key-management paths are refused before they
@@ -38,6 +38,8 @@ The receiver's journals (`inbound/events.jsonl`, `cards.jsonl`) are still the se
 trust them for «the owner sent this file» and «the owner pressed yes», and they belong to the session's user. That stops an
 accident or a naive instruction, not a deliberate injection that writes a fake line. The fix is the step the keys took: the receiver
 as its own user, signing its lines.
+
+The volume's layout (`docker/mila_state.py`): an old Mila in the volume's root is told by `work/` or the `.mila-home` marker. A volume holding plain Claude Code with a project folder named `work/` in its root is taken for an old Mila and moved into `home/` — its files stay, under the new path; name the project folder otherwise before the first start.
 
 ## What the send-guard is — and is not
 

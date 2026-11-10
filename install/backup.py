@@ -71,6 +71,27 @@ NEVER = [
 # (блок env — штатное место ключа модели), внутри журнала входящих (человек
 # прислал ключ в чат), внутри карточки чата, куда его переписали. Исключить
 # файл по имени недостаточно: надо чистить содержимое.
+KEY_WORDS = {"TOKEN", "SECRET", "SECRETS", "PASSWORD", "APIKEY"}
+NOT_AFTER = {"HINT", "USED", "COUNT", "COUNTS"}
+
+
+def is_key_name(name):
+    """A field name that holds a key: the key word is a whole part of the name — parts split by «_», «-» and by a change of case
+    (botToken, clientSecret, accessToken — JS configs); «secretary», TOKENS_USED, next_page_token, password_hint are not keys."""
+    parts = [x for x in re.split(r"[_\-]+", re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)) if x]
+    up = [x.upper() for x in parts]
+    joined = []   # «API» + «KEY» → «APIKEY» as one part
+    for x in up:
+        if x == "KEY" and joined and joined[-1] == "API": joined[-1] = "APIKEY"
+        else: joined.append(x)
+    for i, x in enumerate(joined):
+        if x in KEY_WORDS:
+            if x == "TOKEN" and i and joined[i - 1] == "PAGE": continue
+            if any(y in NOT_AFTER for y in joined[i + 1:]): continue
+            return True
+    return False
+
+
 SECRET_PATTERNS = [
     (re.compile(r"\bsk[-_][A-Za-z0-9][A-Za-z0-9_-]{18,}", re.I), "api-key"),
     (re.compile(r"\b(?:pk|rk|tok|glpat|dop_v1|npm|shpat|shpss)[-_]"
@@ -85,7 +106,17 @@ SECRET_PATTERNS = [
                 r"-----END [A-Z ]*PRIV" r"ATE KEY-----"), "private-key"),
     (re.compile(r"(?i)\b(pass(?:word)?|secret|api[_-]?key|access[_-]?token|"
                 r"bearer)\b\s*[:=]\s*[\"']?([^\s\"',}]{8,})"), "assignment"),
+    # audit 09.11 №16: a Groq key (gsk_…) — «sk_» needs a word boundary before it, which «gsk_» does not have
+    (re.compile(r"\bgs" r"k_[A-Za-z0-9]{20,}"), "groq-key"),
+    # …and an opaque value under a key-named field: «"<PROVIDER>_API_KEY": "…"» (no \b before «API» inside the name)
+    # The key word must be a whole segment of the name between «_» (Quality 09.11: «secretary», TOKENS_USED, next_page_token,
+    # password_hint are a client's data, not keys — the backup is the history, it must not quietly change it).
+    # Any field or VAR= line is a candidate; is_key_name() decides by the name (the pattern alone cannot see «botToken»).
+    (re.compile(r'("[A-Za-z][A-Za-z0-9_\-]*"\s*:\s*")([^"\s]{8,})(?=")'), "json-key-field"),
+    (re.compile(r"(?m)^(\s*(?:export\s+)?[A-Za-z][A-Za-z0-9_]*\s*=\s*[\"']?)([^\s\"']{8,})"), "env-key"),
 ]
+FIELD_RX = {rx for rx, kind in SECRET_PATTERNS if kind in ("json-key-field", "env-key")}
+CUT_BY_FIELD = {}   # field name → how many values were cut: a false cut is seen in the report, not discovered later
 
 
 def walk_files(src):
@@ -101,12 +132,26 @@ def walk_files(src):
             yield p, os.path.relpath(p, src)
 
 
+def has_secret(rx, text):
+    """the archive check sees what scrub would cut — for field patterns only fields with a key's name (any JSON field is not a secret)."""
+    if rx not in FIELD_RX:
+        return rx.search(text) is not None
+    for m in rx.finditer(text):
+        if is_key_name(re.sub(r'^\s*(?:export\s+)?"?|"?\s*[:=].*$', "", m.group(1), flags=re.S)) and "[секрет вырезан]" not in m.group(0):
+            return True
+    return False
+
+
 def scrub(text):
     """Вырезать секреты из текста. Возвращает (очищенный текст, сколько)."""
     hits = 0
 
     def cut(m):
         nonlocal hits
+        if m.re in FIELD_RX:
+            name = re.sub(r'^\s*(?:export\s+)?"?|"?\s*[:=].*$', "", m.group(1), flags=re.S)
+            if not is_key_name(name): return m.group(0)   # not a key's name — the client's data stays as it is
+            CUT_BY_FIELD[name] = CUT_BY_FIELD.get(name, 0) + 1
         hits += 1
         # У правила про присваивание маскируем только значение, иначе из
         # архива исчезнет и само имя поля — а по нему потом ищут.
@@ -316,6 +361,8 @@ def cmd_run(out_dir, target=None, keep=7):
     print("🟢 %s" % path)
     print("   %s · частей: %d · вырезано секретов: %d"
           % (human_size(size), added, cleaned))
+    if CUT_BY_FIELD:   # by field name: a client's field cut by mistake shows here
+        print("   по именам полей: " + ", ".join("%s ×%d" % kv for kv in sorted(CUT_BY_FIELD.items())))
 
     # Проверяем то, что записали: архив, который не открывается, хуже, чем
     # его отсутствие — на него рассчитывают. И проверяем содержимое: раньше
@@ -335,7 +382,7 @@ def cmd_run(out_dir, target=None, keep=7):
                 except UnicodeDecodeError:
                     continue
                 for rx, kind in SECRET_PATTERNS:
-                    if rx.search(body):
+                    if has_secret(rx, body):
                         found.append("%s (%s)" % (member.name, kind))
                         break
         print("   проверен: %d записей читаются, просмотрено на секреты"
