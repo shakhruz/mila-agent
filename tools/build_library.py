@@ -28,6 +28,8 @@ def check_meta(pid, m):
     if m.get("free") is not True: why.append("free: true (the library holds free packs only)")
     fw = m.get("for_whom") or {}
     if not isinstance(fw, dict) or not fw.get("ru"): why.append("for_whom.ru is needed")
+    for lang, t in (m.get("title") or {}).items():
+        if LIB.clean_title(t, "") == "": why.append("title.%s: one plain line ≤60 chars, no links, @, `, commands or imperatives" % lang)
     for lang, line in (fw.items() if isinstance(fw, dict) else []):
         if not LIB.clean_for_whom(line): why.append("for_whom.%s: one plain line ≤120 chars, no links, @, `, commands or imperatives" % lang)
     return ["%s: %s" % (pid, w) for w in why]

@@ -1742,7 +1742,12 @@ def library_archive(pid):
     try: b = open(path, "rb").read(PACK_FILE_MAX + 1)
     except OSError: _refuse("архив пака не скачан — сначала library.py offer")
     if hashlib.sha256(b).hexdigest() != p["sha256"]: _refuse("архив пака не тот, что в индексе — не ставлю")
-    return path, p["sha256"][:16]
+    # the bytes just checked are the ones opened: a copy into the intake, not the cache file read again
+    os.makedirs(PACKS_IN, mode=0o700, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=PACKS_IN, prefix=".lib-")
+    with os.fdopen(fd, "wb") as f: f.write(b)
+    own = os.path.join(PACKS_IN, p["sha256"] + ".pack"); os.replace(tmp, own)
+    return own, p["sha256"][:16]
 
 
 def resolve_pack(a):

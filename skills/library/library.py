@@ -25,8 +25,10 @@ INDEX_MAX = 512 * 1024
 ARCHIVE_MAX = 10 * 1024 * 1024
 ID = re.compile(r"^[a-z0-9][a-z0-9-]{1,40}$")
 # for_whom is shown to the person and read by the model before any «yes»: a short plain line, nothing that acts
-BAD = re.compile(r"https?:|www\.|[@`<>{}\[\]\\$|;]|\b(?:t\.me|bit\.ly)\b|\b(?:python3?|bash|sudo|curl|rm|sh)\b|"
-                 r"(?i:установ|игнорир|забуд|выполн|запуст|отправ|ignore|install|forget|run\b|execute|send|o['‘ʻ]rnat|bajar|yubor)", re.U)
+# imperatives by their forms (установи/установите…), not by the root: «если вы отправляете товар» is a plain description
+IMPER = r"(?:установи|игнорируй|забудь|выполни|запусти|отправь|удали|покажи|прочитай|скачай)(?:те)?|" \
+        r"(?:ignore|disregard|forget|execute|install|run|send|delete|reveal)|o['‘ʻ]rnat(?:ing)?|bajar(?:ing)?|yubor(?:ing)?|unut(?:ing)?"
+BAD = re.compile(r"https?:|www\.|[@`<>{}\[\]\\$|]|\b(?:t\.me|bit\.ly)\b|\b(?:python3?|bash|sudo|curl|rm|sh)\b|(?i:(?<![\w-])(?:%s)(?![\w-]))" % IMPER, re.U)
 
 
 def out(x, code=0):
@@ -38,6 +40,12 @@ def clean_for_whom(s):
     s = str(s or "")
     if not s or len(s) > 120 or re.search(r"[\x00-\x1f\x7f]", s) or BAD.search(s): return ""
     return s.strip()
+
+
+def clean_title(s, fallback):
+    """a pack's title is shown to the model and on the card too: the same check, ≤60 chars; otherwise the pack's id."""
+    s = str(s or "")
+    return s.strip() if s and len(s) <= 60 and clean_for_whom(s) else fallback
 
 
 def lock():
@@ -88,7 +96,7 @@ def packs(ix, lang):
         if vtuple(p.get("requires_core")) > cv: continue
         if not re.fullmatch(r"[0-9a-f]{64}", str(p.get("sha256") or "")): continue
         fw = p.get("for_whom") or {}; t = p.get("title") or {}
-        title = re.sub(r"[\x00-\x1f\x7f]", " ", str(t.get(lang) or t.get("ru") or pid))[:60].strip()
+        title = clean_title(t.get(lang) or t.get("ru"), pid)
         have.add(pid)
         res.append({"id": pid, "category": p["category"], "title": title, "version": str(p.get("version") or "")[:20],
                     "for_whom": clean_for_whom(fw.get(lang) or fw.get("ru")), "sha256": p["sha256"], "archive": str(p.get("archive") or "")})
