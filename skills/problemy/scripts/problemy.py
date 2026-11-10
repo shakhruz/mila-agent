@@ -8,7 +8,7 @@
   problemy.py close P-0001                                                        # только после «проверено»
   problemy.py reopen P-0001 --ulika <указатель>                                   # повторилось после закрытия: круг заново
   problemy.py reclass P-0001 --klass <класс> --prichina <≤160>                    # другая причина — строкой в журнал
-  problemy.py list [--open] · itog [--days 7] [--json] · povtory [--json]
+  problemy.py list [--open] · itog [--days 7] [--json] · povtory [--json]   # povtory: where a mechanism is due, and places with 3+ cases of different classes in 14 days
 Места: личка, группа, письмо, документ, расписание, память, деньги, инструмент, другое.
 Классы: память, проверка, инструмент, текст, срок, чужое-действие, другое.
 Третий случай одного класса в одном месте (новая проблема и повтор закрытой — один счёт; «другое» тоже считается) обещанием
@@ -230,6 +230,15 @@ def repeats(st):
     return {k: v for k, v in seen.items() if v >= 3}
 
 
+def places(st, t, days=14):
+    """a softer sign next to the rule: three or more cases in one place within 14 days, whatever their classes — a line to look at, not a refusal."""
+    since = t - dt.timedelta(days=days); seen = {}
+    for p in st.values():
+        k = sum(1 for c in p["случаи"] if c >= since)
+        if k: seen.setdefault(p["место"], [0, set()]); seen[p["место"]][0] += k; seen[p["место"]][1].update(p["классы"] or ["без класса"])
+    return {m: (k, sorted(cl)) for m, (k, cl) in seen.items() if k >= 3 and len(cl) > 1}
+
+
 def itog(a):
     rs, st = read(); t = now(a); since = t - dt.timedelta(days=a.days)
     out = {"найдено": sum(1 for p in st.values() if p["найдено"] >= since),
@@ -247,10 +256,13 @@ def itog(a):
 
 
 def povtory(a):
-    _, st = read(); rep = repeats(st)
-    if a.json: print(json.dumps([{"класс": k, "место": m, "случаев": v} for (k, m), v in sorted(rep.items())], ensure_ascii=False)); return
-    if not rep: print("трёх случаев одного класса в одном месте нет"); return
+    _, st = read(); rep = repeats(st); pl = places(st, now(a))
+    if a.json:
+        print(json.dumps([{"класс": k, "место": m, "случаев": v} for (k, m), v in sorted(rep.items())]
+                         + [{"место": m, "случаев": k, "классы": cl, "за_дней": 14} for m, (k, cl) in sorted(pl.items())], ensure_ascii=False)); return
+    if not rep and not pl: print("трёх случаев одного класса в одном месте нет"); return
     for (k, m), v in sorted(rep.items(), key=lambda x: -x[1]): print("%s · %s: %d случаев — нужен механизм" % (k, m, v))
+    for m, (k, cl) in sorted(pl.items(), key=lambda x: -x[1][0]): print("место %s: %d случаев разных классов за 14 дней (%s) — посмотрите, не одна ли причина" % (m, k, ", ".join(cl)))
 
 
 if __name__ == "__main__":
