@@ -51,6 +51,27 @@ def key_files(real):
     return [real] if os.path.exists(real) else []
 
 
+DEEP_CAP = 5000
+
+
+def key_inodes(real):
+    """(device, inode) of every file of one place, sub-folders too (os.walk, links not followed); (set, linked). Past DEEP_CAP
+    files the place counts as linked — lines-search closes rather than a key going unseen (Quality 10.11: secrets/sub/deep)."""
+    keys, linked, seen = set(), False, 0
+    if os.path.isdir(real) and not os.path.islink(real):
+        walk = ((dp, fns) for dp, _dns, fns in os.walk(real, followlinks=False))
+    else:
+        walk = [(os.path.dirname(real), [os.path.basename(real)])]
+    for dp, fns in walk:
+        for f in fns:
+            seen += 1
+            if seen > DEEP_CAP: return keys, True
+            try: st = os.lstat(os.path.join(dp, f))
+            except OSError: continue
+            if stat.S_ISREG(st.st_mode): keys.add((st.st_dev, st.st_ino)); linked = linked or st.st_nlink > 1
+    return keys, linked
+
+
 def by_real_path(tool, args, cwd):
     """The same places for every reader by the real path, and a search whose root holds a place prints no lines from it."""
     home = os.path.expanduser("~")
@@ -64,10 +85,7 @@ def by_real_path(tool, args, cwd):
     # a hard link has no other real path: the same file is told by (device, inode); a second link anywhere closes lines-search
     keys, linked = set(), False
     for p, rp in places:
-        for f in key_files(rp):
-            try: st = os.lstat(f)
-            except OSError: continue
-            if stat.S_ISREG(st.st_mode): keys.add((st.st_dev, st.st_ino)); linked = linked or st.st_nlink > 1
+        k, l = key_inodes(rp); keys |= k; linked = linked or l
     try: st = os.stat(real)
     except OSError: st = None
     if st is not None and stat.S_ISREG(st.st_mode) and (st.st_dev, st.st_ino) in keys:

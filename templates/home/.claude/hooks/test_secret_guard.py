@@ -68,6 +68,11 @@ chk("№13 Grep со строками по ~/work/notes при второй сс
 chk("№13 Grep списком файлов при второй ссылке — пропуск", dh("Grep", pattern="hi", path=os.path.join(W, "notes")), "allow")
 chk("№13 Read обычного файла рядом — пропуск", dh("Read", file_path=os.path.join(W, "notes/a.md")), "allow")
 chk("№13 путь, который не разобрать (NUL) — стоп, не пропуск", dh("Read", file_path=W + "/a\u0000b"), "deny")
+# Quality 10.11 (state-c): a hard link to a file in a NESTED folder of a place — the walk goes deep
+os.makedirs(os.path.join(W, "secrets/sub")); open(os.path.join(W, "secrets/sub/deep.env"), "w").write("K=deep\n")
+os.link(os.path.join(W, "secrets/sub/deep.env"), os.path.join(W, "notes/deep.txt"))
+chk("№13 Read жёсткой ссылки на secrets/sub/deep.env — стоп", dh("Read", file_path=os.path.join(W, "notes/deep.txt")), "deny")
+chk("№13 Read обычного файла после вложенной ссылки — пропуск", dh("Read", file_path=os.path.join(W, "notes/a.md")), "allow")
 shutil.rmtree(FH, ignore_errors=True)
 shutil.rmtree(CFG, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

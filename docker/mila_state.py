@@ -69,7 +69,7 @@ def move_old_home(root, agent_uid):
                 try: empty = os.listdir(efd) == []
                 finally: os.close(efd)
                 if not empty:
-                    raise Refuse("%s: an old home (.claude or work in the root) and a home/ with files — not merging; look by hand" % root)
+                    raise Refuse("%s: an old home (work/ or .mila-home in the root) and a home/ with files — not merging; look by hand" % root)
             clash = [n for n in OWN_NAMES if n in names and n != "home"]
             if clash:
                 raise Refuse("%s: the old home already has %s of its own — not merging; move them away by hand" % (root, ", ".join(clash)))

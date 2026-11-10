@@ -39,6 +39,8 @@ trust them for «the owner sent this file» and «the owner pressed yes», and t
 accident or a naive instruction, not a deliberate injection that writes a fake line. The fix is the step the keys took: the receiver
 as its own user, signing its lines.
 
+The volume's layout (`docker/mila_state.py`): an old Mila in the volume's root is told by `work/` or the `.mila-home` marker. A volume holding plain Claude Code with a project folder named `work/` in its root is taken for an old Mila and moved into `home/` — its files stay, under the new path; name the project folder otherwise before the first start.
+
 ## What the send-guard is — and is not
 
 The send-guard (`templates/home/.claude/hooks/send-guard.py`, a `PreToolUse` hook on `reply`/`edit_message` and on a forum topic's name in `topic`) catches the
