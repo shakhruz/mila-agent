@@ -9,4 +9,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: { persist-credentials: false }   # nothing here pushes with git: the token does not stay in .git/config
       - run: python3 tools/check_install_link.py

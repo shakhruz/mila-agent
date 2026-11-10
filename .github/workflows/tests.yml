@@ -7,6 +7,7 @@ jobs:
     timeout-minutes: 25   # a run once hung on apt-get for 30+ min; without a limit GitHub waits up to 6 h
     steps:
       - uses: actions/checkout@v4
+        with: { persist-credentials: false }   # nothing here pushes with git: the token does not stay in .git/config
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - uses: oven-sh/setup-bun@v2
@@ -25,6 +26,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with: { persist-credentials: false }   # nothing here pushes with git: the token does not stay in .git/config
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - uses: oven-sh/setup-bun@v2
