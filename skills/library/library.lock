@@ -1,0 +1,6 @@
+{
+ "url": "",
+ "base": "",
+ "index_sha256": "",
+ "note": "the sha256 of mila-packs library.json for this core release (tools/build_library.py prints it); empty = the library is not connected yet"
+}

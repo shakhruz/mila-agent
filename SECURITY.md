@@ -41,6 +41,8 @@ as its own user, signing its lines.
 
 The volume's layout (`docker/mila_state.py`): an old Mila in the volume's root is told by `work/` or the `.mila-home` marker. A volume holding plain Claude Code with a project folder named `work/` in its root is taken for an old Mila and moved into `home/` — its files stay, under the new path; name the project folder otherwise before the first start.
 
+The pack library (`skills/library/`): the core trusts only the index whose sha256 its release carries (`library.lock`); each archive only with the index's sha256, each file with the archive's manifest. A pack's code never runs on install (no install.sh). The «for whom» lines are short plain text checked when built and when read; the model passes only a pack id, which the script checks against the index, and the card text is built by the script. What the person said about themselves to pick a pack stays in the session: nothing of it goes to the library or anywhere else.
+
 ## What the send-guard is — and is not
 
 The send-guard (`templates/home/.claude/hooks/send-guard.py`, a `PreToolUse` hook on `reply`/`edit_message` and on a forum topic's name in `topic`) catches the

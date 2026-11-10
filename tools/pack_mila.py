@@ -75,8 +75,8 @@ def load_scanner():
     return m.scan_bytes
 
 
-def collect(role):
-    base = os.path.join(ROOT, "packs", role)
+def collect(role, packs_root=None):
+    base = os.path.join(packs_root or os.path.join(ROOT, "packs"), role)
     meta = json.load(open(os.path.join(base, "pack.json"), encoding="utf-8"))
     if meta.get("id") != role or not re.fullmatch(r"[a-z0-9-]{2,40}", role):
         raise SystemExit("pack.json id must equal the folder name")
@@ -103,16 +103,17 @@ def collect(role):
     return meta, files
 
 
-def build(role, out, core_version=None, extra_docs=()):
-    meta, files = collect(role)
+def build(role, out, core_version=None, extra_docs=(), packs_root=None, library=False):
+    """library=True — the pack library (mila-packs): no install.sh/INSTALL.md, the core installs it by the owner's press, no code runs."""
+    meta, files = collect(role, packs_root)
     for path in extra_docs:                        # the seller's own documents (an offer, a hosting option) — not in this repo
         name = os.path.basename(path)
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,40}\.md", name) or name in files:
             raise SystemExit("--doc: a new plain .md name only: %r" % name)
         files[name] = open(path, "rb").read()
     core = core_version or json.load(open(os.path.join(ROOT, "release.json"), encoding="utf-8")).get("version", meta.get("requires_core"))
-    files["install.sh"] = INSTALL_SH.encode()
-    files["INSTALL.md"] = INSTALL_MD.format(title_en=meta["title"]["en"], title_ru=meta["title"]["ru"], version=meta["version"],
+    if not library: files["install.sh"] = INSTALL_SH.encode()
+    if not library: files["INSTALL.md"] = INSTALL_MD.format(title_en=meta["title"]["en"], title_ru=meta["title"]["ru"], version=meta["version"],
                                             core=meta.get("requires_core"), skills=", ".join(meta["core_skills"])).encode()
     scan = load_scanner()
     hits = [(rel, n, kind) for rel, data in sorted(files.items()) for n, kind in scan(data, rel)]

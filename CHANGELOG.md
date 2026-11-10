@@ -1,5 +1,20 @@
 # CHANGELOG · Mila
 
+## Unreleased — the pack library
+
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
+**Для хозяина**
+- Библиотека бесплатных паков: после знакомства я предлагаю один пак под ваши слова — поставлю только по вашему нажатию; «Не сейчас» — больше не предложу. «Какие есть паки» — каталог.
+
+</details>
+
+**For the owner**
+- The free pack library: after we get acquainted I offer one pack that fits what you told me — installed only when you press; «Not now» — I won't offer again. «What packs are there» — the catalog.
+
+**For Milas**
+- `skills/library/library.py` (refresh, list, suggest, offer, decline, tutorial): the index of mila-packs is trusted only with the sha256 this release carries (`library.lock`; empty — not connected), archives only with the index's sum; `update.py pack-plan/install-pack --library <id>` checks the chain again. `tools/build_library.py` builds the index (archives without install.sh; «for whom» ≤120 chars, no links, @, `, commands or imperatives). Removing a pack keeps the person's files (`PROFILE.md`).
+
 ## v1.7.6 · 10.11 — Mila Agent: one volume, keys and the owner's consents out of the session's home (security audit 09.11)
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
