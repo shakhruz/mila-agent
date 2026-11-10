@@ -3,7 +3,7 @@
 
   python3 library.py refresh                 # fetch library.json, check its sha256 against library.lock of this core, cache it
   python3 library.py list [--lang ru]        # catalog by category: free packs this core can take
-  python3 library.py suggest [--lang ru]     # entry packs (category «znakomstvo»): id + for_whom — for choosing ONE by the person's words
+  python3 library.py suggest [--lang ru]     # entry packs (categories «znakomstvo» and «biznes»): id + for_whom — for choosing ONE by the person's words
   python3 library.py offer <id> [--lang ru]  # the card «Install the pack …?» — built here from the index, the model passes only the id
   python3 library.py tutorial <id> done|stopped:N   # the pack's first steps: result in the library's journal
   python3 library.py event <id> started|delivered|fit:yes|fit:partly|fit:no   # a run with a person, counts only
@@ -23,6 +23,7 @@ CACHE = os.path.join(CLAUDE, "mila-library")
 LOCK = os.path.join(H, "library.lock")   # comes with the core release, never from the session's environment
 UPDATE = os.path.join(os.path.dirname(H), "mila-update", "update.py")
 CATS = ("znakomstvo", "razminka", "biznes")
+ENTRY = ("znakomstvo", "biznes")   # offered after onboarding, ONE by the person's words: who has a business gets the business entry pack
 INDEX_MAX = 512 * 1024
 ARCHIVE_MAX = 10 * 1024 * 1024
 ID = re.compile(r"^[a-z0-9][a-z0-9-]{1,40}$")
@@ -156,7 +157,7 @@ def cmd_list(a):
 
 def cmd_suggest(a):
     if flags().get("declined"): out({"suggest": [], "declined": True, "note": "человек сказал «не сейчас» — не предлагаю (закон 6)"})
-    res = [{"id": p["id"], "for_whom": p["for_whom"]} for p in packs(need_index(), a.lang or "ru") if p["category"] == "znakomstvo" and p["for_whom"]]
+    res = [{"id": p["id"], "for_whom": p["for_whom"]} for p in packs(need_index(), a.lang or "ru") if p["category"] in ENTRY and p["for_whom"]]
     out({"suggest": res, "note": "выбери ОДИН id по словам человека и передай его в offer; слова человека никуда не уходят"})
 
 
@@ -184,8 +185,8 @@ def cmd_offer(a):
     try: plan = json.loads(r.stdout)
     except ValueError: out({"error": "план пака не собрался", "detail": (r.stderr or r.stdout)[-300:]}, 1)
     if plan.get("error") or not p["for_whom"]: out(plan, 0 if not plan.get("error") else 1)
-    head = {"ru": "Подойдёт, если: %s", "en": "Fits if: %s", "uz": "Mos keladi, agar: %s"}.get(lang, "Подойдёт, если: %s")
-    lines = plan["text"].split("\n"); lines.insert(1, head % p["for_whom"])
+    head = {"ru": "Подойдёт, %s", "en": "Fits %s", "uz": "Mos keladi, %s"}.get(lang, "Подойдёт, %s")   # for_whom starts with «Если…» / «If…» / «Agar…»
+    lines = plan["text"].split("\n"); lines.insert(1, head % (p["for_whom"][:1].lower() + p["for_whom"][1:]))
     plan["text"] = "\n".join(lines)
     out(plan)
 

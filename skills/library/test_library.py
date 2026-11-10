@@ -52,9 +52,10 @@ try:
         open(os.path.join(d, skill, "SKILL.md"), "w").write("---\nname: %s\ndescription: x\n---\nтело\n" % skill)
     pack("proforientatsiya", "znakomstvo", "Если вы ищете, какая работа вам по душе", "proforientatsiya-test")
     pack("biznes-profil", "biznes", "Если у вас уже есть дело и нужен его профиль", "biznes-profil-sbor")
+    pack("razminka-vopros", "razminka", "Если хочется размяться перед большим делом", "razminka-vopros-s")
     sys.path.insert(0, os.path.join(REPO, "tools")); import build_library as B
     sha, cnt = B.build(P)
-    check("сборка: два пака, sha256 индекса напечатан", cnt == 2 and len(sha) == 64, (cnt, sha))
+    check("сборка: три пака, sha256 индекса напечатан", cnt == 3 and len(sha) == 64, (cnt, sha))
     zips = os.listdir(os.path.join(P, "dist"))
     import zipfile
     names = [x for z in zips if z.endswith(".zip") for x in zipfile.ZipFile(os.path.join(P, "dist", z)).namelist()]
@@ -88,9 +89,9 @@ try:
     rc, d = run(L, "refresh"); check("lock пуст — «не подключена», ничего не скачано", rc != 0 and "не подключена" in d.get("error", ""), d)
     set_lock("0" * 64); rc, d = run(L, "refresh")
     check("индекс не тот, что в выпуске ядра — «не проверена», кэша нет", rc != 0 and "не проверена" in d.get("error", "") and not os.path.exists(os.path.join(CL, "mila-library", "library.json")), d)
-    set_lock(sha); rc, d = run(L, "refresh"); check("индекс с sha выпуска — принят", rc == 0 and d.get("packs") == 2, d)
+    set_lock(sha); rc, d = run(L, "refresh"); check("индекс с sha выпуска — принят", rc == 0 and d.get("packs") == 3, d)
     rc, d = run(L, "list"); cat = d.get("catalog") or {}
-    check("каталог по категориям", [p["id"] for p in cat.get("znakomstvo", [])] == ["proforientatsiya"] and [p["id"] for p in cat.get("biznes", [])] == ["biznes-profil"], d)
+    check("каталог по категориям", [p["id"] for p in cat.get("znakomstvo", [])] == ["proforientatsiya"] and [p["id"] for p in cat.get("biznes", [])] == ["biznes-profil"] and [p["id"] for p in cat.get("razminka", [])] == ["razminka-vopros"], d)
     cache = os.path.join(CL, "mila-library", "library.json"); keep = open(cache, "rb").read()
     open(cache, "wb").write(keep.replace(b'"0.1.0"', b'"0.1.1"', 1))
     sys.path.insert(0, H); import library as LB0
@@ -100,10 +101,10 @@ try:
     open(cache, "wb").write(keep)
 
     # 2. suggest / offer: only ids from the index, the card from the script
-    rc, d = run(L, "suggest"); check("suggest — только «знакомство»: id и for_whom", [x["id"] for x in d.get("suggest", [])] == ["proforientatsiya"], d)
+    rc, d = run(L, "suggest"); check("suggest — паки-входы («знакомство» и «бизнес»), разминка не предлагается: id и for_whom", sorted(x["id"] for x in d.get("suggest", [])) == ["biznes-profil", "proforientatsiya"], d)
     rc, d = run(L, "offer", "../../etc"); check("id не из индекса — отказ", rc != 0 and "нет" in d.get("error", ""), d)
     rc, d = run(L, "offer", "biznes-profil"); plan = d
-    check("offer: карточка собрана скриптом — «Подойдёт, если», метка последней строкой", rc == 0 and "Подойдёт, если: Если у вас уже есть дело" in d.get("text", "")
+    check("offer: карточка собрана скриптом — «Подойдёт, если», метка последней строкой", rc == 0 and "Подойдёт, если у вас уже есть дело" in d.get("text", "") and "если: Если" not in d.get("text", "")
           and d.get("text", "").split("\n")[-1] == d.get("mark") and d.get("mark", "").startswith("#pack-"), d)
     arch = [f for f in os.listdir(os.path.join(CL, "mila-library", "archives"))]
     check("архив в кэше по sha256 индекса", len(arch) == 1 and arch[0][:64] in open(os.path.join(P, "library.json")).read(), arch)

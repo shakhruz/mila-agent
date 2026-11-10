@@ -15,7 +15,7 @@
 - The first four packs: Business profile, Career direction, Attention audit, Council of models.
 
 **For Milas**
-- `skills/library/library.py` (refresh, list, suggest, offer, decline, tutorial): the index of the mila-library repository is trusted only with the sha256 this release carries (`library.lock`: the index and the archives are read at the library's tag `core-v1.7.7`, never from a branch; empty — not connected), archives only with the index's sum; `update.py pack-plan/install-pack --library <id>` checks the chain again. `tools/build_library.py` builds the index (archives without install.sh; «for whom» ≤120 chars, no links, @, `, commands or imperatives). Removing a pack keeps the person's files (`PROFILE.md`).
+- `skills/library/library.py` (refresh, list, suggest, offer, decline, tutorial): the index of the mila-library repository is trusted only with the sha256 this release carries (`library.lock`: the index and the archives are read at the library's tag `core-v1.7.7`, never from a branch; empty — not connected); after onboarding one entry pack is offered from the categories «start» and «business», archives only with the index's sum; `update.py pack-plan/install-pack --library <id>` checks the chain again. `tools/build_library.py` builds the index (archives without install.sh; «for whom» ≤120 chars, no links, @, `, commands or imperatives). Removing a pack keeps the person's files (`PROFILE.md`).
 
 ## v1.7.6 · 10.11 — Mila Agent: one volume, keys and the owner's consents out of the session's home (security audit 09.11)
 

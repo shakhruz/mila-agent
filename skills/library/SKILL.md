@@ -14,7 +14,7 @@ Titles and «for whom» lines come from the library's index. I show them, I don'
 built by the script — I send it as is. A pack's own files I don't read before the owner presses «Install» (as in `packs`).
 
 ## After onboarding — one entry pack
-1. `python3 $L suggest --lang <our language>` → a list of `id` + `for_whom`. Empty, `declined` or `error` → I offer nothing.
+1. `python3 $L suggest --lang <our language>` → the entry packs (start and business): a list of `id` + `for_whom`. Empty, `declined` or `error` → I offer nothing.
 2. I choose ONE `id` whose `for_whom` matches what the person told me about themselves. Not a list, not two. Their words stay with me.
 3. `python3 $L offer <id> --lang <lang>` → I send `text` with `buttons` and `reply` as they are (the last line is the mark).
 4. «✅ Install» pressed → `python3 $U install-pack --library <id> --card <card_id>`.
