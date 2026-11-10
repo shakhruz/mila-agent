@@ -60,6 +60,18 @@
   },
   {
    "tool": "Grep",
+   "match": "re:(\\.env\\b|/secrets?(?:/|\\s|\\\"|$)|secrets?/[^\\s\\\"]*\\.env|channels/[^/\\s\\\"]+/\\.env|\\.credentials\\.json|pd\\.key|/proc/[^/\\s\\\"]*/environ)",
+   "decision": "deny",
+   "why": "поиск по файлам ключей — те же правила, что и для чтения: строки с ключом попали бы в разговор (аудит 09.11 №13)"
+  },
+  {
+   "tool": "Glob",
+   "match": "re:(\\.env\\b|/secrets?(?:/|\\s|\\\"|$)|secrets?/[^\\s\\\"]*\\.env|channels/[^/\\s\\\"]+/\\.env|\\.credentials\\.json|pd\\.key|/proc/[^/\\s\\\"]*/environ)",
+   "decision": "deny",
+   "why": "то же для перечисления файлов ключей"
+  },
+  {
+   "tool": "Grep",
    "decision": "allow",
    "why": "поиск по файлам безвреден"
   },

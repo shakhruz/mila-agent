@@ -18,6 +18,7 @@
 
 **For Milas**
 - `docker/mila_state.py` (root step instead of `chown -R`): moves an old volume-home into `home/` one rename at a time, owns folders by descriptor, renames Claude project folders to the new path, carries old `io/` journals only (decisions to `io/quarantine`). Key store `/var/lib/mila/keys`; `io/` at `/var/lib/mila/io`. No volume / no owner → a once-a-day line at session start asks Mila to tell the owner.
+- secret-guard: the key places (`~/.mila-auth`, the safe, the Telegram plugin's `.env`, `.credentials.json`) are checked by their real path for every reader — a link from `~/work` is the same file; a Grep that prints lines over a folder holding one of them is refused (narrow the path or give a glob); file lists and counts pass. `permissions.example.json`: Grep and Glob get Read's deny rule.
 
 ## v1.7.5 · 07.11 — the first start after an install opens a conversation
 

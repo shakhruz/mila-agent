@@ -13,9 +13,9 @@ turn it on. Fail open: input it cannot read → allow (the send-guard still stop
 
 Every refusal is one line in ~/.claude/mila-guard/secret-guard.jsonl (600): time, tool, which rule, what matched — a place or a
 variable's name, never the command and never a value. So a false refusal can be seen and the rule tuned."""
-import json, os, re, sys, time
+import fnmatch, json, os, re, sys, time
 
-PLACES = re.compile(r"\.mila-auth|work/secrets|/proc/[^/\s]*/environ|\.credentials\.json", re.I)
+PLACES = re.compile(r"\.mila-auth|work/secrets|/proc/[^/\s]*/environ|\.credentials\.json|channels/[^/\s\"']+/\.env", re.I)
 NAMES = re.compile(r"CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY|OPENROUTER_API_KEY|DEEPGRAM_API_KEY|GROQ_API_KEY|TELEGRAM_BOT_TOKEN", re.I)
 # the whole environment: env / printenv / export -p / set / declare -x on their own (or piped)
 DUMP = re.compile(r"(^|[;&|(`]\s*|\$\(\s*)(env|printenv|export\s+-p|declare\s+-[a-z]*x[a-z]*|set)\s*($|[;&|)`>])", re.I)
@@ -23,7 +23,58 @@ DUMP = re.compile(r"(^|[;&|(`]\s*|\$\(\s*)(env|printenv|export\s+-p|declare\s+-[
 ALLOWED = re.compile(r"(transcribe-voice\.sh|safe_read\.py|key_page\.py|seif\.py|vault\.py)\b")
 
 
-def check(tool, args):
+def secret_places(home):
+    """The places by their real path — a link in ~/work to ~/.mila-auth is the same file (audit 09.11 №13)."""
+    out = [os.path.join(home, ".mila-auth"), os.path.join(home, "work", "secrets"), os.path.join(home, ".claude", ".credentials.json")]
+    ch = os.path.join(home, ".claude", "channels")
+    try: out += [os.path.join(ch, d, ".env") for d in sorted(os.listdir(ch))]
+    except OSError: pass
+    return [(p, os.path.realpath(p)) for p in out]
+
+
+def inside(p, root):
+    try: return os.path.commonpath([p, root]) == root
+    except ValueError: return False
+
+
+def globs(g):
+    """'*.{ts,tsx}' → ['*.ts', '*.tsx']; one level of braces is what the tool takes in practice."""
+    m = re.search(r"\{([^{}]*)\}", g)
+    return [g[:m.start()] + x + g[m.end():] for x in m.group(1).split(",")] if m else [g]
+
+
+def key_files(real):
+    """Files of one place (a file or a folder's top level) — enough to test a search's glob against."""
+    if os.path.isdir(real):
+        try: return [os.path.join(real, f) for f in os.listdir(real)]
+        except OSError: return []
+    return [real] if os.path.exists(real) else []
+
+
+def by_real_path(tool, args, cwd):
+    """The same places for every reader by the real path, and a search whose root holds a place prints no lines from it."""
+    home = os.path.expanduser("~")
+    raw = str(args.get("file_path") or args.get("notebook_path") or args.get("path") or "")
+    if not raw and tool not in ("Grep", "Glob"): return None
+    real = os.path.realpath(os.path.join(cwd or os.getcwd(), os.path.expanduser(raw)))
+    places = secret_places(home)
+    for p, rp in places:
+        if inside(real, rp):
+            return "это файлы входа или сейфа (по настоящему пути) — ключи читают только инструменты в момент действия", "place", "~/" + os.path.relpath(p, home)
+    if tool != "Grep" or (args.get("output_mode") or "files_with_matches") != "content":
+        return None   # names and counts of files, not their lines
+    g = str(args.get("glob") or "")
+    for p, rp in places:
+        if not inside(rp, real): continue
+        files = key_files(rp)
+        if g and not any(fnmatch.fnmatch(os.path.basename(f), x) or fnmatch.fnmatch(f, "*/" + x) for f in files for x in globs(g)):
+            continue
+        if files:
+            return "поиск со строками захватывает %s — сузьте путь или укажите glob" % ("~/" + os.path.relpath(p, home)), "root", "~/" + os.path.relpath(p, home)
+    return None
+
+
+def check(tool, args, cwd=None):
     """(reason, rule, what matched) or None."""
     if tool == "Bash":
         cmd = str(args.get("command") or "")
@@ -39,7 +90,8 @@ def check(tool, args):
     target = " ".join(str(args.get(k) or "") for k in ("file_path", "path", "pattern", "glob"))
     m = PLACES.search(target)
     if m: return "это файлы входа или сейфа — ключи читают только инструменты в момент действия", "place", m.group(0)
-    return None
+    try: return by_real_path(tool, args, cwd)
+    except Exception: return None
 
 
 def why(tool, args):
@@ -63,7 +115,7 @@ def journal(tool, rule, what):
 def main():
     try:
         p = json.loads(sys.stdin.read() or "{}")
-        c = check(p.get("tool_name") or "", p.get("tool_input") or {})
+        c = check(p.get("tool_name") or "", p.get("tool_input") or {}, p.get("cwd"))
     except Exception:
         return 0
     r = c[0] if c else None

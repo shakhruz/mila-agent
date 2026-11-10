@@ -16,6 +16,10 @@ CASES = [
  ("Bash", "python3 safe_read.py --key-file ~/work/secrets/x.key", "ask"), ("Bash", "rm -rf ~/work", "deny"),
  ("Read", json.dumps({"file_path": "/home/a/work/.env"}), "deny"), ("Read", json.dumps({"file_path": "/home/a/.claude/channels/telegram/.env"}), "deny"),
  ("Read", json.dumps({"file_path": "/home/a/work/NOW.md"}), "allow"),
+ # audit 09.11 №13: search and listing follow the same rules as reading
+ ("Grep", json.dumps({"pattern": "TOKEN", "path": "/home/a/.claude/channels/telegram/.env", "output_mode": "content"}), "deny"),
+ ("Grep", json.dumps({"pattern": "KEY", "path": "/home/a/work/secrets"}), "deny"), ("Glob", json.dumps({"pattern": "*.env", "path": "/home/a/work/secrets/"}), "deny"),
+ ("Grep", json.dumps({"pattern": "todo", "path": "/home/a/work"}), "allow"), ("Glob", json.dumps({"pattern": "**/*.md"}), "allow"),
  ("Edit", json.dumps({"file_path": "/home/a/.claude/settings.json"}), "ask"), ("Edit", json.dumps({"file_path": "/home/a/.claude/hooks/send-guard.py"}), "ask"),
  ("MultiEdit", json.dumps({"file_path": "/home/a/.claude/channels/telegram/access.json"}), "ask"),
  ("Edit", json.dumps({"file_path": "/home/a/work/NOW.md"}), "allow"),
