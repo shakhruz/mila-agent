@@ -1,6 +1,6 @@
 # CHANGELOG · Mila
 
-## Unreleased — Mila Agent: keys and the owner's consents move out of the session's home (security audit 09.11)
+## v1.7.6 · 10.11 — Mila Agent: one volume, keys and the owner's consents out of the session's home (security audit 09.11)
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
@@ -10,15 +10,26 @@
 - Согласия на действия от вашего имени (посты, траты) нужно дать заново — старые сохранены отдельно, но в работу не берутся.
 - Если после обновления Мила молчит — посмотрите журнал контейнера, строки со словом mila-state: там сказано, что мешает старту.
 
+**Для хозяина (на ноутбуке)**
+- Новый пример прав спрашивает вас чаще: про SSH, файлы запуска оболочки, автозапуск и правки вне ~/work. Ваш permissions.json не меняется — сравните с новым примером.
+
 </details>
 
 **For the owner (Mila Agent)**
 - One volume at /var/lib/mila holds the home, the keys and the consents. Railway: set the volume's mount path to /var/lib/mila; compose: the new docker-compose.yml. Without it Mila runs, but a card says the sign-in will be lost at the next redeploy.
 - Set OWNER_ID: the owners' list is not carried over. Give consents again: old decisions are kept as evidence, not used.
 
+**For the owner (laptop)**
+- The new permissions example asks more often: SSH, shell start files, autostart and edits outside ~/work. Your own permissions.json is not changed — compare it with the new example.
+
 **For Milas**
 - `docker/mila_state.py` (root step instead of `chown -R`): moves an old volume-home into `home/` one rename at a time, owns folders by descriptor, renames Claude project folders to the new path, carries old `io/` journals only (decisions to `io/quarantine`). Key store `/var/lib/mila/keys`; `io/` at `/var/lib/mila/io`. No volume / no owner → a once-a-day line at session start asks Mila to tell the owner. An old Mila in the volume's root is told by `work/` or the `.mila-home` marker (now left in every home), not by `.claude`: a volume with plain Claude Code keeps its `.claude` where it is, Mila goes into `home/` beside it, a line says so. An empty `home/` next to an old home in the volume's root (a runtime makes the image's WORKDIR before the entrypoint) no longer hides the old home: it moves; a `home/` with files next to it stops the start with a line. The image's WORKDIR is `/` (outside the volume); `docker exec` lands in `/`.
 - secret-guard: the key places (`~/.mila-auth`, the safe, the Telegram plugin's `.env`, `.credentials.json`) are checked by their real path for every reader — a link from `~/work` is the same file, a hard link is told by its inode, in a place's sub-folders too (a key with a second link closes lines-search), a path that cannot be resolved is refused; a Grep that prints lines over a folder holding one of them is refused (narrow the path or give a glob); file lists and counts pass. `permissions.example.json`: Grep and Glob get Read's deny rule.
+- Key keeper: the store is `/var/lib/mila/keys`, outside the session's home; root moves old keys by descriptor, following no link and no hard link, and wipes through the same descriptor; a store of a foreign uid stops the start. A keeper that is on but did not start stops the start — keys never stay in the session's environment (the old way only by an explicit `MILA_KEYD=off`); one bad old key file skips that key, not the keeper. `/status` gives the bot's id only from a token of the checked shape.
+- Start under root: the root step runs from `/` with `python3 -I` (a `json.py` in the session's home is never imported as root); a guard checks every root python line, setpriv bodies excepted. `io_perms` walks by descriptors — `io/` swapped for a link changes nothing; no `chmod -R` over the Telegram state; `io/` (consent journal, its key, the owners' list) is read-only to the session; `cards.jsonl` is made by descriptor.
+- `permissions.example.json` (audit №14): SSH, shell start files, own programs, autostart, `.mcp.json`, `.git/hooks`, `.git/config` and `.claude/` anywhere — ask; a path with `..` — ask; a silent allow for Edit/MultiEdit/Write only inside `~/work`.
+- Backup (audit №16): keys under key-named fields (JSON and env lines; the name split by `_`, `-` and case, a whole segment decides — `secretary`, `TOKENS_USED` stay) and Groq keys are cut from the copy; names stay; the report counts cuts by field name.
+- Image and CI (audit №24): `.dockerignore` keeps `.git`, local secrets and build junk out of the image; every checkout without persisted credentials.
 
 ## v1.7.5 · 07.11 — the first start after an install opens a conversation
 
