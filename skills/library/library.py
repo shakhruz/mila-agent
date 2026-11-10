@@ -29,7 +29,9 @@ ID = re.compile(r"^[a-z0-9][a-z0-9-]{1,40}$")
 # for_whom is shown to the person and read by the model before any «yes»: a short plain line, nothing that acts
 # imperatives by their forms (установи/установите…), not by the root: «если вы отправляете товар» is a plain description
 IMPER = r"(?:установи|игнорируй|забудь|выполни|запусти|отправь|удали|покажи|прочитай|скачай|напиши|сообщи|передай|перейди)(?:те)?|" \
-        r"(?:ignore|disregard|forget|execute|install|run|send|delete|reveal)|o['‘ʻ]rnat(?:ing)?|bajar(?:ing)?|yubor(?:ing)?|unut(?:ing)?"
+        r"(?:ignore|disregard|forget|reveal)|o['‘ʻ]rnat(?:ing)?|bajar(?:ing)?|yubor(?:ing)?|unut(?:ing)?"
+# English verbs that also describe («if you run a channel», «we send orders») — a command only where a sentence or clause starts
+EN_CMD = re.compile(r"(?i:(?:^|[.!?;:,]\s*|\b(?:please|now|then|and|also)\s+)(?:execute|install|run|send|delete)\b)")
 BAD = re.compile(r"https?:|www\.|[@`<>{}\[\]\\$|]|\b(?:t\.me|bit\.ly)\b|\b(?:python3?|bash|sudo|curl|rm|sh)\b|(?i:(?<![\w-])(?:%s)(?![\w-]))" % IMPER, re.U)
 
 
@@ -46,6 +48,7 @@ def clean_for_whom(s):
     s = str(s or "")
     if not s or len(s) > 120 or re.search(r"[\x00-\x1f\x7f]", s) or BAD.search(s): return ""
     if MIXED.search(s): return ""
+    if EN_CMD.search(s): return ""
     return s.strip()
 
 
