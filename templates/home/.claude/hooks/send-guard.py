@@ -6,7 +6,7 @@ container names, raw provider errors) · markdown without format=markdownv2. Pri
 Fail closed (the hook itself, not only the settings field): input it cannot read, or any unexpected error inside the guard → exit 2
 and a deny — the message is not sent. Not our tool → exit 0. This guard catches the model's mistakes; it is not a security boundary
 against a hostile sender (see docs/THREAT-MODEL.md)."""
-import json, os, re, sys
+import json, os, re, sys, time
 
 
 def _block(reason):
@@ -148,9 +148,31 @@ for rx, name in KITCHEN:
         why.append("кухня наружу (%s) — скажи результат словами человека" % name)
 
 # apologies and excuses do not go out — neither to a client nor to the owner (constitution, law 7: fact · conclusion · step,
-# not «sorry»). Exception: the development chat and a text with a defect number (D-0xxx) — that is a report.
+# not «sorry»). Exception: the development chat, and a report on a problem from the problem journal (skill problemy): the text
+# names a number P-0001 that IS in work/problemy.jsonl and is open, or was closed today. A number alone opens nothing — any text
+# could carry one; a journal that cannot be read opens nothing either.
+def _problem_report(text):
+    nums = set(re.findall(r"(?<![\w-])P-\d{4,6}(?![\w-])", text))
+    if not nums: return False
+    path = os.path.join(os.path.expanduser(os.environ.get("MILA_WORK") or "~/work"), "problemy.jsonl")
+    try:
+        if os.path.getsize(path) > 8 * 1024 * 1024: return False
+        lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
+    except OSError:
+        return False
+    st = {}
+    for l in lines:
+        try: r = json.loads(l)
+        except ValueError: continue
+        if not isinstance(r, dict) or r.get("n") not in nums: continue
+        step = r.get("шаг")
+        if step == "найдено": st.setdefault(r["n"], "open")
+        elif r["n"] in st and step == "закрыто": st[r["n"]] = str(r.get("ts") or "")[:10]
+        elif r["n"] in st and step == "повтор": st[r["n"]] = "open"
+    return any(v == "open" or v == time.strftime("%Y-%m-%d") for v in st.values())
+
 _APOLOGY = re.compile(r"(?:\bизвин\w*|\bпрост(?:и|ите)\b|прошу прощения|\bмо[яй] (?:ошибк|вин|дыр)\w*|\bвиноват\w*|с опозданием|\bоправд\w*|к сожалению,? (?:я )?не (?:успел|смогл)\w*|\bsorry\b|\bapolog\w*)", re.I)
-if not TOPIC and chat_id != os.environ.get("MILA_DEV_CHAT", "") and not re.search(r"\bD-0\d{3}\b", text):
+if not TOPIC and chat_id != os.environ.get("MILA_DEV_CHAT", "") and not _problem_report(text):
     _m = _APOLOGY.search(text)
     if _m:
         why.append("извинение/оправдание («%s») — в чат не уходит: человеку только дело и следующий шаг (закон 7)" % _m.group(0))

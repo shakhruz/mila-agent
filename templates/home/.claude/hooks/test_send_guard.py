@@ -23,6 +23,27 @@ chk("хозяину обычный текст — уходит", {"tool_name": R
 chk("чужому чату — стоп", {"tool_name": R, "tool_input": {"chat_id": "999", "text": "привет"}}, "deny")
 chk("в разрешённую группу — уходит", {"tool_name": R, "tool_input": {"chat_id": "-1001", "text": "Готово."}}, "pass")
 chk("извинение хозяину — стоп (закон 7)", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "Извините, я не успела"}}, "deny")
+# apology filter and the problem journal: a number opens the way only if the journal holds it, open or closed today
+import datetime as _dt
+_w = os.path.join(home, "work"); os.makedirs(_w); _J = os.path.join(_w, "problemy.jsonl"); _now = _dt.datetime.now().astimezone()
+def _row(n, step, days_ago=0): return json.dumps({"n": n, "ts": (_now - _dt.timedelta(days=days_ago)).isoformat(timespec="seconds"), "шаг": step}, ensure_ascii=False) + "\n"
+_AP = lambda num: {"tool_name": R, "tool_input": {"chat_id": "111", "text": "Виновата, отчёт ушёл без числа. %s: причина — число из памяти." % num}}
+chk("извинение с номером P-0001, журнала нет — стоп", _AP("P-0001"), "deny")
+chk("извинение с номером D-0123 — стоп (номер сам ничего не открывает)", _AP("D-0123"), "deny")
+open(_J, "w", encoding="utf-8").write(_row("P-0001", "найдено", 3) + "битая строка\n" + _row("P-0002", "найдено", 9) + _row("P-0002", "закрыто", 1)
+                                      + _row("P-0003", "найдено", 2) + _row("P-0003", "закрыто", 0) + _row("P-0004", "найдено", 9) + _row("P-0004", "закрыто", 5) + _row("P-0004", "повтор", 0)
+                                      + _row("P-0005", "закрыто", 0))
+chk("отчёт об открытой проблеме P-0001 из журнала — уходит", _AP("P-0001"), "pass")
+chk("номера P-0099 в журнале нет — стоп", _AP("P-0099"), "deny")
+chk("P-0002 закрыта вчера — стоп", _AP("P-0002"), "deny")
+chk("P-0003 закрыта сегодня — уходит", _AP("P-0003"), "pass")
+chk("P-0004 закрыта и повторилась — открыта, уходит", _AP("P-0004"), "pass")
+chk("P-0005: строка «закрыто» без «найдено» — стоп", _AP("P-0005"), "deny")
+chk("номер открытой проблемы внутри чужого слова — стоп", _AP("код" + "P-0001"), "deny")
+chk("извинение без номера при живом журнале — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "Извините, я не успела"}}, "deny")
+os.remove(_J); os.makedirs(_J)
+chk("вместо журнала папка — стоп, сторож не падает", _AP("P-0001"), "deny")
+os.rmdir(_J)
 chk("ключ провайдера в тексте — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "ключ " + "sk-" + "abcdefghijklmnopqrstuv"}}, "deny")   # фальшивка склеивается — сканер ядра чист
 chk("серверный путь — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "файл /srv/x"}}, "deny")
 chk("другой инструмент — не мешает", {"tool_name": "Bash", "tool_input": {"command": "ls"}}, "pass")
