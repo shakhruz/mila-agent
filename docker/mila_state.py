@@ -16,7 +16,10 @@ Root's step at each start, all by descriptor (no link followed, no -R over the h
 """
 import json, os, stat, sys
 
-HOME_SIGNS = (".claude", "work")
+# an old Mila in the volume's root: work/ or the marker every version leaves in its home. NOT .claude — a volume may hold
+# plain Claude Code without Mila (CTO 10.11): that one is left where it is, Mila goes into home/ beside it
+HOME_MARK = ".mila-home"
+HOME_SIGNS = ("work", HOME_MARK)
 OWN_NAMES = ("home", "keys", "io")
 MARK = ".moving"
 
@@ -58,9 +61,16 @@ def move_old_home(root, agent_uid):
         names = set(os.listdir(rfd))
         moving = MARK in names
         if not moving:
-            if "home" in names or not any(n in names for n in HOME_SIGNS):
+            if not any(n in names for n in HOME_SIGNS):
                 return []   # already laid out, or a fresh volume
-            clash = [n for n in OWN_NAMES if n in names]
+            if "home" in names:
+                # an empty home/ is not a layout: the runtime makes the image's WORKDIR inside the volume before this step (stand 10.11)
+                efd = open_dir("home", rfd)
+                try: empty = os.listdir(efd) == []
+                finally: os.close(efd)
+                if not empty:
+                    raise Refuse("%s: an old home (.claude or work in the root) and a home/ with files — not merging; look by hand" % root)
+            clash = [n for n in OWN_NAMES if n in names and n != "home"]
             if clash:
                 raise Refuse("%s: the old home already has %s of its own — not merging; move them away by hand" % (root, ", ".join(clash)))
             fd = os.open(MARK, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=rfd); os.close(fd)
@@ -266,6 +276,12 @@ def prepare(env, agent_uid, keys_uid, io_uid):
         finally:
             os.close(rfd)
     own(L["home"], agent_uid, agent_uid, 0o750)
+    own_file(L["home"], HOME_MARK, agent_uid, agent_uid, 0o644)   # so a later version knows this home for Mila's
+    if L["kind"] == "data" and not L["moved"]:
+        try: L["claude_only"] = ".claude" in os.listdir(L["root"])
+        except OSError: L["claude_only"] = False
+        if L["claude_only"]:
+            print("mila-state: %s/.claude is Claude Code without Mila — left as it is; Mila lives in %s" % (L["root"], L["home"]), file=sys.stderr)
     own(L["keys"], keys_uid, keys_uid, 0o700)
     own(L["io"], io_uid, agent_uid, 0o2750)
     if L["kind"] == "data":   # the old io/ inside the home: journals carried, decisions to quarantine (see migrate_io)

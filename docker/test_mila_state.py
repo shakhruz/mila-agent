@@ -38,6 +38,15 @@ try:
     check("полупереехавший дом со столкновением имени — отказ", refuses(S.move_old_home, r, ME))
     r = tempfile.mkdtemp(dir=T); os.symlink(old_home(), os.path.join(r, "root-link"))
     check("корень тома — ссылка: отказ", refuses(S.move_old_home, os.path.join(r, "root-link"), ME))
+    # stand 10.11: the runtime made an empty home/ (the image's WORKDIR) inside the old volume before the entrypoint
+    r = old_home(); os.mkdir(os.path.join(r, "home")); moved = S.move_old_home(r, ME)
+    check("стенд 10.11: пустой home/ от среды запуска — старый дом всё равно переезжает", sorted(os.listdir(r)) == ["home"]
+          and sorted(moved) == [".bashrc", ".claude", "work"] and os.path.exists(os.path.join(r, "home", "work", "NOW.md")), (os.listdir(r), moved))
+    r = old_home(); os.makedirs(os.path.join(r, "home", "work")); open(os.path.join(r, "home", "work", "NOW.md"), "w").write("y")
+    check("старый дом в корне и home/ с файлами — отказ вслух, ничего не тронуто", refuses(S.move_old_home, r, ME)
+          and os.path.exists(os.path.join(r, "work", "NOW.md")) and open(os.path.join(r, "home", "work", "NOW.md")).read() == "y")
+    r = old_home(); os.symlink(tempfile.mkdtemp(dir=T), os.path.join(r, "home"))
+    check("старый дом и home — ссылка: отказ", refuses(S.move_old_home, r, ME) and os.path.exists(os.path.join(r, "work")))
 
     # Claude finds memory by the folder named after the path: a moved home renames -home-agent… to the new prefix
     hm = tempfile.mkdtemp(dir=T); pj = os.path.join(hm, ".claude", "projects"); new = S.slug(hm)
@@ -95,6 +104,35 @@ try:
     check("own: io 2750 с setgid", oct(os.lstat(os.path.join(base, "io2")).st_mode & 0o7777) == "0o2750")
     if os.geteuid() != 0: print("ℹ️  чужой uid и chown корня на root — под root (wall_probe), тут не root")
     check("persistent: та же папка, что «/» → не постоянный том", S.persistent("/", "/") is False)
+
+    # CTO 10.11: four cases of what the volume held, through prepare() itself (not root here: owners are faked to no-ops)
+    real_fchown = os.fchown
+    if os.geteuid() != 0: os.fchown = lambda *a: None
+    try:
+        def prep(r, host=None):
+            return S.prepare({"MILA_STATE": "data:" + r, "MILA_KIT": T}, ME, ME, ME)
+        r = tempfile.mkdtemp(dir=T); L = prep(r)
+        check("4 случая (1): пустой том — новая Мила, home/ с маркером, переносить нечего", L["moved"] == 0 and sorted(os.listdir(r)) == ["home", "io", "keys"]
+              and os.path.isfile(os.path.join(r, "home", S.HOME_MARK)) and not L.get("claude_only"), (os.listdir(r), L))
+        r = tempfile.mkdtemp(dir=T); os.makedirs(os.path.join(r, "work")); open(os.path.join(r, "work", "NOW.md"), "w").write("w")
+        os.makedirs(os.path.join(r, ".claude", "projects", "-home-agent", "memory")); os.mkdir(os.path.join(r, "home"))
+        L = prep(r)
+        check("4 случая (2): старая Мила (work/) + пустой home/ от WORKDIR — переезд, память переименована", L["moved"] == 2 and L["projects_renamed"] == 1
+              and open(os.path.join(r, "home", "work", "NOW.md")).read() == "w" and not os.path.exists(os.path.join(r, "work")), L)
+        r = tempfile.mkdtemp(dir=T); os.makedirs(os.path.join(r, ".claude")); open(os.path.join(r, S.HOME_MARK), "w").close(); L = prep(r)
+        check("4 случая (2б): старая Мила по маркеру .mila-home (без work/) — переезд", L["moved"] == 2 and os.path.isdir(os.path.join(r, "home", ".claude")), L)
+        r = tempfile.mkdtemp(dir=T); os.makedirs(os.path.join(r, ".claude", "projects", "-root", "memory")); open(os.path.join(r, ".claude", "settings.json"), "w").write("{\"u\":1}")
+        L = prep(r)
+        check("4 случая (3): только Claude Code (.claude без work/ и маркера) — не тронут и не перенесён, Мила в home/", L["moved"] == 0 and L.get("claude_only") is True
+              and open(os.path.join(r, ".claude", "settings.json")).read() == "{\"u\":1}" and os.listdir(os.path.join(r, ".claude", "projects")) == ["-root"]
+              and os.path.isfile(os.path.join(r, "home", S.HOME_MARK)) and not os.path.exists(os.path.join(r, "home", ".claude")), (os.listdir(r), L))
+        L2 = prep(r)
+        check("4 случая (3): второй старт — так же ничего не переносит", L2["moved"] == 0 and os.path.isdir(os.path.join(r, ".claude")), L2)
+        host = tempfile.mkdtemp(dir=T); os.makedirs(os.path.join(host, ".claude")); open(os.path.join(host, ".claude", "x"), "w").write("host")
+        r = os.path.join(host, "vol"); os.mkdir(r); os.mkdir(os.path.join(r, "work")); prep(r)
+        check("4 случая (4): ~/.claude хоста рядом с томом — не тронут", open(os.path.join(host, ".claude", "x")).read() == "host" and sorted(os.listdir(host)) == [".claude", "vol"])
+    finally:
+        os.fchown = real_fchown
     print("итог %d/%d" % (ok, n))
 finally:
     shutil.rmtree(T, ignore_errors=True)

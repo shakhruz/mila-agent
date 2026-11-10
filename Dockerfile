@@ -47,7 +47,9 @@ ENV HOME=/var/lib/mila/home MILA_KIT=/opt/mila/kit MILA_STATE=data:/var/lib/mila
 # domain and suggests 8080). docker-compose sets PORT empty — there the token comes from a variable, no page.
 ENV PORT=8080
 EXPOSE 8080
-WORKDIR /var/lib/mila/home
+# WORKDIR outside the volume: a runtime makes WORKDIR before the entrypoint, and an empty home/ in an old volume once hid the old
+# home from the move (stand 10.11). The entrypoint goes to ~/work itself.
+WORKDIR /
 # No VOLUME line: Railway refuses Dockerfiles with VOLUME. ONE volume at /var/lib/mila (compose: mila-home; Railway: Attach Volume → /var/lib/mila):
 # home/ (agent), keys/ (mila-keys), io/ (mila-io) — the volume's root belongs to root, so the session cannot swap keys/ or io/.
 # /home/agent is a link to the home for old absolute paths; a volume still mounted at /home/agent lands on the home only — it runs,

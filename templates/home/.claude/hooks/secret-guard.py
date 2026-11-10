@@ -9,11 +9,11 @@ process's environment is denied with one line.
 
 This is a layer, not a wall: the session runs as the same user, and a determined command can be phrased so that no pattern
 sees it. The wall is an isolated sandbox (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, it needs bubblewrap); where the platform allows it,
-turn it on. Fail open: input it cannot read → allow (the send-guard still stops a key from leaving through Telegram).
+turn it on. Fail open: input it cannot read → allow (the send-guard still stops a key from leaving through Telegram); a path it cannot resolve → deny. A hard link to a key is told by its inode; a key with a second link closes lines-search everywhere.
 
 Every refusal is one line in ~/.claude/mila-guard/secret-guard.jsonl (600): time, tool, which rule, what matched — a place or a
 variable's name, never the command and never a value. So a false refusal can be seen and the rule tuned."""
-import fnmatch, json, os, re, sys, time
+import fnmatch, json, os, re, stat, sys, time
 
 PLACES = re.compile(r"\.mila-auth|work/secrets|/proc/[^/\s]*/environ|\.credentials\.json|channels/[^/\s\"']+/\.env", re.I)
 NAMES = re.compile(r"CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY|OPENROUTER_API_KEY|DEEPGRAM_API_KEY|GROQ_API_KEY|TELEGRAM_BOT_TOKEN", re.I)
@@ -61,8 +61,21 @@ def by_real_path(tool, args, cwd):
     for p, rp in places:
         if inside(real, rp):
             return "это файлы входа или сейфа (по настоящему пути) — ключи читают только инструменты в момент действия", "place", "~/" + os.path.relpath(p, home)
+    # a hard link has no other real path: the same file is told by (device, inode); a second link anywhere closes lines-search
+    keys, linked = set(), False
+    for p, rp in places:
+        for f in key_files(rp):
+            try: st = os.lstat(f)
+            except OSError: continue
+            if stat.S_ISREG(st.st_mode): keys.add((st.st_dev, st.st_ino)); linked = linked or st.st_nlink > 1
+    try: st = os.stat(real)
+    except OSError: st = None
+    if st is not None and stat.S_ISREG(st.st_mode) and (st.st_dev, st.st_ino) in keys:
+        return "это файл ключа под другим именем (жёсткая ссылка)", "hardlink", "inode"
     if tool != "Grep" or (args.get("output_mode") or "files_with_matches") != "content":
         return None   # names and counts of files, not their lines
+    if linked:
+        return "у файла ключа есть вторая жёсткая ссылка — поиск со строками закрыт, скажите хозяину", "hardlink", "nlink"
     g = str(args.get("glob") or "")
     for p, rp in places:
         if not inside(rp, real): continue
@@ -91,7 +104,7 @@ def check(tool, args, cwd=None):
     m = PLACES.search(target)
     if m: return "это файлы входа или сейфа — ключи читают только инструменты в момент действия", "place", m.group(0)
     try: return by_real_path(tool, args, cwd)
-    except Exception: return None
+    except Exception: return "не разобрала путь — для файлов ключей это значит «нет»", "error", "path"
 
 
 def why(tool, args):
