@@ -1727,8 +1727,32 @@ def cmd_packs(a):
     print(json.dumps({"packs": [dict(p, installed=p["id"] in have) for p in pack_list(a.lang or "ru")]}, ensure_ascii=False))
 
 
+def library_archive(pid):
+    """архив пака библиотеки: индекс сверен с library.lock выпуска ядра, архив — с суммой индекса."""
+    import importlib.util
+    lp = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "library", "library.py")
+    try:
+        spec = importlib.util.spec_from_file_location("mila_library", lp); L = importlib.util.module_from_spec(spec); spec.loader.exec_module(L)
+    except Exception: _refuse("навыка library нет — библиотека не подключена")
+    ix = L.verified_index()
+    if ix is None: _refuse("библиотека не проверена — не ставлю")
+    p = next((x for x in L.packs(ix, "ru") if x["id"] == pid), None)
+    if not p: _refuse("такого пака в библиотеке нет: " + str(pid)[:40])
+    path = os.path.join(L.CACHE, "archives", p["sha256"] + ".pack")
+    try: b = open(path, "rb").read(PACK_FILE_MAX + 1)
+    except OSError: _refuse("архив пака не скачан — сначала library.py offer")
+    if hashlib.sha256(b).hexdigest() != p["sha256"]: _refuse("архив пака не тот, что в индексе — не ставлю")
+    return path, p["sha256"][:16]
+
+
 def resolve_pack(a):
-    """пак и его метка для карточки: архив — по --msg из лички хозяина (метка — sha файла), пак ядра — по имени (метка — id и версия)."""
+    """пак и его метка для карточки: архив — по --msg из лички хозяина или --library из проверенной библиотеки (метка — sha файла),
+    пак ядра — по имени (метка — id и версия)."""
+    if getattr(a, "library", None):
+        if a.msg: _refuse("пак — из лички или из библиотеки, не оба")
+        path, sha16 = library_archive(a.library)
+        d, m = open_pack_archive(path, sha16)
+        return d, m, "#pack-" + sha16
     if a.msg:
         path, sha16 = fetch_attachment(owner_attachment(a.msg))
         d, m = open_pack_archive(path, sha16)
@@ -1807,7 +1831,7 @@ def cmd_install_pack(a):
     os.makedirs(pdir)
     for x in PACK_DOCS + ("pack.json",):
         if os.path.isfile(os.path.join(d, x)): shutil.copy2(os.path.join(d, x), os.path.join(pdir, x))
-    rec = dict({"event": "install-pack", "pack": pid, "version": f["version"], "was": f["was"], "source": "file" if a.msg else "kit", "mark": mark,
+    rec = dict({"event": "install-pack", "pack": pid, "version": f["version"], "was": f["was"], "source": "library" if getattr(a, "library", None) else "file" if a.msg else "kit", "mark": mark,
            "title": _clip(pack_title(m, a.lang or "ru"), 60), "skills": [n for n, _ in skills],
            "added": added + [pdir], "touched": dsts + gone + [pdir, PACKS_FILE], "backup": b}, **ok)
     jlog(rec)
@@ -1868,6 +1892,7 @@ def main():
     for c in ("pack-plan", "install-pack", "remove-pack"):
         p = sp.add_parser(c); p.add_argument("name", nargs="?"); p.add_argument("--from", dest="sender"); p.add_argument("--yes"); p.add_argument("--lang")
         p.add_argument("--msg", help="message_id сообщения хозяина с архивом пака (файл беру из журнала приёмника)")
+        p.add_argument("--library", help="id пака из проверенной библиотеки (library.py; архив сверен с индексом выпуска ядра)")
         p.add_argument("--card", help="card_id карточки, на которую хозяин нажал «Поставить» / «Убрать»")
     a = ap.parse_args()
     try:
