@@ -104,7 +104,7 @@ def collect(role, packs_root=None):
 
 
 def build(role, out, core_version=None, extra_docs=(), packs_root=None, library=False):
-    """library=True — the pack library (mila-packs): no install.sh/INSTALL.md, the core installs it by the owner's press, no code runs."""
+    """library=True — the pack library (mila-library): no install.sh/INSTALL.md, the core installs it by the owner's press, no code runs."""
     meta, files = collect(role, packs_root)
     for path in extra_docs:                        # the seller's own documents (an offer, a hosting option) — not in this repo
         name = os.path.basename(path)

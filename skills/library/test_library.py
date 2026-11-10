@@ -3,7 +3,7 @@
 for_whom is a plain line or nothing; the model's id is checked against the index; the card is built by the script; install and
 removal only by the owner's press; removal leaves the person's files; «not now» is remembered; the tutorial's result is journaled.
 Run: python3 test_library.py"""
-import hashlib, json, os, shutil, subprocess, sys, tempfile, time
+import hashlib, json, os, re, shutil, subprocess, sys, tempfile, time
 H = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(os.path.dirname(H))
 ok = n = 0
 def check(name, c, x=""):
@@ -41,8 +41,8 @@ try:
         open(EV, "a").write(json.dumps({"params": {"meta": {"type": "callback", "card_id": cid, "user_id": OWNER, "callback_data": data}}}) + "\n")
         return cid
 
-    # the mila-packs checkout: one entry pack, one business pack, one with a bad for_whom
-    P = os.path.join(T, "mila-packs"); os.makedirs(os.path.join(P, "packs"))
+    # the mila-library checkout: one entry pack, one business pack, one with a bad for_whom
+    P = os.path.join(T, "mila-library"); os.makedirs(os.path.join(P, "packs"))
     def pack(pid, cat, fw, skill):
         d = os.path.join(P, "packs", pid); os.makedirs(os.path.join(d, skill))
         json.dump({"id": pid, "version": "0.1.0", "title": {"ru": pid, "en": pid}, "requires_core": "1.0.0", "core_skills": ["cards"],
@@ -72,6 +72,17 @@ try:
     json.dump(m0, open(pj, "w"), ensure_ascii=False); sha, cnt = B.build(P)
     LOCK = os.path.join(SK, "library", "library.lock")
     def set_lock(s): json.dump({"url": "file://" + os.path.join(P, "library.json"), "base": "file://" + P, "index_sha256": s}, open(LOCK, "w"))
+
+    # 0. the lock this release ships: one index, at a library tag made for a core release — never a branch that moves
+    k0 = json.load(open(os.path.join(REPO, "skills", "library", "library.lock"), encoding="utf-8")); u0, b0, s0 = (str(k0.get(x) or "") for x in ("url", "base", "index_sha256"))
+    if s0 or u0 or b0:
+        check("lock выпуска: sha256 индекса — 64 знака", re.fullmatch(r"[0-9a-f]{64}", s0) is not None, s0)
+        check("lock выпуска: индекс по https из mila-library, по метке core-vX.Y.Z, не по ветке",
+              re.fullmatch(r"https://raw\.githubusercontent\.com/shakhruz/mila-library/core-v\d+\.\d+\.\d+/library\.json", u0) is not None, u0)
+        check("lock выпуска: архивы — из той же метки, что индекс", b0 != "" and u0 == b0.rstrip("/") + "/library.json", (u0, b0))
+    else:
+        check("lock выпуска пуст целиком — библиотека не подключена", True)
+    json.dump({"url": "", "base": "", "index_sha256": ""}, open(LOCK, "w"))   # the sandbox copy: the tests below never reach the network
 
     # 1. not connected / wrong index
     rc, d = run(L, "refresh"); check("lock пуст — «не подключена», ничего не скачано", rc != 0 and "не подключена" in d.get("error", ""), d)

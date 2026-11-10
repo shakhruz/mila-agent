@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The pack library (RU: «библиотека паков»): the free packs of the mila-packs repository, read and offered by Mila herself.
+"""The pack library (RU: «библиотека паков»): the free packs of the mila-library repository, read and offered by Mila herself.
 
   python3 library.py refresh                 # fetch library.json, check its sha256 against library.lock of this core, cache it
   python3 library.py list [--lang ru]        # catalog by category: free packs this core can take

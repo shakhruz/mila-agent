@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Build the pack library's index (RU: «индекс библиотеки паков») for the mila-packs repository.
+"""Build the pack library's index (RU: «индекс библиотеки паков») for the mila-library repository.
 
-  python3 tools/build_library.py <mila-packs checkout>      # packs/<id>/ → dist/<archive>.zip + library.json; prints the lock line
+  python3 tools/build_library.py <mila-library checkout>      # packs/<id>/ → dist/<archive>.zip + library.json; prints the lock line
 
 Every pack is a Market archive without install.sh (tools/pack_mila.py, library mode): manifest.json with the sha256 of each file,
 the secret scanner over every file. The index lists each archive with its sha256; the sha256 of library.json itself goes into

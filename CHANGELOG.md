@@ -1,19 +1,21 @@
 # CHANGELOG · Mila
 
-## Unreleased — the pack library
+## v1.7.7 · 10.11 — the pack library: free packs from Mila Library
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
 **Для хозяина**
 - Библиотека бесплатных паков: после знакомства я предлагаю один пак под ваши слова — поставлю только по вашему нажатию; «Не сейчас» — больше не предложу. «Какие есть паки» — каталог.
+- Первые четыре пака: «Бизнес-профиль», «Профориентация», «Аудит внимания», «Совет моделей».
 
 </details>
 
 **For the owner**
 - The free pack library: after we get acquainted I offer one pack that fits what you told me — installed only when you press; «Not now» — I won't offer again. «What packs are there» — the catalog.
+- The first four packs: Business profile, Career direction, Attention audit, Council of models.
 
 **For Milas**
-- `skills/library/library.py` (refresh, list, suggest, offer, decline, tutorial): the index of mila-packs is trusted only with the sha256 this release carries (`library.lock`; empty — not connected), archives only with the index's sum; `update.py pack-plan/install-pack --library <id>` checks the chain again. `tools/build_library.py` builds the index (archives without install.sh; «for whom» ≤120 chars, no links, @, `, commands or imperatives). Removing a pack keeps the person's files (`PROFILE.md`).
+- `skills/library/library.py` (refresh, list, suggest, offer, decline, tutorial): the index of the mila-library repository is trusted only with the sha256 this release carries (`library.lock`: the index and the archives are read at the library's tag `core-v1.7.7`, never from a branch; empty — not connected), archives only with the index's sum; `update.py pack-plan/install-pack --library <id>` checks the chain again. `tools/build_library.py` builds the index (archives without install.sh; «for whom» ≤120 chars, no links, @, `, commands or imperatives). Removing a pack keeps the person's files (`PROFILE.md`).
 
 ## v1.7.6 · 10.11 — Mila Agent: one volume, keys and the owner's consents out of the session's home (security audit 09.11)
 
