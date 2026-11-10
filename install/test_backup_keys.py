@@ -30,6 +30,16 @@ check("обычный текст без ключей — без изменени
 for s_ in ('{"secretary": "Ivanova_Anna_V"}', 'TOKENS_USED=12345678', '{"next_page_token": "CAEaAggAQAE"}', '{"password_hint": "first pet name"}',
            '{"max_tokens": 1200, "keywords": "secret sauce recipe"}', '{"TOKEN_COUNT": "45678901"}'):
     check("не ключ — цело: " + s_[:40], B.scrub(s_)[0] == s_, B.scrub(s_)[0])
+# Quality 10.11: camelCase names of JS configs — cut; plus the ones that were right
+for k in ("botToken", "accessToken", "clientSecret", "authToken", "apiKey", "refresh_token", "client_secret", "password", "OPENAI" + "_API_KEY"):
+    o = B.scrub(json.dumps({k: "Zx9" + "q" * 20}))[0]
+    check("ключ под именем %s — вырезан" % k, "Zx9" not in o, o)
 B.CUT_BY_FIELD.clear(); B.scrub(json.dumps({DGN: DG}))
 check("счётчик вырезанного по имени поля: %s ×1" % DGN, B.CUT_BY_FIELD.get(DGN) == 1, B.CUT_BY_FIELD)
+# the archive check must not call an ordinary JSON field a secret (else the whole backup is deleted)
+norm = json.dumps({"title": "Ежедневная сводка", "chat_id": "-1002222", "description": "длинное описание группы"})
+check("проверка архива: обычные поля — не секрет", not any(B.has_secret(rx, norm) for rx, _ in B.SECRET_PATTERNS))
+left = json.dumps({"botToken": "Zx9" + "q" * 20})
+check("проверка архива: невычищенный ключ под именем — найден", any(B.has_secret(rx, left) for rx, _ in B.SECRET_PATTERNS))
+check("проверка архива: вычищенное — уже не секрет", not any(B.has_secret(rx, B.scrub(left)[0]) for rx, _ in B.SECRET_PATTERNS), B.scrub(left)[0])
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
