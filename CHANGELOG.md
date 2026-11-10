@@ -4,22 +4,30 @@
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
-**Для хозяина (Mila Agent: Railway, Hostinger, docker compose) — прочтите ДО обновления**
+**Для хозяина**
+- Ключи и ваши согласия теперь хранятся отдельно от дома Милы: я пользуюсь ключом, но прочесть его не могу.
+- На ноутбуке я чаще спрашиваю разрешения: вход по сети, автозапуск, правки вне рабочей папки.
+
+**Прочтите до обновления (облако: Railway, Hostinger, docker compose)**
 - Теперь у Милы один том на /var/lib/mila: внутри дом, ключи и согласия. Railway: в настройках тома поменяйте Mount path на /var/lib/mila. compose: возьмите новый docker-compose.yml.
 - Задайте OWNER_ID (ваш Telegram id) в переменных платформы: список владельцев после обновления не переносится.
 - Согласия на действия от вашего имени (посты, траты) нужно дать заново — старые сохранены отдельно, но в работу не берутся.
 - Если после обновления Мила молчит — посмотрите журнал контейнера, строки со словом mila-state: там сказано, что мешает старту.
 
-**Для хозяина (на ноутбуке)**
+**На ноутбуке**
 - Новый пример прав спрашивает вас чаще: про SSH, файлы запуска оболочки, автозапуск и правки вне ~/work. Ваш permissions.json не меняется — сравните с новым примером.
 
 </details>
 
-**For the owner (Mila Agent)**
+**For the owner**
+- Keys and your consents are kept apart from Mila's home: I can use a key, not read it.
+- On a laptop I ask more often: network sign-in, autostart, edits outside the work folder.
+
+**Read before the update (cloud: Railway, Hostinger, docker compose)**
 - One volume at /var/lib/mila holds the home, the keys and the consents. Railway: set the volume's mount path to /var/lib/mila; compose: the new docker-compose.yml. Without it Mila runs, but a card says the sign-in will be lost at the next redeploy.
 - Set OWNER_ID: the owners' list is not carried over. Give consents again: old decisions are kept as evidence, not used.
 
-**For the owner (laptop)**
+**On a laptop**
 - The new permissions example asks more often: SSH, shell start files, autostart and edits outside ~/work. Your own permissions.json is not changed — compare it with the new example.
 
 **For Milas**
