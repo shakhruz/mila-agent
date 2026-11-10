@@ -6,11 +6,12 @@
 
 **Для хозяина**
 - Ключи и ваши согласия теперь хранятся отдельно от дома Милы: я пользуюсь ключом, но прочесть его не могу.
-- На ноутбуке я чаще спрашиваю разрешения: вход по сети, автозапуск, правки вне рабочей папки.
+- На ноутбуке я чаще спрашиваю разрешения: вход на другие компьютеры (SSH), автозапуск, правки вне рабочей папки.
+- Заново спрошу согласия на посты и траты; в облаке до обновления задайте id хозяина и том.
 
 **Прочтите до обновления (облако: Railway, Hostinger, docker compose)**
-- Теперь у Милы один том на /var/lib/mila: внутри дом, ключи и согласия. Railway: в настройках тома поменяйте Mount path на /var/lib/mila. compose: возьмите новый docker-compose.yml.
-- Задайте OWNER_ID (ваш Telegram id) в переменных платформы: список владельцев после обновления не переносится.
+- Теперь у Милы один том на /var/lib/mila: внутри дом, ключи и согласия. Railway: в настройках тома поменяйте Mount path на /var/lib/mila. compose: возьмите новый docker-compose.yml. Без тома Мила работает, но вход в подписку слетит при следующем развёртывании — об этом скажет карточка.
+- Задайте OWNER_ID (ваш Telegram id) в переменных платформы: список владельцев после обновления не переносится. Без него хозяином не считается никто: кнопки «только хозяину» и согласия выключены, раз в день я напомню тому, с кем спарен бот.
 - Согласия на действия от вашего имени (посты, траты) нужно дать заново — старые сохранены отдельно, но в работу не берутся.
 - Если после обновления Мила молчит — посмотрите журнал контейнера, строки со словом mila-state: там сказано, что мешает старту.
 
@@ -21,11 +22,13 @@
 
 **For the owner**
 - Keys and your consents are kept apart from Mila's home: I can use a key, not read it.
-- On a laptop I ask more often: network sign-in, autostart, edits outside the work folder.
+- On a laptop I ask more often: signing in to other computers (SSH), autostart, edits outside the work folder.
+- I'll ask again for your consents to posts and spending; in the cloud set OWNER_ID and the volume before the update.
 
 **Read before the update (cloud: Railway, Hostinger, docker compose)**
 - One volume at /var/lib/mila holds the home, the keys and the consents. Railway: set the volume's mount path to /var/lib/mila; compose: the new docker-compose.yml. Without it Mila runs, but a card says the sign-in will be lost at the next redeploy.
-- Set OWNER_ID: the owners' list is not carried over. Give consents again: old decisions are kept as evidence, not used.
+- Set OWNER_ID: the owners' list is not carried over. Without it nobody counts as the owner: owner-only buttons and consents are off, and once a day I remind the person the bot is paired with. Give consents again: old decisions are kept as evidence, not used.
+- Mila silent after the update — look at the container's log, lines with mila-state: they say what stops the start.
 
 **On a laptop**
 - The new permissions example asks more often: SSH, shell start files, autostart and edits outside ~/work. Your own permissions.json is not changed — compare it with the new example.
