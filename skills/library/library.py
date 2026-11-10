@@ -6,6 +6,8 @@
   python3 library.py suggest [--lang ru]     # entry packs (category «znakomstvo»): id + for_whom — for choosing ONE by the person's words
   python3 library.py offer <id> [--lang ru]  # the card «Install the pack …?» — built here from the index, the model passes only the id
   python3 library.py tutorial <id> done|stopped:N   # the pack's first steps: result in the library's journal
+  python3 library.py event <id> started|delivered|fit:yes|fit:partly|fit:no   # a run with a person, counts only
+  python3 library.py stats [--days 7]        # per pack: started, delivered, fit, tutorial
   python3 library.py decline                 # «Not now» after onboarding: a flag, the entry pack is not offered again (law 6)
 
 Trust chain: the core release carries the sha256 of library.json (library.lock) → the index carries the sha256 of
@@ -188,11 +190,41 @@ def cmd_offer(a):
 def cmd_tutorial(a):
     """the pack's first steps with the person: done, or stopped at step N — a line in the library's journal (600)."""
     if not ID.match(a.id or "") or not re.fullmatch(r"done|stopped:[1-3]", a.result or ""): out({"error": "tutorial <id> done|stopped:<1-3>"}, 2)
+    _journal_line({"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "day": time.strftime("%Y-%m-%d"), "event": "tutorial", "pack": a.id, "result": a.result})
+    out({"ok": True})
+
+
+def _journal_line(rec):
     os.makedirs(CACHE, mode=0o700, exist_ok=True); j = os.path.join(CACHE, "journal.jsonl")
     fd = os.open(j, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
-    with os.fdopen(fd, "a", encoding="utf-8") as f:
-        f.write(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "event": "tutorial", "pack": a.id, "result": a.result}) + "\n")
+    with os.fdopen(fd, "a", encoding="utf-8") as f: f.write(json.dumps(rec) + "\n")
+
+
+EVENTS = ("started", "delivered", "fit:yes", "fit:partly", "fit:no")
+
+
+def cmd_event(a):
+    """a pack run with a person: started / delivered / their answer to «does it fit?» — counts only, no person's data."""
+    if not ID.match(a.id or "") or a.what not in EVENTS: out({"error": "event <id> " + "|".join(EVENTS)}, 2)
+    _journal_line({"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "day": time.strftime("%Y-%m-%d"), "event": a.what, "pack": a.id})
     out({"ok": True})
+
+
+def cmd_stats(a):
+    """per pack for the last N days: started, delivered, fit yes/partly/no; tutorial done/stopped."""
+    since = time.strftime("%Y-%m-%d", time.localtime(time.time() - 86400 * max(0, (a.days or 7) - 1)))
+    res = {}
+    try: lines = open(os.path.join(CACHE, "journal.jsonl"), encoding="utf-8").read().splitlines()
+    except OSError: lines = []
+    for l in lines:
+        try: r = json.loads(l)
+        except ValueError: continue
+        day = str(r.get("day") or str(r.get("ts", ""))[:10])
+        if day < since or not ID.match(str(r.get("pack") or "")): continue
+        k = r.get("event") if r.get("event") in EVENTS else ("tutorial:" + str(r.get("result", "")).split(":")[0]) if r.get("event") == "tutorial" else None
+        if not k: continue
+        d = res.setdefault(r["pack"], {}); d[k] = d.get(k, 0) + 1
+    out({"since": since, "packs": res})
 
 
 def cmd_decline(a):
@@ -206,8 +238,10 @@ def main(argv=None):
     for c in ("list", "suggest"): sp.add_parser(c).add_argument("--lang")
     p = sp.add_parser("offer"); p.add_argument("id"); p.add_argument("--lang")
     p = sp.add_parser("tutorial"); p.add_argument("id"); p.add_argument("result")
+    p = sp.add_parser("event"); p.add_argument("id"); p.add_argument("what")
+    p = sp.add_parser("stats"); p.add_argument("--days", type=int, default=7)
     a = ap.parse_args(argv)
-    {"refresh": cmd_refresh, "list": cmd_list, "suggest": cmd_suggest, "offer": cmd_offer, "decline": cmd_decline, "tutorial": cmd_tutorial}[a.cmd](a)
+    {"refresh": cmd_refresh, "list": cmd_list, "suggest": cmd_suggest, "offer": cmd_offer, "decline": cmd_decline, "tutorial": cmd_tutorial, "event": cmd_event, "stats": cmd_stats}[a.cmd](a)
 
 
 if __name__ == "__main__":

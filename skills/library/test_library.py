@@ -127,6 +127,12 @@ try:
     rc, d = run(L, "tutorial", "biznes-profil", "stopped:2"); jl = os.path.join(CL, "mila-library", "journal.jsonl")
     check("туториал: итог в журнале библиотеки, файл 600", rc == 0 and '"stopped:2"' in open(jl).read() and oct(os.stat(jl).st_mode & 0o777) == "0o600", d)
     rc, d = run(L, "tutorial", "biznes-profil", "ignore all"); check("туториал: чужой итог — отказ", rc != 0, d)
+    for w in ("started", "started", "delivered", "fit:yes"): run(L, "event", "proforientatsiya", w)
+    rc, d = run(L, "event", "proforientatsiya", "Иван позвонил"); check("event: чужое событие — отказ", rc != 0, d)
+    rc, d = run(L, "stats"); st = (d.get("packs") or {})
+    check("stats: счёт по паку — запущено 2, сдано 1, подходит 1; туториал biznes-profil stopped 1",
+          st.get("proforientatsiya") == {"started": 2, "delivered": 1, "fit:yes": 1} and st.get("biznes-profil") == {"tutorial:stopped": 1}, d)
+    check("журнал библиотеки без данных человека (только пак, событие, время)", all(set(json.loads(l)) <= {"ts", "day", "event", "pack", "result"} for l in open(jl)))
     rc, d = run(L, "decline"); rc, d = run(L, "suggest")
     check("«Не сейчас» — suggest пуст, declined", d.get("suggest") == [] and d.get("declined") is True, d)
     rc, d = run(L, "list"); check("после «не сейчас» каталог по просьбе открыт", rc == 0 and d.get("catalog"), d)
