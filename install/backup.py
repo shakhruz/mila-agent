@@ -71,7 +71,7 @@ NEVER = [
 # (блок env — штатное место ключа модели), внутри журнала входящих (человек
 # прислал ключ в чат), внутри карточки чата, куда его переписали. Исключить
 # файл по имени недостаточно: надо чистить содержимое.
-KEY_WORDS = {"TOKEN", "SECRET", "PASSWORD", "APIKEY"}
+KEY_WORDS = {"TOKEN", "SECRET", "SECRETS", "PASSWORD", "APIKEY"}
 NOT_AFTER = {"HINT", "USED", "COUNT", "COUNTS"}
 
 

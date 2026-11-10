@@ -31,7 +31,7 @@ for s_ in ('{"secretary": "Ivanova_Anna_V"}', 'TOKENS_USED=12345678', '{"next_pa
            '{"max_tokens": 1200, "keywords": "secret sauce recipe"}', '{"TOKEN_COUNT": "45678901"}'):
     check("не ключ — цело: " + s_[:40], B.scrub(s_)[0] == s_, B.scrub(s_)[0])
 # Quality 10.11: camelCase names of JS configs — cut; plus the ones that were right
-for k in ("botToken", "accessToken", "clientSecret", "authToken", "apiKey", "refresh_token", "client_secret", "password", "OPENAI" + "_API_KEY"):
+for k in ("botToken", "accessToken", "clientSecret", "authToken", "apiKey", "refresh_token", "client_secret", "secrets", "password", "OPENAI" + "_API_KEY"):
     o = B.scrub(json.dumps({k: "Zx9" + "q" * 20}))[0]
     check("ключ под именем %s — вырезан" % k, "Zx9" not in o, o)
 B.CUT_BY_FIELD.clear(); B.scrub(json.dumps({DGN: DG}))
