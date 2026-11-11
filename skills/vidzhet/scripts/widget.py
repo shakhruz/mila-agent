@@ -11,9 +11,10 @@
   widget.py refresh [<пак> | --all]                → пересчитать; изменилось — что отправить инструментом widget_data; нет — ничего
   widget.py press <метка>                          → чьё это нажатие и что с ним делать; сам ничего не исполняет
 Файлы: <work>/packs/<пак>/widget.json (ставит установка пака), <work>/state/widgets.json (что отправлено).
-Env: MILA_WORK (по умолчанию ~/work). Выход: JSON; ошибка — {"error"} и код 1.
+Env: MILA_WORK (по умолчанию ~/work). Выход: JSON; ошибка — {"error"} и код 1. sent и refresh принимают --now ISO (для тестов).
 """
 import argparse
+import datetime as dt
 import fcntl
 import json
 import math
@@ -264,6 +265,14 @@ class Store:
         self.lock.close()
 
 
+def now_ts(a):
+    """«Сейчас» в секундах: --now ISO (для тестов и проб — чтобы результат не зависел от часов машины), иначе часы."""
+    v = getattr(a, "now", None)
+    if not v: return time.time()
+    try: return dt.datetime.fromisoformat(v).timestamp()
+    except ValueError: fail("--now — время в формате ISO")
+
+
 def cmd_check(a):
     try:
         with open(a.file, encoding="utf-8") as f: m = json.load(f)
@@ -296,18 +305,18 @@ def cmd_show(a):
 
 
 def cmd_sent(a):
-    pid = a.pack
+    pid = a.pack; now = now_ts(a)
     with Store() as s:
         r = s.d["widgets"].get(pid) or {}
         p = r.get("pending")
         if not isinstance(p, dict): fail("по паку «%s» нечего записывать: сначала show или refresh" % pid[:41])
         if p.get("new"):
             if not a.message or a.message <= 0: fail("нужен --message: id сообщения-виджета из ответа инструмента")
-            r = {"chat_id": p["chat_id"], "message_id": a.message, "marks": p["marks"], "lang": p["lang"], "title": p["title"], "last": p["data"], "ts": int(time.time())}
+            r = {"chat_id": p["chat_id"], "message_id": a.message, "marks": p["marks"], "lang": p["lang"], "title": p["title"], "last": p["data"], "ts": int(now)}
         else:
             if not r.get("message_id"): fail("виджет пака «%s» ещё не отправлен" % pid[:41])
             r = {k: v for k, v in r.items() if k != "pending"}
-            r["last"] = p["data"]; r["ts"] = int(time.time())
+            r["last"] = p["data"]; r["ts"] = int(now)
             if p.get("removed"): r["retired"] = True
         s.d["widgets"][pid] = r
         s.save()
@@ -315,7 +324,7 @@ def cmd_sent(a):
 
 
 def cmd_refresh(a):
-    now = time.time()
+    now = now_ts(a)
     res = []
     with Store() as s:
         ws = s.d["widgets"]
@@ -369,8 +378,8 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("check"); p.add_argument("file"); p.add_argument("--pack", required=True)
     p = sub.add_parser("show"); p.add_argument("pack"); p.add_argument("--chat", required=True); p.add_argument("--bot", required=True); p.add_argument("--lang", default="ru")
-    p = sub.add_parser("sent"); p.add_argument("pack"); p.add_argument("--message", type=int)
-    p = sub.add_parser("refresh"); p.add_argument("pack", nargs="?"); p.add_argument("--all", action="store_true")
+    p = sub.add_parser("sent"); p.add_argument("pack"); p.add_argument("--message", type=int); p.add_argument("--now")
+    p = sub.add_parser("refresh"); p.add_argument("pack", nargs="?"); p.add_argument("--all", action="store_true"); p.add_argument("--now")
     p = sub.add_parser("press"); p.add_argument("mark")
     a = ap.parse_args()
     {"check": cmd_check, "show": cmd_show, "sent": cmd_sent, "refresh": cmd_refresh, "press": cmd_press}[a.cmd](a)

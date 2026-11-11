@@ -3,8 +3,9 @@
 values are read only from the pack's own data folder, made and marked by the install; a link, a second name of another file,
 a folder that was in the home before the pack, a key-like name — «no data»; chat_data never above 1024 bytes; the same data —
 no call; a ceiling of edits per hour; a press — whose step it is, nothing is run; a pack's code is never run (beacon file).
-The home of the test is a temp folder. Run: python3 test_widget.py"""
-import json, os, re, shutil, subprocess, sys, tempfile, time, zlib
+The home of the test is a temp folder; «now» is one moment taken at the start and handed to the script with --now, so the
+result does not depend on the clock the test or the script sees. Run: python3 test_widget.py"""
+import datetime as dt, json, os, re, shutil, subprocess, sys, tempfile, time, zlib
 sys.dont_write_bytecode = True; os.umask(0o022)
 H = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(os.path.dirname(os.path.dirname(H)))
 T = tempfile.mkdtemp(prefix="widget-"); HOME = os.path.join(T, "home"); WORK = os.path.join(HOME, "work"); CL = os.path.join(HOME, ".claude")
@@ -17,7 +18,10 @@ ok = n = 0
 def chk(m, c, x=""):
     global ok, n
     n += 1; ok += bool(c); print(("✅ " if c else "❌ ") + m + ("" if c else "  ← " + str(x)[:400]))
+BASE = dt.datetime.now().astimezone(); NOW = [BASE]      # the test's own clock: moved by hand, never read from the machine again
+def tick(seconds): NOW[0] += dt.timedelta(seconds=seconds)
 def R(*a):
+    if a and a[0] in ("sent", "refresh") and "--now" not in a: a = (*a, "--now", NOW[0].isoformat())
     r = subprocess.run([sys.executable, "-I", os.path.join(H, "widget.py"), *a], capture_output=True, text=True, env=ENV, stdin=subprocess.DEVNULL, timeout=30)
     try: d = json.loads(r.stdout or "{}")
     except ValueError: d = {"raw": (r.stdout + r.stderr)[:300]}
@@ -159,6 +163,7 @@ try:
     chk("пока не записано — нажатие ещё не моё", R("press", "w_%s_new" % PID)[1].get("known") is False)
     rc, o = R("sent", PID); chk("sent без id сообщения — отказ", rc != 0 and "--message" in o.get("error", ""), o)
     rc, o = R("sent", PID, "--message", "321"); r = state()["widgets"][PID]
+    chk("время записи — то, что передано, а не часы машины", r["ts"] == int(NOW[0].timestamp()), r["ts"])
     chk("sent: записаны чат, сообщение, метки, данные; файл 600", rc == 0 and r["message_id"] == 321 and r["chat_id"] == OWNER and r["marks"] == ["w_%s_new" % PID, "w_%s_pay" % PID]
         and "pending" not in r and oct(os.stat(os.path.join(WORK, "state", "widgets.json")).st_mode & 0o777) == "0o600", r)
 
@@ -175,14 +180,16 @@ try:
     rc, o = R("refresh", PID); chk("записано — снова без вызова", o["widgets"] == [{"pack": PID, "changed": False}], o)
     rc, o = R("refresh"); chk("refresh без пака и без --all — отказ", rc != 0, o)
     rc, o = R("refresh", "no-such"); chk("refresh неотправленного — отказ", rc != 0 and "show" in o.get("error", ""), o)
-    s = state(); now = time.time(); s["edits"] = [now - 4000] * 5 + [now - 10 * i for i in range(W.EDITS_PER_HOUR)]
+    s = state(); now = NOW[0].timestamp(); s["edits"] = [now - 4000] * 5 + [now - 10 * i for i in range(W.EDITS_PER_HOUR)]
     json.dump(s, open(os.path.join(WORK, "state", "widgets.json"), "w"))
     put(PID, "count.json", {"total": 14, "week": 3, "state": "ok"})
     rc, o = R("refresh", PID); w = o["widgets"][0]
     chk("потолок правок в час: изменилось, но придержано — без вызова", w.get("changed") is True and "потолок" in w.get("held", "") and "tool" not in w, o)
     chk("правки старше часа из счёта ушли, придержанная в счёт не пошла", len(state()["edits"]) == W.EDITS_PER_HOUR)
-    s = state(); s["edits"] = s["edits"][1:]; json.dump(s, open(os.path.join(WORK, "state", "widgets.json"), "w"))
-    rc, o = R("refresh", PID); chk("на одну ниже потолка — проходит", o["widgets"][0].get("tool") == "widget_data", o); R("sent", PID)
+    tick(3309); rc, o = R("refresh", PID)      # the oldest of the thirty is now 3309 + 290 s old: one second short of an hour
+    chk("за секунду до часа самая старая правка ещё в счёте — придержано", "held" in o["widgets"][0], o)
+    tick(2); rc, o = R("refresh", PID); chk("час прошёл — самая старая ушла из счёта, правка проходит", o["widgets"][0].get("tool") == "widget_data", o); R("sent", PID)
+    rc, o = R("refresh", PID, "--now", "вчера"); chk("--now не по форме — отказ", rc != 0 and "ISO" in o.get("error", ""), o)
 
     # ── press: whose step it is; nothing is run
     rc, o = R("press", "w_%s_new" % PID)
@@ -261,7 +268,23 @@ try:
     rc, o = put_pack("vid-taken")
     chk("в доме уже есть папка с именем пака: виджета нет, папка не тронута и не помечена", rc == 0 and o.get("ok") and "widget" not in o and any("создана не этим паком" in x for x in o.get("widget_refused", []))
         and not os.path.exists(os.path.join(WORK, "vid-taken", W.DATA_MARK)) and not os.path.exists(os.path.join(WORK, "packs", "vid-taken", "widget.json")), o)
-    chk("установка и виджеты не запустили код ни одного пака: файла-маячка нет", not os.path.exists(BEACON))
+    # ── the pack is removed: an empty marked data folder goes with it, a folder with data stays
+    def drop_pack(pid):
+        rc, plan = U("remove-pack", pid)
+        if "text" not in plan: return rc, plan
+        cid[0] += 1; c = "c%d" % cid[0]; ts = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
+        open(CARDS, "a").write(json.dumps({"card_id": c, "chat_id": OWNER, "text": plan["text"], "ts": ts, "buttons": plan["buttons"]}, ensure_ascii=False) + "\n")
+        open(CARDS, "a").write(json.dumps({"card_id": c, "used_ts": ts, "used_by": OWNER}) + "\n")
+        open(EV, "a").write(json.dumps({"params": {"meta": {"type": "callback", "card_id": c, "user_id": OWNER, "callback_data": "pack:yes"}}}) + "\n")
+        return U("remove-pack", pid, "--card", c)
+    kit("vid-empty", manifest()); rc, o = put_pack("vid-empty"); e = os.path.join(WORK, "vid-empty")
+    chk("пак с виджетом поставлен, данных ещё нет — в папке только пометка", rc == 0 and os.listdir(e) == [W.DATA_MARK], o)
+    rc, o = drop_pack("vid-empty"); chk("пак снят: пустая помеченная папка данных ушла с ним", rc == 0 and o.get("widget_data_removed") is True and not os.path.exists(e), o)
+    rc, o = drop_pack("vid-good"); chk("пак снят, а в папке есть данные — папка остаётся (данные хозяина), об уборке ни слова", rc == 0 and "widget_data_removed" not in o and os.path.isfile(os.path.join(g, "count.json")) and os.path.isfile(os.path.join(g, W.DATA_MARK)), o)
+    rc, o = drop_pack("vid-taken"); chk("пак снят: папка, что была в доме до него (без пометки), не тронута", rc == 0 and "widget_data_removed" not in o and os.path.isfile(os.path.join(WORK, "vid-taken", "count.json")), o)
+    kit("vid-link", manifest()); rc, o = put_pack("vid-link"); lk = os.path.join(WORK, "vid-link"); os.remove(os.path.join(lk, W.DATA_MARK)); os.symlink(outside, os.path.join(lk, W.DATA_MARK))
+    rc, o = drop_pack("vid-link"); chk("пометка подменена ссылкой — папку не убираю, чужой файл цел", rc == 0 and "widget_data_removed" not in o and os.path.islink(os.path.join(lk, W.DATA_MARK)) and os.path.isfile(outside), o)
+    chk("установка, снятие и виджеты не запустили код ни одного пака: файла-маячка нет", not os.path.exists(BEACON))
 finally:
     shutil.rmtree(T, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

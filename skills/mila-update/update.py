@@ -1840,6 +1840,17 @@ def pack_widget(d, pid):
     return True, []
 
 
+def drop_empty_widget_dir(pid):
+    """Папка данных виджета, в которой нет ничего, кроме пометки установки, уходит вместе с паком; с данными — остаётся: они хозяина."""
+    data = os.path.join(WORK, pid); mark = os.path.join(data, WIDGET_MARK)
+    try:
+        if os.path.islink(data) or not os.path.isdir(data) or os.listdir(data) != [WIDGET_MARK] or os.path.islink(mark) or not os.path.isfile(mark): return False
+        os.remove(mark); os.rmdir(data)
+    except OSError:
+        return False
+    return True
+
+
 def cmd_install_pack(a):
     d, m, mark = resolve_pack(a); pid = os.path.basename(d)
     ok = consent(a, mark, "Поставить пак «%s»" % _clip(pack_title(m, a.lang or "ru"), 60))
@@ -1905,7 +1916,9 @@ def cmd_remove_pack(a):
         if os.path.isdir(x): shutil.rmtree(x)
     jlog(dict({"event": "remove-pack", "pack": pid, "removed": dsts + [pdir], "backup": b, "touched": dsts + [pdir, PACKS_FILE]}, **ok))
     have.pop(pid, None); write_packs_file(have)
-    print(json.dumps({"ok": True, "pack": pid, "removed_skills": [os.path.basename(x) for x in dsts], "backup": b}, ensure_ascii=False))
+    gone = PACK_ID.match(pid) and drop_empty_widget_dir(pid)
+    print(json.dumps({"ok": True, "pack": pid, "removed_skills": [os.path.basename(x) for x in dsts], "backup": b,
+                      **({"widget_data_removed": True} if gone else {})}, ensure_ascii=False))
 
 
 def main():
