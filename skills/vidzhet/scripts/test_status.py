@@ -10,7 +10,7 @@ H = os.path.dirname(os.path.abspath(__file__)); SK = os.path.dirname(os.path.dir
 T = tempfile.mkdtemp(prefix="vzstatus-"); HOME = os.path.join(T, "home"); WORK = os.path.join(HOME, "work"); CL = os.path.join(HOME, ".claude")
 TG = os.path.join(CL, "channels", "telegram"); EV = os.path.join(TG, "inbound", "events.jsonl")
 os.makedirs(os.path.join(WORK, "state")); os.makedirs(CL)
-for k in ("OWNER_TZ", "OPENROUTER_API_KEY", "GROQ_API_KEY", "SAFE_DIR", "OWNER_JSON", "MILA_LANG"): os.environ.pop(k, None)
+for k in ("MILA_SCHEDULER_BEAT", "BARABAN_STATE", "XDG_STATE_HOME", "OWNER_TZ", "OPENROUTER_API_KEY", "GROQ_API_KEY", "SAFE_DIR", "OWNER_JSON", "MILA_LANG"): os.environ.pop(k, None)
 os.environ.update(HOME=HOME, MILA_WORK=WORK, CLAUDE_CONFIG_DIR=CL, TELEGRAM_STATE_DIR=TG, MILA_EVENTS=EV, PYTHONDONTWRITEBYTECODE="1")
 sys.path.insert(0, H)
 import status as S, widget as W
@@ -45,6 +45,14 @@ try:
     rc, o = run(MC, "add", "vecher", "30 19 * * *", "вечерняя проверка"); assert rc == 0, o
     rc, o = run(MC, "add", "pauza", "0 12 * * *", "на паузе"); run(MC, "pause", "pauza")
     r = S.status("planirovshchik")
+    chk("задачи есть, а отметки прохода службы нет — «стоит»: ничего не сработает", r["state"] == "down" and nums(r)[0] == "2", r)
+    BEAT = os.path.join(HOME, "state", "baraban", "home.beat"); os.makedirs(os.path.dirname(BEAT))
+    def beat(ago_s): open(BEAT, "w", encoding="utf-8").write((now - dt.timedelta(seconds=ago_s)).isoformat())
+    beat(301); r = S.status("planirovshchik"); chk("отметка старше пяти минут — «стоит»", r["state"] == "down", r)
+    beat(300); r = S.status("planirovshchik"); chk("отметке ровно пять минут — служба жива", r["state"] == "ok", r)
+    open(BEAT, "w").write("вчера"); r = S.status("planirovshchik"); chk("в отметке не время — «стоит», без падения", r["state"] == "down" and nums(r)[0] == "2", r)
+    beat(20)
+    r = S.status("planirovshchik")
     chk("две включённые задачи, одна на паузе — в счёте две; ближайшая — время", nums(r)[0] == "2" and len(nums(r)[1]) in (5, 11) and ":" in nums(r)[1] and nums(r)[2] == "0" and r["state"] == "ok", r)
     import importlib.util
     spec = importlib.util.spec_from_file_location("mc_for_test", MC); mcm = importlib.util.module_from_spec(spec); spec.loader.exec_module(mcm)
@@ -56,6 +64,7 @@ try:
         open(EV, "a", encoding="utf-8").write(json.dumps({"ts": int(t.timestamp() * 1000), "params": {"content": "[⏰ расписание] " + job, "meta": {"message_id": "cron-x-%s-1" % job, "ts": t.isoformat(), "ritual": "cron", "job": job}}}) + "\n")
     fire("utro", 3600); os.chmod(EV, 0o600)
     r = S.status("planirovshchik"); chk("задача сработала, итога нет — «без итога» 1, «внимание»", nums(r)[2] == "1" and r["state"] == "attention", r)
+    beat(900); r = S.status("planirovshchik"); chk("есть «без итога», и служба стоит — «стоит» сильнее «внимания»", r["state"] == "down" and nums(r)[2] == "1", r); beat(20)
     run(MC, "done", "utro", "сделано"); r = S.status("planirovshchik"); chk("итог записан — 0, «работает»", nums(r)[2] == "0" and r["state"] == "ok", r)
     fire("utro", -600); r = S.status("planirovshchik"); chk("сработала снова, позже итога — снова «без итога»", nums(r)[2] == "1", r)
     again = (now + dt.timedelta(seconds=600)).replace(second=0, microsecond=0)

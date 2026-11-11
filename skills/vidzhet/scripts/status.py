@@ -63,7 +63,11 @@ def planirovshchik():
             return not at or dt.datetime.fromisoformat(at).astimezone(now.tzinfo) < fired
         except ValueError: return True
     loose = sum(1 for r in on if unfinished(r)); expired = sum(1 for r in rows if r.get("expired"))
-    return {"state": "attention" if loose or expired else "ok",
+    # there are jobs to fire, and the service has left no fresh pass mark for this home: nothing will fire — «down», not «works»
+    cs = _mod("cronspec", os.path.join(SKILLS, "raspisanie", "cronspec.py"))
+    beat = cs.last_beat(os.path.dirname(os.path.realpath(WORK)))
+    alive = beat is not None and abs((now - beat).total_seconds()) <= cs.BEAT_FRESH
+    return {"state": "down" if on and not alive else "attention" if loose or expired else "ok",
             "numbers": [[str(len(on)), L("задач", "jobs")], [_when(nxt[0], now) if nxt else "—", L("ближайшая", "next")], [str(loose), L("без итога", "no result")]]}
 
 
