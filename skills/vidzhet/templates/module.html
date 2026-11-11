@@ -1,0 +1,27 @@
+<style>
+*{box-sizing:border-box}body{margin:0;font:14px/1.35 -apple-system,system-ui,sans-serif;color:#16302d;background:#fbf7ec;--c:#9aa8a5}
+body.ok{--c:#5eead4}body.attention{--c:#f59e0b}body.down{--c:#ef4444}
+.h{background:linear-gradient(135deg,#17645c,#0b2f2c);padding:12px 14px 16px;display:flex;align-items:center;gap:10px;position:relative}
+.m{width:26px;height:26px;border-radius:50%;border:3px solid var(--c);box-shadow:0 0 12px var(--c),inset 0 0 0 4px #0b2f2c,inset 0 0 0 9px var(--c);flex:none}
+.h b{font:italic 18px Georgia,serif;color:#f6e3c6;flex:1}.h span{font-size:12px;font-weight:600;color:var(--c)}
+.h:after{content:"";position:absolute;left:14px;right:14px;bottom:0;height:1px;background:linear-gradient(90deg,#c89a63,transparent)}
+.b{padding:10px 12px 12px}
+.n{display:flex;gap:6px}.n div{flex:1;background:#fff;border-radius:12px;padding:7px 4px;text-align:center;box-shadow:0 1px 3px #134e4a14}
+.n b{display:block;font-size:20px;color:#134e4a;overflow-wrap:anywhere}.n span{font-size:11px;color:#6b8a84}
+.a{display:flex;gap:6px;margin-top:10px}.a button{flex:1;border:0;border-radius:999px;padding:9px 6px;font:600 13px system-ui;background:#5eead4;color:#0b2f2c;box-shadow:0 2px 0 #1f8a7a}
+.a button:active{transform:translateY(2px);box-shadow:none}.a:empty,.n:empty{display:none}
+</style>
+<div class="h"><div class="m"></div><b id="T"></b><span id="s"></span></div>
+<div class="b"><div class="n" id="n"></div><div class="a" id="a"></div></div>
+<script>
+var L=[/*LINKS*/],W=window.TelegramWidget,S={},C={ok:1,attention:1,down:1},$=function(i){return document.getElementById(i)};
+function el(t,x,p){var e=document.createElement(t);e.textContent=x==null?'':String(x);p.appendChild(e);return e}
+function clr(e){while(e.firstChild)e.removeChild(e.firstChild)}
+function arr(x){return Array.isArray(x)?x:[]}
+function load(){try{S=JSON.parse((W&&W.chatData)||'{}')||{}}catch(e){S={}}}
+function draw(){document.body.className=Object.prototype.hasOwnProperty.call(C,S.s)?S.s:'';
+$('T').textContent=S.t||'';$('s').textContent=S.sl||'';
+clr($('n'));arr(S.n).slice(0,3).forEach(function(x){var d=document.createElement('div');x=arr(x);el('b',x[0],d);el('span',x[1],d);$('n').appendChild(d)});
+clr($('a'));arr(S.a).slice(0,L.length).forEach(function(x,i){var b=el('button',x,$('a'));b.onclick=function(){b.textContent='⏳ '+x;if(W&&W.openTelegramLink)W.openTelegramLink(L[i]);else if(W&&W.openLink)W.openLink(L[i])}})}
+load();draw();if(W){W.onEvent&&W.onEvent('chatDataChanged',function(){load();draw()});W.ready&&W.ready()}
+</script>

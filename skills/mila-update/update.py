@@ -1813,6 +1813,33 @@ def cmd_pack_plan(a):
     print(json.dumps(out, ensure_ascii=False, indent=1))
 
 
+WIDGET_PY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "vidzhet", "scripts", "widget.py")
+WIDGET_MARK = ".widget-data"
+
+
+def pack_widget(d, pid):
+    """widget.json пака — только данные для «виджета модуля»; проверяет скрипт ядра, код пака не исполняется. → (ставить, причины отказа).
+    Папку данных <work>/<id пака>/ создаю сама и помечаю: папка, что была в доме до пака, паку не достаётся — её файлы виджет не прочтёт."""
+    src = os.path.join(d, "widget.json")
+    if not os.path.lexists(src): return False, []
+    if os.path.islink(src) or not os.path.isfile(src): return False, ["widget.json — не обычный файл"]
+    try:
+        r = subprocess.run([sys.executable, "-I", WIDGET_PY, "check", src, "--pack", pid], capture_output=True, text=True, timeout=30)
+        o = json.loads(r.stdout or "{}")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return False, ["проверка виджета не запустилась"]
+    if r.returncode != 0 or o.get("ok") is not True:
+        return False, [_clip(x, 160) for x in (o.get("why") or [o.get("error") or "отказ"])][:5]
+    data = os.path.join(WORK, pid); mark = os.path.join(data, WIDGET_MARK)
+    if os.path.lexists(data):
+        if os.path.islink(data) or not os.path.isdir(data) or os.path.islink(mark) or not os.path.isfile(mark):
+            return False, ["папка %s уже есть в доме и создана не этим паком — виджету её не отдаю" % os.path.join("work", pid)]
+    else:
+        os.makedirs(data, mode=0o700)
+        with open(mark, "w", encoding="utf-8") as f: f.write(pid + "\n")
+    return True, []
+
+
 def cmd_install_pack(a):
     d, m, mark = resolve_pack(a); pid = os.path.basename(d)
     ok = consent(a, mark, "Поставить пак «%s»" % _clip(pack_title(m, a.lang or "ru"), 60))
@@ -1838,13 +1865,17 @@ def cmd_install_pack(a):
     os.makedirs(pdir)
     for x in PACK_DOCS + ("pack.json",):
         if os.path.isfile(os.path.join(d, x)): shutil.copy2(os.path.join(d, x), os.path.join(pdir, x))
-    rec = dict({"event": "install-pack", "pack": pid, "version": f["version"], "was": f["was"], "source": "library" if getattr(a, "library", None) else "file" if a.msg else "kit", "mark": mark,
+    wok, wwhy = pack_widget(d, pid)
+    if wok: shutil.copy2(os.path.join(d, "widget.json"), os.path.join(pdir, "widget.json"))
+    rec = dict({"event": "install-pack", "widget": wok, "pack": pid, "version": f["version"], "was": f["was"], "source": "library" if getattr(a, "library", None) else "file" if a.msg else "kit", "mark": mark,
            "title": _clip(pack_title(m, a.lang or "ru"), 60), "skills": [n for n, _ in skills],
            "added": added + [pdir], "touched": dsts + gone + [pdir, PACKS_FILE], "backup": b}, **ok)
     jlog(rec)
     have = installed_packs(); have[pid] = rec; write_packs_file(have)
     print(json.dumps({"ok": True, "pack": pid, "version": f["version"], "was": f["was"], "skills": rec["skills"], "keys": f["keys"],
-                      "role": os.path.join(pdir, "ROLE.md"), "backup": b}, ensure_ascii=False))
+                      "role": os.path.join(pdir, "ROLE.md"), "backup": b,
+                      **({"widget": "у пака есть виджет: widget.py show %s --chat <личка хозяина> --bot <имя бота>" % pid} if wok else {}),
+                      **({"widget_refused": wwhy} if wwhy else {})}, ensure_ascii=False))
 
 
 def cmd_remove_pack(a):

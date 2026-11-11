@@ -32,6 +32,8 @@ names them, and they run later only as part of the owner's task.
    not more than 30 minutes ago, once. Words — «yes», «install», 👍 — are not a press: I resend the card.
 5. Answer the owner in one or two lines: what was installed and the first step from the pack. If the result has `keys` —
    I ask for each key separately, through a key page, never in the chat.
+6. The result has `widget` → the pack has a status widget: I show it by the skill `vidzhet`. The result has `widget_refused` →
+   the pack is installed without a widget; one line to the owner with the reason, nothing else.
 
 The same archive with a newer version is an update: the plan shows «Update: 0.1 → 0.2»; skills the new version no longer
 has are removed. A skill with the name of a core skill or one installed separately — the pack is refused.
