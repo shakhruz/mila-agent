@@ -64,8 +64,8 @@ chk "экран короткий (до 30 строк), построчного п
 chk "число навыков на экране = числу навыков набора = числу навыков, лежащих в доме" "grep -q \"✓ $NSK skills\" $T/o2.txt && [ \$(ls -d $T/.claude/skills/*/ | wc -l | tr -d ' ') -eq $NSK ]"
 NHK=0; for f in telegram-inbox-feed crons-keeper reply-required pd-mask send-guard done-guard secret-guard skill-hint; do [ -x $T/.claude/hooks/$f.py ] && NHK=$((NHK+1)); done
 chk "число стражей на экране = числу установленных файлов хуков (8)" "[ $NHK -eq 8 ] && grep -q '✓ $NHK guardians' $T/o2.txt"
-chk "журнал установки: есть, права 600, в нём построчные факты (навыки, хуки, инструменты) и шаги get.sh" "python3 -c \"import os,sys; sys.exit(0 if os.stat(sys.argv[1]).st_mode & 0o777 == 0o600 else 1)\" $LOGF && grep -q 'unchanged, no copy needed' $LOGF && grep -q 'hook → ' $LOGF && grep -q 'doctor.py' $LOGF && grep -q 'updating' $LOGF"
-chk "последняя инструкция — один шаг mila; ни «Next / дальше», ни onboard-списка" "grep -q 'One step left' $T/o2.txt && grep -qx '      mila' $T/o2.txt && grep -q 'mila doctor' $T/o2.txt && ! grep -q 'Next / ' $T/o2.txt && ! grep -q 'BotFather' $T/o2.txt"
+chk "журнал установки: есть, права 600, в нём построчные факты (навыки, хуки, инструменты) и шаги get.sh" "python3 -c \"import os,sys; sys.exit(0 if os.stat(sys.argv[1]).st_mode & 0o777 == 0o600 else 1)\" $LOGF && grep -q 'unchanged, no copy needed' $LOGF && grep -q 'hook → ' $LOGF && grep -q 'doctor.py' $LOGF && grep -q 'commit: ' $LOGF"
+chk "последняя инструкция — один шаг mila; ни «Next / дальше», ни onboard-списка" "grep -q 'One step left' $T/o2.txt && grep -q '^      [^ ]*mila$' $T/o2.txt && grep -q 'mila doctor' $T/o2.txt && ! grep -q 'Next / ' $T/o2.txt && ! grep -q 'BotFather' $T/o2.txt"
 T8=$(mktemp -d)
 HOME=$T8 MILA_SKIP_PLUGIN=1 MILA_SKIP_CHECKS=1 MILA_REPO="$SRC" MILA_REF="$B" bash "$H/install/get.sh" --verbose > $T/o15.txt 2>&1
 chk "--verbose: построчные факты — и на экране тоже" "grep -q 'unchanged, no copy needed\|installed' $T/o15.txt && grep -q 'hook → ' $T/o15.txt && grep -q 'updating\|cloning into' $T/o15.txt"

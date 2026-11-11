@@ -146,6 +146,8 @@ Release tags are signed when the maintainer's key is set (`git tag -v vX.Y.Z`); 
 
 It checks Claude Code, Bun and git, clones the kit to `~/mila`, runs `install/install.sh` and installs the Telegram plugin `mila-telegram` (existing files are backed up as `<file>.bak-YYYYMMDD-HHMMSS`). Prefer to look first? `curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh | MILA_INSTALL_ARGS=--dry-run bash` — or clone and run `./install/install.sh --dry-run`: it shows exactly what will be touched.
 
+The screen stays short — a greeting, five check marks, one next step (`mila`). Every file it touched is listed in `~/.claude/mila-install.log` (private, rewritten on each run); `--verbose` (or `MILA_INSTALL_VERBOSE=1`) prints the same lines on the screen.
+
 **What changes on your machine** (`--dry-run` lists every item before anything is written):
 - `~/mila` — the kit itself (a git clone);
 - `~/.claude/skills/` — Mila's skills; a skill you changed is backed up first;

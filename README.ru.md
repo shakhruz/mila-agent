@@ -72,6 +72,8 @@ curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.s
 
 Она проверит Claude Code, Bun и git, склонирует набор в `~/mila`, запустит `install/install.sh` и поставит плагин Telegram `mila-telegram` (заменяемые файлы сохраняются как `<файл>.bak-ГГГГММДД-ЧЧММСС`). Хотите сначала посмотреть — склонируйте и запустите `./install/install.sh --dry-run`: покажет, что будет затронуто.
 
+На экране — короткая сводка: приветствие, пять галочек, один следующий шаг (`mila`). Каждый затронутый файл записан в `~/.claude/mila-install.log` (закрытый, перезаписывается при каждом запуске); `--verbose` (или `MILA_INSTALL_VERBOSE=1`) печатает те же строки на экран.
+
 Затем три шага, каждый с проверкой:
 
 ```sh
