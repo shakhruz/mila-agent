@@ -43,7 +43,7 @@ curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.s
 
 Buyruq Claude Code, Bun va git’ni tekshiradi, to‘plamni `~/mila` ga yuklaydi va Telegram plaginini `mila-telegram` o‘rnatadi.
 
-Keyin `mila` ni ishga tushiring: Mila tug‘ilmaguncha u kompyuteringizda tug‘ilish sahifasini ochadi (xuddi shu sahifa — `mila birth`): bot tokenini qo‘yasiz, Claude’ga kirasiz, juftlash so‘zini botingizga yuborasiz — sahifa uning guvohnomasini ko‘rsatadi. Sahifa faqat `127.0.0.1` da, bir martalik manzilda ishlaydi va ish tugagach o‘zi yopiladi. `mila onboard` xuddi shuni terminalda bajarish yo‘li bo‘lib qoladi. Uch qadam, har biri tekshiriladi:
+Keyin `mila` ni ishga tushiring: Mila tug‘ilmaguncha u kompyuteringizda tug‘ilish sahifasini ochadi (xuddi shu sahifa — `mila birth`): Telegram’da botini bir bosishda yaratib, tug‘ilish kodini qo‘yasiz (bot ota-bot orqali yaratiladi, shuning uchun uning tokeni bir marta bizning serverimizdan o‘tadi; o‘z BotFather tokeningiz ham mos va faqat sizda qoladi), Claude’ga kirasiz, juftlash uchun botingizni ochasiz — sahifa uning guvohnomasini ko‘rsatadi. Sahifa faqat `127.0.0.1` da, bir martalik manzilda ishlaydi va ish tugagach o‘zi yopiladi. `mila onboard` xuddi shuni terminalda bajarish yo‘li bo‘lib qoladi. Uch qadam, har biri tekshiriladi:
 
 ```sh
 mila onboard

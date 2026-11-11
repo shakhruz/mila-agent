@@ -26,7 +26,7 @@ class TG(BaseHTTPRequestHandler):
             res = []
             if S["code"]:
                 res = [{"update_id": 10, "message": {"chat": {"type": "group", "id": -5}, "from": {"id": 999}, "text": S["code"]}},
-                       {"update_id": 11, "message": {"chat": {"type": "private", "id": S["owner"]}, "from": {"id": S["owner"], "first_name": "Ada"}, "text": S["code"].upper()}}]
+                       {"update_id": 11, "message": {"chat": {"type": "private", "id": S["owner"]}, "from": {"id": S["owner"], "first_name": "Ada"}, "text": S["msg"] if S.get("msg") else S["code"].upper()}}]
             r = {"ok": True, "result": res}
         elif method == "sendMessage":
             S["sent"].append(body); r = {"ok": True, "result": {}}
@@ -38,6 +38,26 @@ class TG(BaseHTTPRequestHandler):
         self.send_response(200); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
 
 
+GOODCODE, NOOWNER, NOTOKEN, DOWN = "MILA-ABCD-EFGH-JKLM", "MILA-NOOW-NERX-ABCD", "MILA-NOTK-NXXX-ABCD", "MILA-DOWN-DOWN-DOWN"
+HITS = []
+
+
+class Relay(BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+
+    def do_POST(self):
+        d = json.loads(self.rfile.read(int(self.headers["Content-Length"]))); HITS.append(d.get("code"))
+        c = d.get("code")
+        if c == GOODCODE: code, body = 200, {"ok": True, "bot_token": TOKEN, "owner_id": str(S["owner2"])}
+        elif c == NOOWNER: code, body = 200, {"ok": True, "bot_token": TOKEN}
+        elif c == NOTOKEN: code, body = 200, {"ok": True}
+        elif c == DOWN: code, body = 500, {"ok": False}
+        else: code, body = 404, {"ok": False}
+        b = json.dumps(body).encode(); self.send_response(code); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
+
+
+S["owner2"] = 555003
+relay = ThreadingHTTPServer(("127.0.0.1", 0), Relay); threading.Thread(target=relay.serve_forever, daemon=True).start()
 tg = ThreadingHTTPServer(("127.0.0.1", 0), TG); threading.Thread(target=tg.serve_forever, daemon=True).start()
 T = tempfile.mkdtemp()
 CL = os.path.join(T, "claude")
@@ -46,7 +66,8 @@ open(CL, "w").write('#!/bin/sh\nF="%s/loggedin"\nif [ "$2" = status ]; then [ -f
 os.chmod(CL, 0o755)
 CFG = os.path.join(T, ".claude")
 ENV = dict(os.environ, HOME=T, CLAUDE_CONFIG_DIR=CFG, TELEGRAM_STATE_DIR=os.path.join(T, "tg"), MILA_SKIP_TIMERS="1",
-           MILA_TG_API="http://127.0.0.1:%d" % tg.server_port, MILA_CLAUDE=CL, MILA_BIRTH_NO_OPEN="1")
+           MILA_TG_API="http://127.0.0.1:%d" % tg.server_port, MILA_CLAUDE=CL, MILA_BIRTH_NO_OPEN="1",
+           BIRTH_RELAY="http://127.0.0.1:%d/birth/api/claim" % relay.server_port, BIRTH_RELAY_INSECURE_TEST="1")
 ENV.pop("TELEGRAM_BOT_TOKEN", None)
 ok = n = 0
 
@@ -131,9 +152,9 @@ st, page = req("GET", BASE)
 urls = set(re.findall(r"https?://[^\s\"'<>)]+", page))
 chk("страница: самодостаточный HTML, четыре языка (en, ru, uz, zh), язык по браузеру",
     st == 200 and '"en":{' in page and '"ru":{' in page and '"uz":{' in page and '"zh":{' in page and "navigator.language" in page and "data:image/jpeg;base64," in page)
-chk("страница не ходит наружу: из адресов только https://t.me/, ни CDN, ни шрифтов, ни скриптов", urls <= {"https://t.me/"}
+chk("страница не ходит наружу: из адресов только https://t.me/, ни CDN, ни шрифтов, ни скриптов", all(u.startswith("https://t.me/") for u in urls)
     and not re.search(r"<(script|link|img|iframe)[^>]+(src|href)=[\"']?(https?:)?//", page) and "@import" not in page and "__PORTRAIT__" not in page)
-chk("страница: без «двенадцати слов», без кнопки «создать бота одним нажатием»", "twelve" not in page.lower() and "one tap" not in page.lower())
+chk("страница: без «двенадцати слов» (это другой модуль), без мёртвых кнопок", "twelve" not in page.lower() and 'href="#"' not in page.replace('id="bopen" href="#"', "").replace('id="b4" href="#"', ""))
 chk("страница: подсказка про @BotFather и /newbot есть", "@BotFather" in page and "/newbot" in page)
 
 # --- step 1: the voice -------------------------------------------------------
@@ -171,12 +192,26 @@ chk("повторный запрос показывает тот же код", r
 r = json.loads(req("GET", BASE + "api/pair/poll")[1])
 chk("код ещё не пришёл: paired false, error no_code, хозяина нет", r.get("paired") is False and r.get("error") == "no_code" and not os.path.exists(os.path.join(T, "tg", "access.json")))
 S["code"] = code
+S["msg"] = "/start wrong2"
+r = json.loads(req("GET", BASE + "api/pair/poll")[1])
+chk("`/start` с чужим кодом не делает хозяином", r.get("paired") is False and not os.path.exists(os.path.join(T, "tg", "access.json")))
+S["msg"] = "/start " + code.upper()
 r = json.loads(req("GET", BASE + "api/pair/poll")[1])
 acc = json.load(open(os.path.join(T, "tg", "access.json"))) if os.path.exists(os.path.join(T, "tg", "access.json")) else {}
 sett = json.load(open(os.path.join(CFG, "settings.json"))) if os.path.exists(os.path.join(CFG, "settings.json")) else {}
-chk("код из личного чата: хозяин как в onboard (allowFrom, dmPolicy allowlist, OWNER_ID); из группы — не считается",
+chk("`/start <код>` (ссылка t.me/бот?start=код) из личного чата: хозяин как в onboard (allowFrom, dmPolicy allowlist, OWNER_ID); из группы — не считается",
     r.get("paired") is True and acc.get("allowFrom") == [str(S["owner"])] and acc.get("dmPolicy") == "allowlist" and sett.get("env", {}).get("OWNER_ID") == str(S["owner"]))
 chk("хозяину ушло приветствие в Telegram", any("Paired" in x for x in S["sent"] + S["photos"]))
+
+S["msg"] = None
+sys.path.insert(0, HERE)
+import onboard as ob
+ups = lambda t: [{"message": {"chat": {"type": "private"}, "from": {"id": 9}, "text": t}}]
+chk("общий сопоставитель onboard: «код», «/start код», «/start@бот КОД» — да; «/start другой», «код лишний» — нет",
+    all(ob.code_from(ups(t), "abc234") for t in ("abc234", "ABC234", "/start abc234", "/start@some_bot ABC234", " /START abc234 ")) and not any(ob.code_from(ups(t), "abc234") for t in ("/start", "/start other1", "abc234 more", "/start abc234 x")))
+chk("алфавит кода пары годится для параметра start в Telegram (A-Za-z0-9_-, до 64)", re.fullmatch(r"[A-Za-z0-9_-]{1,64}", code) is not None)
+chk("страница делает кнопку «Открыть моего бота» из @username бота и текущего кода (t.me/<бот>?start=<код>)",
+    '"https://t.me/"+encodeURIComponent(botName)+"?start="+encodeURIComponent(r.code)' in page and 'id="bopen"' in page)
 
 # --- born ------------------------------------------------------------------------
 rec_file = os.path.join(CFG, "mila-birth.json")
@@ -233,5 +268,79 @@ for _ in range(40):
 opened = open(seen).read().strip() if os.path.exists(seen) else ""
 chk("без MILA_BIRTH_NO_OPEN сервер просит браузер открыть тот же адрес", opened != "" and opened in first3)
 p3.terminate(); p3.wait(timeout=10)
+
+# --- the one-tap path: birth code through the relay ----------------------------------------
+def reset_state():
+    for f in (rec_file, os.path.join(T, "tg", "access.json"), envf, os.path.join(T, "loggedin"), os.path.join(CFG, "settings.json")):
+        if os.path.exists(f): os.remove(f)
+
+
+def serve(env):
+    global PORT, PTOK, BASE
+    pp, f1, rr = start(env)
+    mm = re.search(r"http://mila\.localhost:(\d+)/([A-Za-z0-9_-]{20,})/", f1)
+    PORT, PTOK = int(mm.group(1)), mm.group(2); BASE = "/%s/" % PTOK
+    return pp, f1, rr
+
+
+reset_state()
+p4, first4, rest4 = serve(dict(ENV, MILA_BIRTH_PARENT="my_parent_bot"))
+page4 = req("GET", BASE)[1]
+chk("кнопка «одним нажатием» ведёт на t.me/<MILA_BIRTH_PARENT>?start=birth; по умолчанию — mila_gpt_bot",
+    'href="https://t.me/my_parent_bot?start=birth"' in page4 and 'href="https://t.me/mila_gpt_bot?start=birth"' in page and "__PARENT__" not in page4)
+chk("новые тексты на четырёх языках: кнопка, строка про родительского бота, ошибки кода, «Открыть моего бота»",
+    len(re.findall(r'"(?:en|ru|uz|zh)":\{"t0"', page4)) == 4 and all(len(re.findall(r'"%s":' % k, page4)) == 4 for k in ("bone", "honest", "own", "e_code_refused", "e_relay", "e_relay_no_token", "bopen", "orsend", "sub4")))
+chk("шаг «голос»: сначала кнопка и поле кода, свой ключ BotFather — в свёрнутом <details>", page4.index('id="bone"') < page4.index('id="bcodein"') < page4.index("<details>") < page4.index('id="tok"'))
+nothing = lambda: not os.path.exists(envf) and not os.path.exists(os.path.join(T, "tg", "access.json"))
+r = api("code", {"code": "hello"})[1]
+chk("код не того вида: отказ code_format, в relay не ходили, ничего не сохранено", r.get("error") == "code_format" and not HITS and nothing())
+r = api("code", {"code": "MILA-ZZZZ-ZZZZ-ZZZZ"})[1]
+chk("relay ответил 404 (использован/истёк/опечатка): отказ code_refused, ничего не сохранено", r.get("error") == "code_refused" and nothing())
+r = api("code", {"code": NOTOKEN})[1]
+chk("relay ответил без токена: relay_no_token, ничего не сохранено", r.get("error") == "relay_no_token" and nothing())
+r = api("code", {"code": DOWN})[1]
+chk("relay ответил 500: relay (недоступен), ничего не сохранено", r.get("error") == "relay" and nothing())
+st, body = req("POST", BASE + "api/code", body={"code": NOOWNER.lower().replace("-", " ")})
+r = json.loads(body)
+chk("relay без owner_id: токен сохранён, paired false, шаг пары обязателен (код выдаётся, хозяина нет); строчные и пробелы вместо дефисов приняты",
+    r.get("ok") is True and r.get("paired") is False and r.get("username") == "test_birth_bot" and TOKEN not in body and HITS[-1] == NOOWNER
+    and bool(api("pair/start")[1].get("code")) and not os.path.exists(os.path.join(T, "tg", "access.json")) and json.loads(req("GET", BASE + "api/status")[1])["pair"]["done"] is False)
+os.remove(envf)
+st, body = req("POST", BASE + "api/code", body={"code": GOODCODE.lower().replace("-", "")})
+r = json.loads(body)
+acc = json.load(open(os.path.join(T, "tg", "access.json"))) if os.path.exists(os.path.join(T, "tg", "access.json")) else {}
+sett = json.load(open(os.path.join(CFG, "settings.json"))) if os.path.exists(os.path.join(CFG, "settings.json")) else {}
+chk("верный код (строчными, без дефисов): токен сохранён 600/700, хозяин из owner_id как в finish_pair, paired true, токена в ответе нет",
+    r.get("ok") is True and r.get("paired") is True and HITS[-1] == GOODCODE and TOKEN not in body and TOKEN in open(envf).read()
+    and stat.S_IMODE(os.stat(envf).st_mode) == 0o600 and stat.S_IMODE(os.stat(os.path.join(T, "tg")).st_mode) == 0o700
+    and acc.get("allowFrom") == [str(S["owner2"])] and acc.get("dmPolicy") == "allowlist" and sett.get("env", {}).get("OWNER_ID") == str(S["owner2"]))
+c = subprocess.run([sys.executable, os.path.join(HERE, "onboard.py"), "--check"], env=ENV, capture_output=True, text=True, timeout=60)
+chk("`onboard --check`: ключ бота и хозяин готовы (✓ 1/3 и 3/3), Claude ещё нет", "✓ 1/3" in c.stdout and "✓ 3/3" in c.stdout and "✗ 2/3" in c.stdout)
+pr = api("pair/start")[1]
+chk("шаг пары пропущен: pair/start сразу done, кода не просит", pr.get("done") is True and "code" not in pr)
+api("claude/login")
+for _ in range(40):
+    time.sleep(0.25)
+    if json.loads(req("GET", BASE + "api/claude")[1]).get("done"): break
+b = api("born")[1]
+api("done")
+try: p4.wait(timeout=15)
+except subprocess.TimeoutExpired: pass
+log4 = first4 + "".join(rest4)
+chk("после Claude — сразу «родилась»; сервер завершился; ключа бота нет в выводе сервера", b.get("ok") is True and p4.returncode == 0 and TOKEN not in log4)
+c = subprocess.run([sys.executable, os.path.join(HERE, "onboard.py"), "--check"], env=ENV, capture_output=True, text=True, timeout=60)
+chk("`onboard --check` после пути «одним нажатием»: все три шага ✓", c.returncode == 0 and c.stdout.count("✓") == 3)
+
+reset_state(); h0 = len(HITS)
+env5 = dict(ENV); env5.pop("BIRTH_RELAY_INSECURE_TEST")
+p5, first5, rest5 = serve(env5)
+r = api("code", {"code": GOODCODE})[1]
+chk("relay по http без тестового флага отклонён: в relay не ходили, ничего не сохранено", r.get("error") == "relay" and len(HITS) == h0 and nothing())
+p5.terminate(); p5.wait(timeout=10)
+os.environ["BIRTH_RELAY_INSECURE_TEST"] = "1"
+import birth_relay as br
+chk("normalize_code: регистр, дефисы, пробелы, без MILA; мусор и чужой алфавит — нет",
+    all(br.normalize_code(x) == GOODCODE for x in ("milaabcdefghjklm", "MILA ABCD EFGH JKLM", "abcd-efgh-jklm", " abcdefghjklm ")) and br.normalize_code("MILA-ABC0-EFGH-JKLM") is None and br.normalize_code("hello") is None and br.normalize_code("") is None)
+chk("claim: relay недоступен (порт закрыт) → unreachable", br.claim(GOODCODE, "http://127.0.0.1:1/x")["error"] == "unreachable")
 print("итог %d/%d" % (ok, n))
 sys.exit(0 if ok == n else 1)

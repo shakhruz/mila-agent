@@ -20,6 +20,7 @@ import base64
 import hmac
 import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -31,6 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import onboard  # noqa: E402
+import birth_relay  # noqa: E402
 
 ASSETS = os.path.join(HERE, "birth-assets")
 NAMES = ("mila.localhost", "127.0.0.1", "localhost")
@@ -66,8 +68,13 @@ def write_record_once(username, first_name):
     return rec
 
 
+def parent_bot():
+    p = os.environ.get("MILA_BIRTH_PARENT", "").strip().lstrip("@")
+    return p if re.fullmatch(r"[A-Za-z0-9_]{3,64}", p) else "mila_gpt_bot"
+
+
 def page_html():
-    html = open(os.path.join(ASSETS, "page.html"), encoding="utf-8").read()
+    html = open(os.path.join(ASSETS, "page.html"), encoding="utf-8").read().replace("__PARENT__", parent_bot())
     img = base64.b64encode(open(os.path.join(ASSETS, "portrait.jpg"), "rb").read()).decode()
     return html.replace("__PORTRAIT__", "data:image/jpeg;base64," + img)
 
@@ -124,6 +131,28 @@ def api_token(body):
     onboard.save_token(tok)
     r = me["result"]
     return 200, {"ok": True, "username": r.get("username", ""), "name": r.get("first_name", "")}
+
+
+CODE_ERRORS = {"format": "code_format", "refused": "code_refused", "no_token": "relay_no_token"}
+
+
+def api_code(body):
+    """The one-tap path: birth code → relay → bot token (+ owner id). The token goes straight to onboard's storage and
+    is never returned or printed. Without an owner id from the relay the normal pairing step stays required."""
+    r = birth_relay.claim(str(body.get("code", "")))
+    if not r["ok"]:
+        return 200, {"ok": False, "error": CODE_ERRORS.get(r["error"], "relay")}
+    tok = r["bot_token"]
+    me = onboard.tg(tok, "getMe")
+    if not me.get("ok"):
+        return 200, {"ok": False, "error": "telegram" if me.get("error_code") else "network"}
+    onboard.save_token(tok)
+    paired = False
+    if r["owner_id"]:
+        onboard.finish_pair(tok, r["owner_id"])
+        paired = True
+    res = me["result"]
+    return 200, {"ok": True, "username": res.get("username", ""), "name": res.get("first_name", ""), "paired": paired}
 
 
 def api_claude_login():
@@ -270,7 +299,7 @@ class Handler(BaseHTTPRequestHandler):
             body = None
         if not isinstance(body, dict):
             return self._json(400, {"ok": False, "error": "srv"})
-        routes = {"api/token": lambda: api_token(body), "api/claude/login": api_claude_login, "api/pair/start": api_pair_start,
+        routes = {"api/token": lambda: api_token(body), "api/code": lambda: api_code(body), "api/claude/login": api_claude_login, "api/pair/start": api_pair_start,
                   "api/born": api_born, "api/done": api_done}
         if r not in routes:
             return self._send(404, "not found", "text/plain")
