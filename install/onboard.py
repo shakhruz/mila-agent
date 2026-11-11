@@ -232,13 +232,21 @@ def new_code():
     return "".join(secrets.choice(ALPHABET) for _ in range(6))
 
 
+def code_text(text):
+    """The code a message carries, lower-case: a bare message, `/start <code>` or `/start@<bot> <code>` (a deep link
+    t.me/<bot>?start=<code>). Anything else comes back as the whole trimmed text, so it never equals a code by accident."""
+    t = (text or "").strip().lower()
+    mt = re.match(r"^/start(?:@[a-z0-9_]+)?\s+(\S+)$", t)
+    return mt.group(1) if mt else t
+
+
 def code_from(updates, code):
     """The `from` object of the person who sent exactly this code in a private chat, else None. Groups and other texts are ignored."""
     for u in updates:
         m = u.get("message") or {}
         if (m.get("chat") or {}).get("type") != "private":
             continue
-        if (m.get("text") or "").strip().lower() == code:
+        if code_text(m.get("text")) == code:
             f = m.get("from") or {}
             if str(f.get("id", "")).isdigit():
                 return f
