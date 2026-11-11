@@ -7,15 +7,21 @@ permissions: { contents: read }   # least-privilege CI token, also for pull requ
 jobs:
   run_all:
     runs-on: ubuntu-latest
-    timeout-minutes: 25   # a run once hung on apt-get for 30+ min; without a limit GitHub waits up to 6 h
+    timeout-minutes: 50   # a run once hung on apt-get for 30+ min; without a limit GitHub waits up to 6 h (apt up to 26 min + the tests)
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }   # nothing here pushes with git: the token does not stay in .git/config
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - uses: oven-sh/setup-bun@v2
-      - run: for i in 1 2 3; do timeout 150 sudo apt-get update -qq && timeout 150 sudo apt-get install -y -qq ffmpeg fonts-dejavu-core && exit 0; sudo dpkg --configure -a || true; sleep 10; done; exit 1   # a stuck apt mirror: retry instead of waiting; finish an interrupted dpkg before retrying
-        timeout-minutes: 16   # worst case 3×(150+150)+2×10 = 920 s < 960
+      - run: |   # a stuck apt mirror: retry instead of waiting. `sudo timeout` stops apt itself (a timeout over sudo left apt holding the lock for the next try); a failed try shows why
+          for i in 1 2 3; do
+            sudo timeout 120 apt-get update -qq -o Acquire::Retries=2 \
+              && sudo DEBIAN_FRONTEND=noninteractive timeout 360 apt-get install -y -qq --no-install-recommends -o Acquire::Retries=2 -o DPkg::Lock::Timeout=60 ffmpeg fonts-dejavu-core \
+              && exit 0
+            echo "apt: try $i failed"; sudo dpkg --configure -a || true; sleep 10
+          done; exit 1
+        timeout-minutes: 26   # worst case 3×(120+360)+3×10 = 1470 s < 1560
       - run: pip install pyyaml pillow numpy telethon==1.45.0   # telethon: owner-telegram tests; without it a test reports 0/0, which CI treats as a failure
       - run: HOME=$(mktemp -d) bash tests/run_all.sh   # every test_* in the repo + frontmatter, sandboxed HOME
       - name: privacy-lint — no maintainers' private values in the core (the list is the PRIVACY_JSON secret, never in the tree; skipped without it)
