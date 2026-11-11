@@ -38,7 +38,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "mcp__plugin_(mila-)?telegram_telegram__reply|mcp__plugin_(mila-)?telegram_telegram__edit_message|mcp__plugin_(mila-)?telegram_telegram__topic",
+        "matcher": "mcp__plugin_(mila-)?telegram_telegram__reply|mcp__plugin_(mila-)?telegram_telegram__edit_message|mcp__plugin_(mila-)?telegram_telegram__topic|mcp__plugin_(mila-)?telegram_telegram__widget|mcp__plugin_(mila-)?telegram_telegram__widget_data",
         "hooks": [
           {
             "type": "command",

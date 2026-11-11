@@ -69,6 +69,16 @@ chk("вместо журнала папка — стоп, сторож не па
 os.rmdir(_J)
 chk("ключ провайдера в тексте — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "ключ " + "sk-" + "abcdefghijklmnopqrstuv"}}, "deny")   # фальшивка склеивается — сканер ядра чист
 chk("серверный путь — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "файл /srv/x"}}, "deny")
+# a widget is a message too: its code, data and caption are checked like a text
+W = "mcp__plugin_mila-telegram_telegram__widget"; WD = "mcp__plugin_mila-telegram_telegram__widget_data"
+HTML = "<div>Пульт</div><script>TelegramWidget.ready()</script>"
+chk("виджет хозяину, чистый — уходит", {"tool_name": W, "tool_input": {"chat_id": "111", "html": HTML, "chat_data": "{\"n\": 1}", "caption": "Пульт дня"}}, "pass")
+chk("виджет чужому чату — стоп", {"tool_name": W, "tool_input": {"chat_id": "999", "html": HTML}}, "deny")
+chk("ключ провайдера в коде виджета — стоп", {"tool_name": W, "tool_input": {"chat_id": "111", "html": HTML + "<!-- " + "sk-" + "abcdefghijklmnopqrstuv -->"}}, "deny")
+chk("серверный путь в данных виджета — стоп", {"tool_name": W, "tool_input": {"chat_id": "111", "html": HTML, "chat_data": "{\"file\": \"" + "/srv/" + "mila/x\"}"}}, "deny")
+chk("серверный путь в подписи виджета — стоп", {"tool_name": W, "tool_input": {"chat_id": "111", "html": HTML, "caption": "файлы в " + "/srv/" + "mila/x"}}, "deny")
+chk("ключ в новых данных виджета (widget_data) — стоп", {"tool_name": WD, "tool_input": {"chat_id": "111", "message_id": "5", "chat_data": "{\"k\": \"" + "sk-" + "abcdefghijklmnopqrstuv\"}"}}, "deny")
+chk("обычные новые данные виджета — уходят", {"tool_name": WD, "tool_input": {"chat_id": "111", "message_id": "5", "chat_data": "{\"n\": 2}"}}, "pass")
 chk("другой инструмент — не мешает", {"tool_name": "Bash", "tool_input": {"command": "ls"}}, "pass")
 def chk_closed(name, inp):   # fail closed: сторож не смог проверить → exit 2 + deny, сообщение не уходит
     global ok, n; n += 1
@@ -139,6 +149,7 @@ ti = (json.loads(out)["hookSpecificOutput"].get("updatedInput") or {}) if out.st
 good = dec == "allow" and ti.get("text") == "Оплата с карты ****" + P[-4:] + " прошла" + NM_TAIL and ti.get("reply_to") == 7 and P not in out
 ok += good; print(("✅ " if good else "❌ ") + "карта хозяину — уходит с маской ****1234, остальные поля целы" + ("" if good else "  " + out[:200]))
 bad = P[:-1] + str((int(P[-1]) + 1) % 10)
+chk("номер карты в данных виджета хозяину — стоп (маски в виджете нет)", {"tool_name": W, "tool_input": {"chat_id": "111", "html": HTML, "chat_data": "{\"card\": \"" + P + "\"}"}}, "deny")
 chk("16 цифр без Луны (номер заказа) — уходит как есть", {"tool_name": R, "tool_input": {"chat_id": "-1001", "text": "заказ " + bad}}, "pass")
 chk("телефон +998 90 123 45 67 и 12 цифр — не карта", {"tool_name": R, "tool_input": {"chat_id": "-1001", "text": "звоните +998 90 123 45 67, ИНН 123456789012"}}, "pass")
 chk("карта + другая причина хозяину — стоп (маска не прячет ошибку)", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "карта " + P + " и файл /srv/x"}}, "deny")

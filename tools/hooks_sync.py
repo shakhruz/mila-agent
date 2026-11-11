@@ -12,7 +12,7 @@ import datetime, json, os, re, subprocess, sys
 
 REPLY = "mcp__plugin_(mila-)?telegram_telegram__reply"
 SEND_RE = ("mcp__plugin_(mila-)?telegram_telegram__reply|mcp__plugin_(mila-)?telegram_telegram__edit_message"
-           "|mcp__plugin_(mila-)?telegram_telegram__topic")   # as install/install.sh
+           "|mcp__plugin_(mila-)?telegram_telegram__topic|mcp__plugin_(mila-)?telegram_telegram__widget|mcp__plugin_(mila-)?telegram_telegram__widget_data")   # as install/install.sh
 DENY = ("Read(~/.mila-auth/**)", "Edit(~/.mila-auth/**)", "Read(~/work/secrets/**)", "Edit(~/work/secrets/**)")
 
 

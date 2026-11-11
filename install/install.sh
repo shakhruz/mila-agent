@@ -313,7 +313,8 @@ if not any('reply-required.py' in json.dumps(x) for x in hooks.get('Stop', [])):
     ck_missing.append(('Stop', {'hooks': [{'type': 'command', 'command': rr}]}))
 # PreToolUse(reply|edit_message) — send-guard блокирует отправку не туда, ключи, кухню; PostToolUse(reply) — task-sent
 # пишет исходящие и обещания; SessionStart — task-open показывает сорванные и горящие обещания
-SEND_RE = 'mcp__plugin_(mila-)?telegram_telegram__reply|mcp__plugin_(mila-)?telegram_telegram__edit_message|mcp__plugin_(mila-)?telegram_telegram__topic'   # a topic's name is seen by the whole group — checked like a message
+SEND_RE = 'mcp__plugin_(mila-)?telegram_telegram__reply|mcp__plugin_(mila-)?telegram_telegram__edit_message|mcp__plugin_(mila-)?telegram_telegram__topic|mcp__plugin_(mila-)?telegram_telegram__widget|mcp__plugin_(mila-)?telegram_telegram__widget_data'   # a topic's name and a widget (its code, data, caption) leave the machine too — checked like a message
+SEND_RE_TOPIC = 'mcp__plugin_(mila-)?telegram_telegram__reply|mcp__plugin_(mila-)?telegram_telegram__edit_message|mcp__plugin_(mila-)?telegram_telegram__topic'   # a home from before the widget tools
 SEND_RE_OLD = 'mcp__plugin_(mila-)?telegram_telegram__reply|mcp__plugin_(mila-)?telegram_telegram__edit_message'
 # "onFailure" у хука — с CC 2.1.295; на старой CC ключ не пишем (строгая CC могла бы отбросить весь хук сторожа)
 import re as _re, subprocess as _sp
@@ -349,8 +350,8 @@ if not any('skill-hint.py' in json.dumps(x) for x in hooks.get('UserPromptSubmit
 # сторож упал/завис → сообщение НЕ уходит. Уже записанный хук без onFailure — дописываем ключ
 for e in hooks.get('PreToolUse', []):
     for hk in (e.get('hooks') or []) if isinstance(e, dict) else []:
-        if isinstance(hk, dict) and 'send-guard.py' in str(hk.get('command', '')) and e.get('matcher') == SEND_RE_OLD:
-            e['matcher'] = SEND_RE   # a home from before the topic tool: the guard also checks a topic's name
+        if isinstance(hk, dict) and 'send-guard.py' in str(hk.get('command', '')) and e.get('matcher') in (SEND_RE_OLD, SEND_RE_TOPIC):
+            e['matcher'] = SEND_RE   # a home from before the topic or the widget tools: the guard checks those too
             if ('_env', None) not in ck_missing:
                 ck_missing.append(('_env', None))
         if ONFAIL_OK and isinstance(hk, dict) and 'send-guard.py' in str(hk.get('command', '')) and hk.get('onFailure') != 'block':
