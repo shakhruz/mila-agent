@@ -31,8 +31,8 @@ key place closed to the session's tools); what I may read back (map, media) — 
 only to connect; without a session every command answers «not connected» and does nothing. Only stdlib besides it."""
 import argparse, asyncio, getpass, hashlib, importlib, json, os, re, secrets, shutil, sys, time, types
 
-KEYS = os.path.expanduser(os.environ.get("SHTURMAN_DIR") or "~/.mila-auth/shturman")
-DATA = os.path.expanduser(os.environ.get("SHTURMAN_DATA") or "~/work/shturman")
+KEYS = os.path.expanduser("~/.mila-auth/shturman")   # the paths are in the code: the environment is the session's to set (tests put their own into the module)
+DATA = os.path.expanduser("~/work/shturman")
 DEVICE = dict(device_model="Mila Shturman", system_version="read-only", app_version="1.0")
 # the closed lists: reading, a draft, and (only while revoke runs) the sign-out
 ALLOWED = frozenset({"connect", "disconnect", "is_user_authorized", "get_me", "iter_dialogs", "get_messages", "get_entity", "download_media", "request"})
@@ -100,7 +100,8 @@ def read_only(raw, d):
         rt = getattr(m, "reply_to", None)
         return types.SimpleNamespace(h=keep(m), id=getattr(m, "id", None), text=str(getattr(m, "message", None) or ""), out=bool(getattr(m, "out", False)),
                                      ts=m.date.timestamp() if getattr(m, "date", None) else None, sender_id=getattr(m, "sender_id", None), views=getattr(m, "views", None),
-                                     reply_to=getattr(rt, "reply_to_msg_id", None) if rt is not None else None, media=media_kind(m))
+                                     reply_to=getattr(rt, "reply_to_msg_id", None) if rt is not None else None, media=media_kind(m),
+                                     edited=bool(getattr(m, "edit_date", None)))
 
     def v_dialog(dl):
         mu = getattr(getattr(getattr(dl, "dialog", None), "notify_settings", None), "mute_until", None); dr = getattr(dl, "draft", None)
@@ -303,6 +304,7 @@ async def owner_said(c, d, by, ref, what, question=None):
     except (ValueError, KeyError, TypeError): prev = None
     if isinstance(prev, list): prev = prev[0] if prev else None
     if not prev or prev.out: die("%s: его сообщение должно быть ответом на мой вопрос в личке с Милой" % what)
+    if prev.edited: die("%s: мой вопрос после отправки правили — его «да» было на другой текст; нужен новый вопрос и новый ответ" % what)
     if question is not None:
         if prev.text.strip() != question: die("%s: его ответ — не на вопрос про этот чат (вопрос — ровно текст из propose-open)" % what)
         if msg.text.strip().lower() not in YES: die("%s: на вопрос он ответил не «да»" % what)

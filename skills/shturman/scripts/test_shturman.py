@@ -11,9 +11,12 @@ import asyncio, contextlib, datetime as dt, io, json, os, shutil, subprocess, sy
 H = os.path.dirname(os.path.abspath(__file__)); T = tempfile.mkdtemp(prefix="shturman-test-")
 KEYS, DATA = os.path.join(T, "keys"), os.path.join(T, "data")
 os.umask(0o022)   # an open umask: the files must be 600 by their own mode
-os.environ.update(SHTURMAN_DIR=KEYS, SHTURMAN_DATA=DATA, MILA_BOT="10")   # MILA_BOT in the environment must mean nothing
+FORGED = os.path.join(T, "forged")
+os.environ.update(SHTURMAN_DIR=FORGED, SHTURMAN_DATA=FORGED, MILA_BOT="10")   # the environment is the session's to set: it must mean nothing
 sys.dont_write_bytecode = True; sys.path.insert(0, H)
 import shturman as S
+ENV_IGNORED = S.KEYS == os.path.expanduser("~/.mila-" + "auth/shturman") and S.DATA == os.path.expanduser("~/work/shturman")
+S.KEYS, S.DATA = KEYS, DATA   # the test's own home — put into the module, not through the environment
 
 ok = n = 0
 def chk(name, cond, x=""):
@@ -66,7 +69,8 @@ MSGS = {10: [msg(1, "привет от друга")], 11: [msg(2, "мой дав
               msg(60, Q10, ago=100), msg(61, "да", out=True, ago=50, reply_to=60), msg(62, "нет", out=True, ago=50, reply_to=60), msg(63, "Да", out=True, ago=40, reply_to=60),
               msg(72, "Открыть Штурману личный чат «Друг Иван»? Ответьте «да» на это сообщение. ⟦open:11⟧", ago=100), msg(73, "да", out=True, ago=50, reply_to=72),
               msg(74, Q10.replace("Друг Иван", "Чужой человек").replace("open:10", "open:11"), ago=100), msg(75, "да", out=True, ago=50, reply_to=74),
-              msg(80, Q20, ago=100), msg(81, "да", out=True, ago=45, reply_to=80)]}
+              msg(80, Q20, ago=100), msg(81, "да", out=True, ago=45, reply_to=80),
+              msg(90, Q10.replace("Друг Иван", "Чужой человек").replace("open:10", "open:11"), ago=100, edit_date=when(70)), msg(91, "да", out=True, ago=50, reply_to=90)]}
 DIALOGS = [dialog(FRIEND, "Друг Иван", 2, MSGS[10][0]), dialog(STRANGER, "Чужой человек", 3, MSGS[11][1]), dialog(FAMILY, "Семья", 1), dialog(CLOSED_SUPER, "Закрытый клуб", 4),
            dialog(PUBLIC_GROUP, "Открытый клуб", 5), dialog(MY_GROUP, "Моя группа", 0), dialog(CHANNEL, "Новости", 9), dialog(FORUM, "Форум", 0), dialog(BOT, "Мила", 0),
            dialog(TRICKY, TRICKY_NAME, 1, ago=200 * 3600)]
@@ -133,6 +137,7 @@ try:
         code, out, err = run(*cmd)
         chk("не подключён: %s — отказ «не подключён», клиента не трогаю" % cmd[0], code != 0 and "не подключён" in err and RAW[0].calls == [], (code, err))
     chk("не подключён: файлов не создано", not os.path.exists(KEYS) and not os.path.exists(DATA))
+    chk("папки ключей и данных — из кода: SHTURMAN_DIR и SHTURMAN_DATA в окружении ничего не меняют, подложенная папка не создаётся", ENV_IGNORED and not os.path.exists(FORGED))
     code, out, err = run("status"); chk("status без подключения: connected false", code == 0 and json.loads(out) == {"connected": False, "opened_chats": 0, "login": None}, out)
     code, out, err = run("login"); chk("вход не из живого терминала — отказ, ничего не создано", code != 0 and "терминал" in err and not os.path.exists(KEYS), err)
     code, out, err = run("revoke"); chk("отзыв без подключения — нечего гасить, клиента не трогаю", code == 0 and RAW[0].calls == [] and "не подключён" in out, out)
@@ -228,6 +233,7 @@ try:
     code, out, err = allow("10", ref="900/54"); chk("allow: «да» в ответ на другой мой вопрос (про черновик) — отказ", code != 0 and "не на вопрос про этот чат" in err, err)
     code, out, err = allow("11", ref="900/61"); chk("allow: «да» на вопрос про чат 10 не открывает чат 11", code != 0 and "не на вопрос про этот чат" in err, err)
     code, out, err = allow("11", ref="900/73"); chk("allow: вопрос с чужим именем при метке чата 11 (подмена имени) — отказ", code != 0 and "не на вопрос про этот чат" in err, err)
+    code, out, err = allow("11", ref="900/91"); chk("allow: вопрос правили после отправки (его «да» было на другой текст) — отказ, даже если текст теперь верный", code != 0 and "правили" in err and "11" not in S.allowed_list(KEYS), err)
     code, out, err = allow("10", ref="900/62"); chk("allow: на верный вопрос он ответил «нет» — отказ", code != 0 and "не «да»" in err, err)
     chk("после отказов список пуст", S.allowed_list(KEYS) == {})
     code, out, err = allow("40"); chk("allow: канал читается и так — отказ", code != 0 and "без списка" in err, err)

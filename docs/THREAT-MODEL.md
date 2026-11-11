@@ -109,7 +109,9 @@ image and voice generation, payment links). Keys for those services are the main
   - Telegram may restrict an account driven by a program. The skill paces itself (a pause, a ceiling per hour, never the whole
     dialog list at once); the risk stays, and the owner is told.
   - What comes out of the client wrapper is plain functions and plain data: no bound method, no library object, nothing with a
-    client behind it. Python still lets code that runs in the same process reach inside a closure — again, not a boundary.
+    client behind it. Reaching the client through a closure (`__closure__`) needs one's own Python code in the same process — no
+    new way in, and again not a boundary. The other files in the key folder (a session kept aside until its sign-out is
+    confirmed, the call counter) are the same residual as the session file: a shell command with a globbed path reaches them.
   - A chat is opened only by the owner's «yes» given as a reply to Mila's exact question about that chat (the name comes from his
     account, the chat's id is in the text); the bot it is asked in is named in a file his sign-in wrote, not in the environment.
     A private channel (no public name) is read without a list, like any channel: one author speaks there, not a circle of people.
