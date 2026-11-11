@@ -12,6 +12,7 @@ Free, open source, Apache-2.0. Made with ❤️ in Uzbekistan.</p>
 <p align="center">
   <a href="#quick-start"><b>Install</b></a> ·
   <a href="docs/THREAT-MODEL.md"><b>Threat model</b></a> ·
+  <a href="docs/README.md"><b>Docs</b></a> ·
   <a href="https://github.com/shakhruz/mila-agent/discussions"><b>Community</b></a> ·
   <a href="https://milaagent.com">milaagent.com</a> ·
   <a href="https://mila.market">Mila Market</a> ·

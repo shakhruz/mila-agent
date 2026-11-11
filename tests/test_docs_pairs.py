@@ -6,7 +6,7 @@ have both; the two point at each other in the first lines; they have the same nu
 Run: python3 tests/test_docs_pairs.py"""
 import os, re, sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); D = os.path.join(REPO, "docs")
-PAIRS = ["SCHEDULER", "CONCEPTS", "MODULES", "MIND"]          # pages written as pairs from the start; older pairs are checked for the twin and the links only
+PAIRS = ["SCHEDULER", "CONCEPTS", "MODULES", "MIND", "design/PASSPORT"]          # pages written as pairs from the start; older pairs are checked for the twin and the links only
 ok = n = 0
 def chk(m, c, x=""):
     global ok, n
@@ -18,15 +18,16 @@ def shape(t):
             "code blocks": len(re.findall(r"^```", t, re.M)) // 2, "bullets": len(re.findall(r"^- ", body, re.M))}
 def links(t): return [x for x in re.findall(r"\]\(([^)#]+)(?:#[^)]*)?\)", t) if not re.match(r"[a-z]+:", x)]
 
-ru = sorted(f[:-6] for f in os.listdir(D) if f.endswith(".ru.md"))
+ru = sorted(os.path.relpath(os.path.join(r0, f), D)[:-6] for r0, _, fs in os.walk(D) for f in fs if f.endswith(".ru.md"))      # with subfolders: design/…
 chk("у каждой русской страницы есть английская пара", all(os.path.isfile(os.path.join(D, x + ".md")) for x in ru), ru)
 chk("страницы-пары на месте: " + ", ".join(PAIRS), all(os.path.isfile(os.path.join(D, x + s)) for x in PAIRS for s in (".md", ".ru.md")))
 for x in sorted(set(ru) | set(PAIRS)):
     if not all(os.path.isfile(os.path.join(D, x + s)) for s in (".md", ".ru.md")): continue
     en, r = read(x + ".md"), read(x + ".ru.md")
-    chk(x + ": страницы ссылаются друг на друга в первых строках", "](%s.ru.md)" % x in "\n".join(en.split("\n")[:5]) and "](%s.md)" % x in "\n".join(r.split("\n")[:5]))
+    b0 = os.path.basename(x)
+    chk(x + ": страницы ссылаются друг на друга в первых строках", "](%s.ru.md)" % b0 in "\n".join(en.split("\n")[:5]) and "](%s.md)" % b0 in "\n".join(r.split("\n")[:5]))
     for name, t in ((x + ".md", en), (x + ".ru.md", r)):
-        dead = [l for l in links(t) if not os.path.exists(os.path.normpath(os.path.join(D, l)))]
+        dead = [l for l in links(t) if not os.path.exists(os.path.normpath(os.path.join(D, os.path.dirname(x), l)))]
         chk(name + ": каждая ссылка ведёт к файлу", not dead, dead)
 for x in PAIRS:
     en, r = read(x + ".md"), read(x + ".ru.md")
@@ -88,4 +89,22 @@ reg = open(os.path.join(REPO, "canon", "QUALITIES.md"), encoding="utf-8").read()
 chk("MIND: четыре качества в таблице стоят в реестре под теми же именами", all(("**%s**" % x) in reg and x in read("MIND.ru.md") for x in ("Держу каждое дело", "Сделано с уликой", "Сама возвращаюсь", "Открыто и первой")))
 chk("MIND: слова, которыми не говорим, названы как запрет, а не как утверждение", "We do not say she «feels»" in read("MIND.md") and "Не говорим: «чувствует»" in read("MIND.ru.md")
     and not re.search(r"she feels|Mila feels|is conscious", read("MIND.md"), re.I) and not re.search(r"Мила чувствует|она чувствует|осознаёт себя[^»]", read("MIND.ru.md")))
+# a design page says in its first lines that nothing of it is in the core — and the map of modules marks the module the same way
+pe, pr = read("design/PASSPORT.md"), read("design/PASSPORT.ru.md")
+chk("design/PASSPORT: в первых строках — «в разработке, в ядре этого нет», на обоих языках", "**In development.** Nothing on this page is in the core yet" in "\n".join(pe.split("\n")[:6]) and "**В разработке.** Ничего из этой страницы в ядре пока нет" in "\n".join(pr.split("\n")[:6]))
+sec = lambda t, head: t.split(head, 1)[1].split("\n## ", 1)[0]
+chk("design/PASSPORT: карта модулей помечает Паспорт так же — «в разработке», и в ядре нет ни навыка, ни папки паспорта", "- **in development**" in sec(read("MODULES.md"), "## 2. Passport") and "- **в разработке**" in sec(read("MODULES.ru.md"), "## 2. Паспорт")
+    and not any(os.path.exists(os.path.join(REPO, p)) for p in ("skills/passport", "skills/pasport", "passport")))
+chk("design/PASSPORT: что решено и что открыто — названо таблицей, открытые решения помечены в тексте", "## What is decided and what is open" in pe and pe.count("*Open decision:*") == 2 and pr.count("*Открытое решение:*") == 2)
+chk("design/PASSPORT: двенадцать слов — «Мила их не видит и не хранит» сказано прямо", "Mila never sees them and never keeps them" in pe and "Мила их не видит и не хранит" in pr)
+# the index of the docs names every page — a new page that is not in the index is not found by a reader
+for idx, twin in (("README.md", False), ("README.ru.md", True)):
+    t = read(idx); listed = set(links(t))
+    pages = sorted(os.path.relpath(os.path.join(r0, f), D) for r0, _, fs in os.walk(D) for f in fs if f.endswith(".md") and not f.startswith("README") and "exam-example" not in r0)
+    want = [p for p in pages if not p.endswith(".ru.md")]
+    if twin: want = [(p[:-3] + ".ru.md") if (p[:-3] + ".ru.md") in pages else p for p in want]
+    miss = [p for p in want if p not in listed]
+    chk(idx + ": в указателе названа каждая страница (%d)%s" % (len(want), ", русская — где она есть" if twin else ""), not miss, miss)
+chk("указатель документации назван в каждом из четырёх README", all(("docs/README.ru.md" if f == "README.ru.md" else "docs/README.md") in open(os.path.join(REPO, f), encoding="utf-8").read()
+    for f in ("README.md", "README.ru.md", "README.uz.md", "README.zh-CN.md")))
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

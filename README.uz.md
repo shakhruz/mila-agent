@@ -62,4 +62,4 @@ Keyin — `mila`. `mila onboard --check` hech narsani o‘zgartirmasdan uch qada
 <!-- Discord: badge + invite link go here when the invite is ready -->
 Savollar, g‘oyalar, Milangiz nima qilayotganini ko‘rsating: [GitHub Discussions](https://github.com/shakhruz/mila-agent/discussions). Xatolar — [Issues](https://github.com/shakhruz/mila-agent/issues).
 
-To‘liq ma’lumot — [English README](README.md) va [docs/REFERENCE.md](docs/REFERENCE.md).
+To‘liq ma’lumot — [English README](README.md), [docs/README.md](docs/README.md) va [docs/REFERENCE.md](docs/REFERENCE.md).

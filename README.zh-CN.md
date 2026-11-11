@@ -54,4 +54,4 @@ mila onboard
 <!-- Discord: badge + invite link go here when the invite is ready -->
 提问、分享想法、展示你的 Mila 在做什么：[GitHub Discussions](https://github.com/shakhruz/mila-agent/discussions)。问题反馈：[Issues](https://github.com/shakhruz/mila-agent/issues)。
 
-完整说明见 [English README](README.md)（英文）和 [docs/REFERENCE.md](docs/REFERENCE.md)（英文）。
+完整说明见 [English README](README.md)（英文）、[docs/README.md](docs/README.md)（英文）和 [docs/REFERENCE.md](docs/REFERENCE.md)（英文）。

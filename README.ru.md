@@ -42,7 +42,7 @@
 Mila Agent бесплатен и открыт. Нужна помощь с запуском? **MilaGPT Studio** заведёт вашу Милу и будет растить её вместе с делом (акселерация): <https://milagpt.io/akselerator/>. Готовые навыки и роли от других авторов — **Mila Market**: <https://mila.market>. Сайт: <https://milaagent.com>.
 Telegram-плагин - отдельный открытый репозиторий: [shakhruz/mila-telegram](https://github.com/shakhruz/mila-telegram).
 
-[English](README.md) · [Полный справочник (EN)](docs/REFERENCE.md) · [Сравнение с OpenClaw, NanoClaw, Hermes Agent (EN)](README.md#how-mila-compares)
+[English](README.md) · [Документация: что где читать](docs/README.ru.md) · [Полный справочник (EN)](docs/REFERENCE.md) · [Сравнение с OpenClaw, NanoClaw, Hermes Agent (EN)](README.md#how-mila-compares)
 
 **Честные минусы Милы.** Только Telegram: нет WhatsApp, Slack и Discord. Нужен Claude Code, вход — своей подпиской Claude или своим
 API-ключом; этот репозиторий — только Claude (гостевой контур на других моделях есть только в облачной версии). Мила отвечает, пока работают ваш компьютер и сессия: закрыт ноутбук — Мила молчит, нужен всегда
