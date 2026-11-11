@@ -6,12 +6,14 @@
 
 **Для хозяина**
 - Штурман: по вашему слову читаю ваш личный Telegram — каналы, группы и те личные чаты, которые вы открыли сами, — и кладу черновики; отправляете вы. Подключаете сами, в терминале; отключить — одной командой.
+- Развилки: когда вы молчите, я иду по своему рекомендуемому варианту только в собственной обратимой работе и записываю точку; выберете другое позже — вернусь к ней и переделаю. Деньги, отправка и публикация от вашего имени — по-прежнему только по вашей кнопке.
 - Журнал проблем: каждый мой сбой записан — что случилось, что исправлено, чем проверено. Третий повтор одной причины я закрываю не обещанием, а проверкой или настройкой. Спросите «что пошло не так» — отвечу из журнала.
 
 </details>
 
 **For the owner**
 - Shturman: on your word I read your personal Telegram — channels, groups and the personal chats you opened yourself — and put drafts; you send. You connect it yourself, in a terminal; one command disconnects it.
+- Forks: while you are silent I go ahead by my recommended option only on my own reversible work and log the point; pick another option later — I return to it and redo. Money, sending and publishing in your name — still only by your button.
 - The problem journal: every slip of mine is written down — what happened, what was fixed, how it was verified. A third repeat of one cause is closed with a check or a setting, not a promise. Ask «what went wrong» — I answer from the journal.
 
 **For Milas**
@@ -20,6 +22,7 @@
 - `dela.py`: the «already written» check and the new line are under one lock — two writers at once never log one stage twice.
 - New skill `shturman` — the owner's personal Telegram account, reading and drafts only, off until the owner signs in himself in a live terminal (`login`); personal chats and private groups only those he opened (`allow`: his own word, read from his account, fresh, used once); a draft only where he writes; no sending, deleting, editing, reactions or «mark as read» in the code — a test lists the names and runs every command on a fake client; a pause and a ceiling per hour; `revoke` signs out at Telegram and wipes the files (no network — a red mark in `status`). The session files live in a key place closed to the session's tools; `docs/THREAT-MODEL.md` says what this access is; the library is pinned with sums (`skills/shturman/requirements.txt`).
 - The schedule service is called the Scheduler (RU: «Планировщик») in every text a person reads; file names and state paths keep the old name (`install/baraban.py`, `state/baraban`) — nothing to migrate.
+- Four words of the core — Lock, Consent, Choice, Fork (`canon/ZAMOK.md`, `docs/CONSENT.md`). New skill `razvilki` (`work/razvilki.jsonl`): a fork point on Mila's own reversible work — what she chose, why, what to redo on a switch; `switch` by the owner's message, `done`; a point on anything behind a lock (money, sending, publishing, deleting, signing, «in his name») is refused by the mark and by the words, the refusal stays in the journal. `iniciativa`: silence is not consent — «while you are silent I do B on my side, nothing goes out».
 - send-guard: a report with an apology passes only in the owner's chat and only when it names a problem number that is in `work/problemy.jsonl` (a whole «found» line: the fact and a pointer to evidence) and is open or was closed today; a number alone no longer opens the filter.
 
 ## v1.7.7 · 10.11 — the pack library: free packs from Mila Library

@@ -4,6 +4,15 @@ In Mila Agent, an action that leaves the machine on the owner's behalf — a pos
 can be run by a separate process, the consent proxy (`consent/consent_proxy.py`), as the receiver's OS user `mila-io`. The
 session cannot run it itself: the service keys are with the proxy, not with the session. The session only asks.
 
+## Four words
+
+- **Lock** (RU: Замок) — an action that does not go further without the owner's key: a word in his name, money, anything that cannot be undone. A lock is a mechanism, not a promise: the consent proxy runs such actions, the session only asks. Where there is no proxy (a laptop), there is no lock — Mila says so and prepares a draft for the owner to act on himself.
+- **Consent** (RU: Согласование) — the owner opens a lock with a button, for this text and this time. A changed character or target — a new card. One press, one action; every step is in the consent journal. Silence is not consent.
+- **Choice** (RU: Выбор) — when the decision is the owner's, Mila comes with options A/B/C, what each leads to, her recommendation and its ground (`skills/cards`, `skills/iniciativa`).
+- **Fork** (RU: Развилка) — on her own reversible work Mila goes ahead by the recommended option, says «while you are silent I do B on my side, nothing goes out», and logs the point: what she chose, why, what to redo on a switch (`skills/razvilki`). The owner picks another option later — she returns to the point. No fork behind a lock.
+
+The same in Russian for Mila herself: `canon/ZAMOK.md`.
+
 ## How a request goes
 
 1. The session asks over `/run/mila-io/consent.sock` (`consent/consent_client.py`): a kind (category) and the payload.
