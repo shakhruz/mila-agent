@@ -110,4 +110,11 @@ echo '# моя правка' >> "$SP/.claude/skills/raspisanie/SKILL.md"; sched 
 rm -f "$T/fakebin-Linux/date"
 chk "навык, который хозяин правил, по-прежнему получает копию; две установки подряд (в одну секунду) — две копии, без падения" "grep -q 'raspisanie — exists, keeping a copy' $T/pyc2.out && grep -q 'raspisanie — exists, keeping a copy' $T/pyc3.out && [ $rcx -eq 0 ] && [ \$(ls -d $SP/.claude/skills/raspisanie.bak-* | wc -l) -eq 2 ] && grep -q 'Done' $T/pyc3.out"
 [ -n "$miss" ] && echo "нет файлов: $miss"
+# ── the settings step fails (python stops): the installer stops too, and its temporary file does not stay behind
+FP="$T/fakepy"; mkdir -p "$FP" "$T/tmpx" "$T/fail/.claude"; REALPY="$(command -v python3)"
+printf '#!/bin/sh\nif [ "$1" = "-" ] && [ "$2" = "%s" ]; then cat >/dev/null; exit 7; fi\nexec %s "$@"\n' "$T/fail/.claude" "$REALPY" > "$FP/python3"; chmod +x "$FP/python3"
+HOME="$T/fail" CLAUDE_CONFIG_DIR="$T/fail/.claude" TMPDIR="$T/tmpx" MILA_OWNER_ID=$OID PATH="$FP:/usr/bin:/bin:/usr/local/bin" bash "$REPO/install/install.sh" >"$T/fail.out" 2>&1; rcf=$?
+chk "шаг настроек упал — установка остановилась (код не 0), settings.json не появился, временный файл убран" "[ $rcf -ne 0 ] && [ ! -e $T/fail/.claude/settings.json ] && [ -z \"\$(ls $T/tmpx | grep mila-settings)\" ]"
+HOME="$T/home" CLAUDE_CONFIG_DIR="$T/home/.claude" TMPDIR="$T/tmpx" MILA_OWNER_ID=$OID PATH=/usr/bin:/bin:/usr/local/bin bash "$REPO/install/install.sh" >/dev/null 2>&1
+chk "обычная установка временного файла настроек после себя тоже не оставляет" "[ -z \"\$(ls $T/tmpx | grep mila-settings)\" ]"
 echo "итог $ok/$n"; rm -rf "$T"

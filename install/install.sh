@@ -405,6 +405,7 @@ else
   # apostrophes of a here-document inside a command substitution, and one comment with an unpaired apostrophe ends the whole
   # installer with «unexpected EOF while looking for matching». The output goes to a file and is read from it.
   SETTINGS_TMP="$(mktemp "${TMPDIR:-/tmp}/mila-settings.XXXXXX")"
+  trap 'rm -f "$SETTINGS_TMP"' EXIT   # the script below fails → the installer stops here (set -e): the file must not stay behind
   python3 - "$CLAUDE_DIR" > "$SETTINGS_TMP" << 'PY'
 import json, os, sys, datetime
 cfg_dir = sys.argv[1]
@@ -517,7 +518,7 @@ else:
     with open(p, 'w', encoding='utf-8') as f:
         f.write(new_raw)
 PY
-  SETTINGS_OUT="$(cat "$SETTINGS_TMP")"; rm -f "$SETTINGS_TMP"
+  SETTINGS_OUT="$(cat "$SETTINGS_TMP")"; rm -f "$SETTINGS_TMP"; trap - EXIT
   while IFS= read -r line; do
     if [[ "$line" == BACKUP:* ]]; then
       BACKUPS+=("${line#BACKUP:}")
@@ -526,6 +527,10 @@ PY
     fi
   done <<< "$SETTINGS_OUT"
 fi
+# Said plainly: the kit goes into this user's own Claude Code folder, so the hooks above work in every session of this user —
+# not only in Mila's. Nothing here decides for the owner; it tells him before he meets a guard in his own coding session.
+say "note: these hooks sit in $CLAUDE_DIR/settings.json and run in EVERY Claude Code session of this user, not only in Mila's."
+say "      To keep Mila apart from your own sessions, install her under a separate user of this computer."
 echo
 if [[ ${#BACKUPS[@]} -gt 0 ]]; then
   if [[ $DRY -eq 1 ]]; then
@@ -544,4 +549,5 @@ if [[ $DRY -eq 0 && -f "$CLAUDE_DIR/skills/pd-vault/pd_vault.py" ]]; then
   [[ "$r" == created ]] && say "personal data vault: key ~/.config/mila/pd.key created (600)" || say "personal data vault: key already there"
 fi
 echo "Done. Next: mila onboard  (bot token, Claude sign-in, pairing — each step checked), then start with: mila"
-echo "  No Telegram plugin yet? In Claude Code: /plugin marketplace add shakhruz/mila-telegram, then /plugin install mila-telegram@mila"
+# run by get.sh, the plugin is installed by get.sh right after this script: the hint would come before the plugin and confuse
+[[ "${MILA_FROM_GET:-}" == "1" ]] || echo "  No Telegram plugin yet? In Claude Code: /plugin marketplace add shakhruz/mila-telegram, then /plugin install mila-telegram@mila"

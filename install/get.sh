@@ -37,17 +37,29 @@ fi
 if [[ " ${MILA_INSTALL_ARGS:-} " == *" --dry-run "* && ! -d "$DIR/.git" ]]; then   # пробный прогон ничего не оставляет в доме: набор — во временную папку
   DIR="$(mktemp -d)/mila"; echo "  dry run: the kit goes to a temporary folder $DIR (nothing is written to your home)"
 fi
+# git run quietly: a release tag is an annotated tag, and a newer git says «warning: refs/tags/vX.Y.Z … is not a commit!» while it
+# clones by it — harmless, and frightening on a first install. That one line is dropped; anything else git says is shown, and its
+# exit code is kept.
+gitq() {
+  local err rc
+  err="$("$@" 2>&1 >/dev/null)" && rc=0 || rc=$?
+  if [ -n "$err" ]; then printf '%s\n' "$err" | grep -v 'is not a commit!' >&2 || true; fi
+  return $rc
+}
 if [[ -d "$DIR/.git" ]]; then
-  echo "  updating $DIR"; git -C "$DIR" fetch -q --depth 1 origin "$REF" && git -C "$DIR" -c advice.detachedHead=false checkout -q FETCH_HEAD
+  echo "  updating $DIR"
+  # a failed fetch must stop here: in «fetch && checkout» the shell did not stop on a failed fetch, and the old version was installed again as if it were the new one
+  gitq git -C "$DIR" fetch -q --depth 1 origin "$REF" || { echo "  ✗ could not download $REF — nothing is changed. Check the network and run the same command again."; exit 1; }
+  gitq git -C "$DIR" -c advice.detachedHead=false checkout -q FETCH_HEAD
 else
-  echo "  cloning into $DIR"; git -c advice.detachedHead=false clone -q --depth 1 --branch "$REF" "$REPO" "$DIR"
+  echo "  cloning into $DIR"; gitq git -c advice.detachedHead=false clone -q --depth 1 --branch "$REF" "$REPO" "$DIR"
 fi
 GOT="$(git -C "$DIR" rev-parse HEAD)"; echo "  commit: $GOT"
 if [[ -n "$PIN_SHA" && "$REF" == "$PIN_REF" && "$GOT" != "$PIN_SHA" ]]; then   # тег сдвинули после выпуска — не ставим
   echo "  ✗ tag $REF now points to $GOT, but this get.sh was released for $PIN_SHA — stopping, nothing installed."
   echo "    Compare with the release notes and tell the maintainer: https://github.com/shakhruz/mila-agent/security"; exit 1
 fi
-bash "$DIR/install/install.sh" ${MILA_INSTALL_ARGS:-}
+MILA_FROM_GET=1 bash "$DIR/install/install.sh" ${MILA_INSTALL_ARGS:-}   # the plugin is installed right below: install.sh does not print its «no plugin yet?» hint
 # Плагин Telegram — тем же запуском (комиссия 22.10): повторный запуск ничего не ломает, оба шага у claude идемпотентны
 MARKET="${MILA_PLUGIN_MARKET:-shakhruz/mila-telegram}"
 PLUGIN_OK=0
