@@ -26,8 +26,13 @@ description: "Use on \"how much is left\", \"how is the subscription\", \"will w
     python3 ~/.claude/skills/subscription/subscription.py --telegram  # готовый блок в чат
     python3 ~/.claude/skills/subscription/subscription.py --card      # PNG-дэшборд (путь) или пусто
     python3 ~/.claude/skills/subscription/subscription.py --json      # машине
+    python3 ~/.claude/skills/subscription/subscription.py --json --own # свой отчёт для другой машины (см. ниже)
     python3 ~/.claude/skills/subscription/subscription.py --local     # без сети, только расход
     python3 ~/.claude/skills/subscription/subscription.py --force     # спросить сервер вне очереди
+
+**Пишешь свой отчёт для другой машины — всегда `--own`.** Без него в файл попадают и
+входы, подключённые через `"report"`, то есть копия того, что этой машине же и положили:
+читатель покажет один вход дважды.
 
 **В Telegram отправлять `--telegram`.** Отчёт держится на выравнивании, а обычный
 текст в Telegram не моноширинный — колонки разъедутся. Ключ заворачивает вывод в
