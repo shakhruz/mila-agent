@@ -149,5 +149,7 @@
  "doctor.flag.10": "another Mila may live under this user. Start this one with `mila` and look at her own window",
  "doctor.state.1": "channel folder",
  "doctor.state.2": "taken from TELEGRAM_STATE_DIR and lies outside this home: %s",
- "doctor.state.3": "everything below is about that folder, not about this home. For this home run the doctor without that variable (env -u TELEGRAM_STATE_DIR mila doctor)"
+ "doctor.state.3": "everything below is about that folder, not about this home. For this home run the doctor without that variable (env -u TELEGRAM_STATE_DIR mila doctor)",
+ "doctor.perms.7": "%s — %o, read by an access list (ACL): %s",
+ "doctor.perms.8": "the journal is given to named readers and nobody in the list may write. Make sure every name is yours; a stranger in the list reads every incoming message"
 }

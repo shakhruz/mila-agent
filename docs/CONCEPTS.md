@@ -51,6 +51,17 @@ Every answer Mila's session sends to a person — the owner, the team, a client 
 
 «My move» is one of three honest forms: doing it now; it stands in the [Scheduler](SCHEDULER.md) under a named job and comes at a named time — said only while the Scheduler is passing on this machine; nothing is running. «Your move» is Mila's recommended step with two or three buttons, the recommended one first. The send guard checks the form before the message leaves; a promise with a time — «I will send it tomorrow», «I'll remind you at 18:00» — with no job in the Scheduler does not pass.
 
+## Skill, talent, connector
+Three more words — no longer about who decides, but about what Mila can do.
+
+| Word | What it is |
+|---|---|
+| **Skill** (RU: навык) | how Mila does it; knowledge for herself |
+| **Talent** (RU: талант) | what Mila can do for you: a skill in a package that can be installed, tried, checked and removed |
+| **Connector** (RU: коннектор) | a talent that gives Mila a new sense through an outside service: hearing, imagination, a voice |
+
+A talent has no mechanism of its own: it is a skill with five obligatory parts in one folder — a passport (what it gives, what it needs from the owner, what it costs), an install, an introduction with a trial, a check, a removal. A skill without the five parts is not called a talent and does not go into the library. A connector is activated.
+
 ## Which word when
 | The situation | The word |
 |---|---|
@@ -71,3 +82,4 @@ Not in the main branch yet, named here so the words do not surprise later: sendi
 | The fork journal | `skills/razvilki/scripts/razvilki.py` | `skills/razvilki/scripts/test_razvilki.py` |
 | The next move in the send guard | `templates/home/.claude/hooks/send-guard.py` | `templates/home/.claude/hooks/test_next_move.py` |
 | The four words in Mila's own canon | `canon/ZAMOK.md` | — |
+| Skill, talent, connector in Mila's own canon | `canon/TALANT.md` | — |

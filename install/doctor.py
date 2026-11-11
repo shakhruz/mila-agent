@@ -304,6 +304,34 @@ def check_state_place(rep):
         rep.add(WARN, T("doctor.state.1"), T("doctor.state.2") % STATE, T("doctor.state.3"))
 
 
+def acl_readers(path):
+    """Named readers of a file given by an access list (ACL), when that is ALL the list does: every named entry is read-only and
+    the owning group and everyone else have nothing. → the list of names, or None (no getfacl, no named entries, or the list lets
+    somebody write — then the plain rule about extra bits stands). With an ACL the group bits of the mode are the list's mask,
+    not the group's rights: «660» on such a file does not mean the group may write."""
+    try:
+        out = subprocess.run(["getfacl", "-cp", path], capture_output=True, text=True, timeout=8)
+    except Exception:
+        return None
+    if out.returncode != 0:
+        return None
+    names = []
+    for line in out.stdout.splitlines():
+        line = line.split("#")[0].strip()
+        if not line: continue
+        parts = line.split(":")
+        if len(parts) != 3: return None
+        kind, who, perm = parts
+        if kind in ("user", "group") and who:
+            if perm[:3] != "r--": return None          # a named entry that may write or execute: not «readers»
+            names.append(who if kind == "user" else "group " + who)
+        elif kind == "group" and not who:
+            if perm[:3] != "---": return None          # the owning group itself has rights
+        elif kind == "other":
+            if perm[:3] != "---": return None
+    return names or None
+
+
 def check_perms(rep):
     """Кто может писать в журнал — говорит голосом Telegram."""
     targets = (
@@ -322,7 +350,12 @@ def check_perms(rep):
         # Сравнивать числом нельзя: 0444 меньше 0600, а читать токен всему
         # миру оно разрешает. Смотреть надо на биты, которых быть не должно.
         extra = mode & ~want
-        if extra:
+        readers = acl_readers(path) if path == EVENTS and extra and not (extra & 0o007) else None
+        if readers:
+            # the journal is read by named readers through an access list (a server's own watcher): said in yellow with the names,
+            # not in red — the token and the access list never get this allowance
+            rep.add(WARN, T("doctor.perms.1"), T("doctor.perms.7") % (name, mode, ", ".join(readers)[:120]), T("doctor.perms.8"))
+        elif extra:
             rep.add(BAD, T("doctor.perms.1"), T("doctor.perms.2") % (name, mode, extra),
                     T("doctor.perms.3") % (want, path))
         elif st.st_uid != os.getuid():
