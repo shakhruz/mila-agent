@@ -1,5 +1,21 @@
 # CHANGELOG · Mila
 
+## v1.7.9 · 12.11 — the v1.7.8 release with its release page
+
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
+**Для хозяина**
+- Это тот же выпуск, что v1.7.8: у него появилась страница выпуска с проверенными файлами установки. Для вас ничего не меняется.
+
+</details>
+
+**For the owner**
+- The same release as v1.7.8, now with its release page and verified install files. Nothing changes for you.
+
+**For Milas**
+- The update-plan test accepts Russian «Для хозяина» lines that name products and commands (Telegram, Claude Code, `mila onboard`): the text counts as Russian while Latin letters stay under a quarter. With v1.7.8 the test failed on the release commit itself, so the release page was never built.
+- `tools/release.sh` runs the update-plan test once more after it raises `release.json` and before the commit and the tag; on a failure it restores `release.json` and stops.
+
 ## v1.7.8 · 12.11 — widgets and the day board, the next move, four words of the core, Shturman, the problem journal, a Scheduler that is confirmed, an honest doctor for a newborn
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>

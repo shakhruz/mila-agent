@@ -18,7 +18,8 @@ $U plan --src "$T/rel" > "$T/p.txt"; $U plan --src "$T/rel" --json > "$T/p.json"
 chk "ничего не меняется → «Что изменится: ничего», риск «нет»" "grep -q 'Что изменится: ничего' $T/p.txt && grep -q '\"risk\": \"нет\"' $T/p.json"
 chk "«Что получите» — по-русски из «Для хозяина» нескольких версий новее v1.5.1 (≥ 4 строк из ≥ 2 версий), без v1.5.1" "python3 -c \"
 import json,sys,re; d=json.load(open('$T/p.json')); g=' '.join(d['get'])
-sys.exit(0 if len(d['get']) >= 4 and len(d['get_versions']) >= 2 and 'v1.5.1' not in d['get_versions'] and 'Сейф' not in g and not re.search(r'[A-Za-z]{4,}', g) else 1)\""
+lat=lambda s: sum(c.isascii() and c.isalpha() for c in s) / max(1, sum(c.isalpha() for c in s))   # Russian text may name products and commands (Telegram, Claude Code, mila onboard): Latin letters under a quarter
+sys.exit(0 if len(d['get']) >= 4 and len(d['get_versions']) >= 2 and 'v1.5.1' not in d['get_versions'] and 'Сейф' not in g and lat(g) < 0.25 else 1)\""
 chk "первая строка «Что получите» в тексте — из «Для хозяина» новейшего выпуска x.y.0 не новее релиза (суть строки), а не из свежего патча" "python3 -c \"
 import re,sys,json; c=open('$T/rel/CHANGELOG.md').read(); sec=re.split(r'^## ', c, flags=re.M); top=tuple(map(int, json.load(open('$T/rel/release.json'))['version'].split('.')))
 xy0=[s for s in sec if re.match(r'v\\d+\\.\\d+\\.0 ', s) and tuple(map(int, s[1:].split()[0].split('.'))) <= top]; v=max(xy0, key=lambda s: tuple(map(int, s[1:].split()[0].split('.'))))
