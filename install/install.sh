@@ -20,15 +20,58 @@ CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 STATE_DIR="${TELEGRAM_STATE_DIR:-$CLAUDE_DIR/channels/telegram}"
 BIN_DIR="$HOME/.local/bin"
 DRY=0
-[[ "${1:-}" == "--dry-run" ]] && DRY=1
+VERBOSE=0
+for _a in "$@"; do
+  case "$_a" in
+    --dry-run) DRY=1 ;;
+    --verbose) VERBOSE=1 ;;
+  esac
+done
+[[ "${MILA_INSTALL_VERBOSE:-}" == "1" ]] && VERBOSE=1
+[[ $DRY -eq 1 ]] && VERBOSE=1   # a dry run exists to show every item
+FROM_GET=0
+[[ "${MILA_FROM_GET:-}" == "1" ]] && FROM_GET=1
+LOG="$CLAUDE_DIR/mila-install.log"
+LOG_READY=0
+DONE=0
 
 # Every backup this run actually made (or, in --dry-run, would make), for the
 # summary printed at the end — the point of a backup nobody can find is the
 # same as having none.
 declare -a BACKUPS=()
+declare -a PROBLEMS=()   # a step that did not work: always on the screen, never only in the log
+declare -a NOTICES=()    # facts the owner must read: on the screen in plain words
+SKILLS_N=0; GUARDS_N=0; TOOLS_N=0
 
-say() { printf '  %s\n' "$*"; }
+# The screen shows a short summary; every per-file line goes to the log (mode 600, overwritten on each run),
+# and to the screen too with --verbose / MILA_INSTALL_VERBOSE=1 (and in a dry run).
+note() {
+  if [[ $LOG_READY -eq 1 ]]; then printf '%s\n' "$*" >> "$LOG"; fi
+  if [[ $VERBOSE -eq 1 ]]; then printf '%s\n' "$*"; fi
+  return 0
+}
+say() { note "  $*"; }
 run() { if [[ $DRY -eq 1 ]]; then say "would: $*"; else "$@"; fi; }
+problem() { PROBLEMS+=("$*"); note "  ✗ $*"; return 0; }
+tilde() { printf '%s' "${1/#$HOME/~}"; }
+row() { if [[ -n "${3:-}" ]]; then printf '  %s %-19s %s\n' "$1" "$2" "$3"; else printf '  %s %s\n' "$1" "$2"; fi; }   # ✓ / ✗ / · , what , why it matters
+cleanup() {
+  local rc=$?
+  if [[ -n "${SETTINGS_TMP:-}" ]]; then rm -f "$SETTINGS_TMP"; fi   # the script below fails → the installer stops here (set -e): the file must not stay behind
+  if [[ $rc -ne 0 && $DONE -eq 0 ]]; then
+    printf '\n  ✗ The install stopped before it finished (exit code %s) — her home is NOT complete.\n' "$rc"
+    printf '    The message above says what failed; fix that and run the same command again.\n'
+    if [[ $LOG_READY -eq 1 ]]; then printf '    Full log: %s\n' "$(tilde "$LOG")"; fi
+  fi
+}
+trap cleanup EXIT
+
+if [[ $DRY -eq 0 ]]; then
+  mkdir -p "$CLAUDE_DIR"
+  ( umask 077; : > "$LOG" ); chmod 600 "$LOG"; LOG_READY=1
+  # steps get.sh did before this script (version, clone, update) — the first lines of the same log
+  if [[ -n "${MILA_PRE_LOG:-}" && -f "${MILA_PRE_LOG:-}" ]]; then cat "$MILA_PRE_LOG" >> "$LOG"; rm -f "$MILA_PRE_LOG"; fi
+fi
 
 # Copies $1 (source) over $2 (destination), keeping a timestamped backup of
 # whatever was already at the destination — unless it is byte-identical to
@@ -54,13 +97,16 @@ install_file() {
   run cp "$src" "$dst"
 }
 
-echo "Mila installer"
-echo "  target: $CLAUDE_DIR"
-[[ $DRY -eq 1 ]] && echo "  DRY RUN — nothing will be written"
-echo
+if [[ $FROM_GET -eq 0 ]]; then
+  printf '\n  ✦  M I L A\n  hello · привет · salom · 你好\n\n  Preparing her home…\n'
+fi
+note "Mila installer"
+note "  target: $CLAUDE_DIR"
+[[ $DRY -eq 1 ]] && printf '  DRY RUN — nothing will be written\n'
+note ""
 
 # ── skills ────────────────────────────────────────────────────────────────
-echo "Skills"
+note "Skills"
 run mkdir -p "$CLAUDE_DIR/skills"
 for d in "$ROOT"/skills/*/; do
   name="$(basename "$d")"
@@ -70,6 +116,7 @@ for d in "$ROOT"/skills/*/; do
     # Counted as a change, every used skill was «customised» on the next install and got a backup copy.
     if diff -rq -x __pycache__ "$d" "$target" >/dev/null 2>&1; then
       say "$name — unchanged, no copy needed"
+      SKILLS_N=$((SKILLS_N + 1))
       continue
     fi
     # Never overwrite silently: a customised skill is someone's work.
@@ -86,26 +133,27 @@ for d in "$ROOT"/skills/*/; do
   fi
   run cp -R "$d" "$target"
   say "$name installed"
+  if [[ $DRY -eq 1 || -d "$target" ]]; then SKILLS_N=$((SKILLS_N + 1)); else problem "skill $name was not copied"; fi
 done
-echo
+note ""
 
 # ── launcher ──────────────────────────────────────────────────────────────
-echo "Launcher"
+note "Launcher"
 run mkdir -p "$BIN_DIR"
 install_file "$HERE/mila" "$BIN_DIR/mila" "mila"
 run chmod 755 "$BIN_DIR/mila"
 say "mila → $BIN_DIR/mila"
 case ":$PATH:" in
   *":$BIN_DIR:"*) say "$BIN_DIR is on PATH" ;;
-  *) say "NOTE: $BIN_DIR is not on your PATH — add it to your shell profile:"
-     say "      export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
+  *) say "NOTE: $BIN_DIR is not on your PATH"
+     NOTICES+=("PATH|$(tilde "$BIN_DIR") is not on your PATH yet. Add this line to ~/.zshrc or ~/.bashrc:|export PATH=\"\$HOME/.local/bin:\$PATH\"") ;;
 esac
-echo
+note ""
 
 # ── a newborn's home: who Mila is and how the first talk goes ───────────────
 # Without ~/work/CLAUDE.md the session is a plain Claude: «How can I help?» instead of getting acquainted. Only what is missing
 # is added — an owner's own CLAUDE.md, USER.md or canon are never overwritten.
-echo "Home"
+note "Home"
 WORK_DIR="${MILA_WORK:-$HOME/work}"
 run mkdir -p "$WORK_DIR/canon"
 for f in CLAUDE.md USER.md; do
@@ -114,48 +162,53 @@ done
 for f in CONSTITUTION.md CONSTITUTION.en.md; do
   [[ -e "$WORK_DIR/canon/$f" ]] || run cp "$ROOT/$f" "$WORK_DIR/canon/$f"
 done
-echo
+note ""
 
 # ── inbox hook ────────────────────────────────────────────────────────────
-echo "Inbox hook"
+note "Inbox hook"
 HOOK_DIR="$CLAUDE_DIR/hooks"
 run mkdir -p "$HOOK_DIR"
 install_file "$HERE/envelope.py" "$HOOK_DIR/envelope.py" "envelope.py"   # the hook builds its envelope with it
 install_file "$HERE/telegram-inbox-feed.py" "$HOOK_DIR/telegram-inbox-feed.py" "telegram-inbox-feed.py"
 run chmod 755 "$HOOK_DIR/telegram-inbox-feed.py"
 say "hook → $HOOK_DIR/telegram-inbox-feed.py"
+GUARDS_N=$((GUARDS_N + 1))
 # кроны переживают рестарт сессии — ~/work/state/crons.json, SessionStart просит поднять недостающее
 install_file "$HERE/crons-keeper.py" "$HOOK_DIR/crons-keeper.py" "crons-keeper.py"
 run chmod 755 "$HOOK_DIR/crons-keeper.py"
 say "hook → $HOOK_DIR/crons-keeper.py"
+GUARDS_N=$((GUARDS_N + 1))
 # Хуки, которые установщик регистрирует в settings.json, обязаны лежать в $HOOK_DIR: Stop-хук без файла даёт код 2 = «не останавливаться»
 for f in reply-required.py pd-mask.py; do
   install_file "$HERE/$f" "$HOOK_DIR/$f" "$f"
   run chmod 755 "$HOOK_DIR/$f"
   say "hook → $HOOK_DIR/$f"
+  GUARDS_N=$((GUARDS_N + 1))
 done
 # сторож отправки и журнал обещаний — у self-host тоже из коробки
 for f in send-guard.py done-guard.py secret-guard.py skill-hint.py; do
   install_file "$ROOT/templates/home/.claude/hooks/$f" "$HOOK_DIR/$f" "$f"
   run chmod 755 "$HOOK_DIR/$f"
   say "hook → $HOOK_DIR/$f"
+  GUARDS_N=$((GUARDS_N + 1))
 done
-echo
+note ""
 
 # ── tools the launcher calls ──────────────────────────────────────────────
 # The launcher looks for every one of these in $HOOK_DIR. Installing only the
 # hook left six of the eight `mila` commands answering "reinstall the kit", and
 # the promise watchdog silently returning an empty list — which reads exactly
 # like "nothing is due".
-echo "Tools"
+note "Tools"
 for f in usage_collect.py turns_collect.py records.py tasks.py chats_index.py \
          chat_note.py chat_locale.py doctor.py onboard.py backup.py design_check.py mila_i18n.py tg_delivery.py; do
   if [[ -f "$HERE/$f" ]]; then
     install_file "$HERE/$f" "$HOOK_DIR/$f" "$f"
     run chmod 755 "$HOOK_DIR/$f"
     say "$f"
+    TOOLS_N=$((TOOLS_N + 1))
   else
-    say "🔴 missing from the kit: $f"
+    problem "the kit is missing $f — reinstall the kit (run the install command again)"
   fi
 done
 # doctor speaks the owner's language: one strings file per language, next to the tools
@@ -174,7 +227,7 @@ done
 # still in flight as a failure. The minute is derived from the hostname, so the
 # fleet spreads itself across the hour instead of stampeding — override with
 # MILA_TURNS_MINUTE if you need a specific one.
-echo "Hourly turn collection"
+note "Hourly turn collection"
 TURNS_MIN="${MILA_TURNS_MINUTE:-}"
 if [[ -z "$TURNS_MIN" ]]; then
   # 10..49: the top and the bottom of the hour is where everyone else's crons
@@ -264,13 +317,14 @@ UNITEOF
       systemctl --user daemon-reload 2>/dev/null || true
       systemctl --user enable --now mila-turns-collect.timer 2>/dev/null \
         && say "mila-turns-collect.timer — every hour at :$(printf '%02d' "$TURNS_MIN")" \
-        || say "NOTE: could not enable the timer — run: systemctl --user enable --now mila-turns-collect.timer"
+        || problem "could not enable the hourly timer — run: systemctl --user enable --now mila-turns-collect.timer"
     fi
   fi
 else
   say "NOTE: neither launchd nor systemd found — run \`mila turns\` from your own scheduler"
+  NOTICES+=("Timers|Neither launchd nor systemd was found, so no hourly job was set. Run  mila turns  from your own scheduler.|")
 fi
-echo
+note ""
 
 # ── the Scheduler: one pass a minute ──────────────────────────────────────
 # A job set with mila-cron fires only while something runs `baraban.py tick` for
@@ -282,7 +336,7 @@ echo
 # stopped. The owner is the one paired with the bot (access.json).
 # MILA_SKIP_TIMERS=1 writes the files and does not load them (tests, images).
 # The pass runs with -B: a service that runs every minute must not leave __pycache__ inside the home's skills.
-echo "Scheduler (one pass a minute)"
+note "Scheduler (one pass a minute)"
 install_file "$HERE/baraban.py" "$HOOK_DIR/baraban.py" "baraban.py"
 SCHED="$HOOK_DIR/baraban.py"
 SCHED_LOG="$CLAUDE_DIR/scheduler.log"
@@ -372,13 +426,14 @@ UNITEOF
       systemctl --user daemon-reload 2>/dev/null || true
       systemctl --user enable --now mila-scheduler.timer 2>/dev/null \
         && say "mila-scheduler.timer — every minute" \
-        || say "NOTE: could not enable the timer — run: systemctl --user enable --now mila-scheduler.timer"
+        || problem "could not enable the Scheduler timer — run: systemctl --user enable --now mila-scheduler.timer"
     fi
   fi
 else
   say "NOTE: neither launchd nor systemd found — jobs set with mila-cron will not fire until your own scheduler runs every minute: $PY_BIN -B $SCHED tick --home $HOME"
+  NOTICES+=("Scheduler|Neither launchd nor systemd was found: reminders and jobs fire only if something runs this every minute:|$PY_BIN -B $SCHED tick --home $HOME")
 fi
-echo
+note ""
 
 # The permission policy decides what runs without waking anyone. With no file
 # at all the code falls back to STRICT — every single tool call becomes a card
@@ -395,6 +450,7 @@ elif [[ -f "$HERE/permissions.example.json" ]]; then
   run chmod 600 "$POLICY"
   say "permissions.json installed from the example — READ IT before trusting it"
   say "  it decides what runs without asking you: $POLICY"
+  NOTICES+=("Read first|permissions.json decides what runs without asking you. Read it before you trust it:|$(tilde "$POLICY")")
 fi
 
 if [[ $DRY -eq 1 ]]; then
@@ -407,7 +463,6 @@ else
   # apostrophes of a here-document inside a command substitution, and one comment with an unpaired apostrophe ends the whole
   # installer with «unexpected EOF while looking for matching». The output goes to a file and is read from it.
   SETTINGS_TMP="$(mktemp "${TMPDIR:-/tmp}/mila-settings.XXXXXX")"
-  trap 'rm -f "$SETTINGS_TMP"' EXIT   # the script below fails → the installer stops here (set -e): the file must not stay behind
   python3 - "$CLAUDE_DIR" > "$SETTINGS_TMP" << 'PY'
 import json, os, sys, datetime
 cfg_dir = sys.argv[1]
@@ -421,7 +476,7 @@ except FileNotFoundError:
     raw = None
     cfg = {}
 except json.JSONDecodeError:
-    print('  settings.json is not valid JSON — hook NOT registered, add it by hand')
+    print('FAIL:settings.json is not valid JSON, so the guardians are NOT registered. Fix the file (or move it aside) and run the install again.')
     raise SystemExit(0)
 
 hooks = cfg.setdefault('hooks', {})
@@ -452,7 +507,7 @@ except Exception: _v = ''
 _v = os.environ.get('MILA_CC_VERSION') or _v
 _m = _re.search(r'(\d+)\.(\d+)\.(\d+)', _v or '')
 ONFAIL_OK = bool(_m) and tuple(int(x) for x in _m.groups()) >= (2, 1, 295)
-if not ONFAIL_OK: print('  send-guard: onFailure пропущен — старая или неизвестная версия Claude Code (%s)' % ((_m and _m.group(0)) or '?'))
+if not ONFAIL_OK: print('WARN:send-guard: onFailure skipped - old or unknown Claude Code version (%s). Update Claude Code and run the install again, so a crashed guard blocks the message.' % ((_m and _m.group(0)) or '?'))
 sg = 'python3 ' + os.path.join(cfg_dir, 'hooks', 'send-guard.py')
 if not any('send-guard.py' in json.dumps(x) for x in hooks.get('PreToolUse', [])):
     ck_missing.append(('PreToolUse', {'matcher': SEND_RE, 'hooks': [dict({'type': 'command', 'command': sg}, **({'onFailure': 'block'} if ONFAIL_OK else {}))]}))
@@ -520,36 +575,88 @@ else:
     with open(p, 'w', encoding='utf-8') as f:
         f.write(new_raw)
 PY
-  SETTINGS_OUT="$(cat "$SETTINGS_TMP")"; rm -f "$SETTINGS_TMP"; trap - EXIT
+  SETTINGS_OUT="$(cat "$SETTINGS_TMP")"; rm -f "$SETTINGS_TMP"; SETTINGS_TMP=""
   while IFS= read -r line; do
-    if [[ "$line" == BACKUP:* ]]; then
-      BACKUPS+=("${line#BACKUP:}")
-    else
-      printf '%s\n' "$line"
-    fi
+    case "$line" in
+      BACKUP:*) BACKUPS+=("${line#BACKUP:}") ;;
+      FAIL:*) problem "${line#FAIL:}" ;;
+      WARN:*) say "${line#WARN:}"; NOTICES+=("Heads-up|${line#WARN:}|") ;;
+      "") ;;
+      *) say "${line#  }" ;;
+    esac
   done <<< "$SETTINGS_OUT"
 fi
 # Said plainly: the kit goes into this user's own Claude Code folder, so the hooks above work in every session of this user —
 # not only in Mila's. Nothing here decides for the owner; it tells him before he meets a guard in his own coding session.
 say "note: these hooks sit in $CLAUDE_DIR/settings.json and run in EVERY Claude Code session of this user, not only in Mila's."
 say "      To keep Mila apart from your own sessions, install her under a separate user of this computer."
-echo
+note ""
 if [[ ${#BACKUPS[@]} -gt 0 ]]; then
-  if [[ $DRY -eq 1 ]]; then
-    echo "Would back up (nothing written — dry run):"
-  else
-    echo "Existing files kept as backups:"
-  fi
+  if [[ $DRY -eq 1 ]]; then note "Would back up (nothing written — dry run):"; else note "Existing files kept as backups:"; fi
   for b in "${BACKUPS[@]}"; do
     say "$b"
   done
-  echo
+  note ""
 fi
 # ключ хранилища личных данных — по умолчанию (слой 2а); уже есть — не трогаем
+VAULT_OK=0
 if [[ $DRY -eq 0 && -f "$CLAUDE_DIR/skills/pd-vault/pd_vault.py" ]]; then
   r="$(python3 "$CLAUDE_DIR/skills/pd-vault/pd_vault.py" init 2>/dev/null || true)"
   [[ "$r" == created ]] && say "personal data vault: key ~/.config/mila/pd.key created (600)" || say "personal data vault: key already there"
+  [[ -f "${PD_KEY:-$HOME/.config/mila/pd.key}" ]] && VAULT_OK=1
 fi
-echo "Done. Next: mila onboard  (bot token, Claude sign-in, pairing — each step checked), then start with: mila"
-# run by get.sh, the plugin is installed by get.sh right after this script: the hint would come before the plugin and confuse
-[[ "${MILA_FROM_GET:-}" == "1" ]] || echo "  No Telegram plugin yet? In Claude Code: /plugin marketplace add shakhruz/mila-telegram, then /plugin install mila-telegram@mila"
+
+# ── what the screen says ──────────────────────────────────────────────────
+DONE=1
+if [[ $DRY -eq 1 ]]; then
+  printf '\n  Dry run finished — nothing was written. Run the install without --dry-run to apply it.\n\n'
+  exit 0
+fi
+CORE="${MILA_CORE_LABEL:-}"
+if [[ -z "$CORE" ]]; then
+  CORE_V="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$ROOT/release.json" 2>/dev/null | head -1)"
+  CORE_SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || true)"
+  CORE="${CORE_V:+v$CORE_V}${CORE_SHA:+ ($CORE_SHA)}"
+  CORE="${CORE:-kit}"
+fi
+BAD=0
+printf '\n'
+row "✓" "Core $CORE"
+row "✓" "$SKILLS_N skills" "how she thinks, speaks and keeps her word"
+row "✓" "$GUARDS_N guardians" "nothing leaves without your yes"
+if [[ $VAULT_OK -eq 1 ]]; then row "✓" "A private vault" "the key stays with you"; else row "✗" "A private vault" "the key was not created — run  mila doctor  to see why"; BAD=$((BAD + 1)); fi
+case "${MILA_TG_STATE:-}" in
+  ok)      row "✓" "Telegram" "the place where you two will talk" ;;
+  skipped) row "·" "Telegram" "skipped (MILA_SKIP_PLUGIN=1) — add it later in Claude Code: /plugin install mila-telegram@mila" ;;
+  failed)  row "✗" "Telegram" "${MILA_TG_NOTE:-the plugin was not installed}"; BAD=$((BAD + 1)) ;;
+  *)       row "·" "Telegram" "not installed yet — in Claude Code: /plugin marketplace add shakhruz/mila-telegram, then /plugin install mila-telegram@mila" ;;
+esac
+if [[ ${#PROBLEMS[@]} -gt 0 ]]; then
+  for pr in "${PROBLEMS[@]}"; do printf '  ✗ %s\n' "$pr"; done
+  BAD=$((BAD + ${#PROBLEMS[@]}))
+fi
+printf '\n'
+if [[ ${#BACKUPS[@]} -gt 0 ]]; then
+  KS_W="files"; [[ ${#BACKUPS[@]} -eq 1 ]] && KS_W="file"
+  printf '  %-12s %s\n' "Kept safe" "${#BACKUPS[@]} earlier $KS_W → next to the originals, named <file>.bak-<date>-<time> (full list in the log)"
+fi
+if [[ ${#NOTICES[@]} -gt 0 ]]; then
+  for nt in "${NOTICES[@]}"; do
+    nlabel="${nt%%|*}"; nrest="${nt#*|}"; ntext="${nrest%%|*}"; ncode="${nrest#*|}"
+    printf '  %-12s %s\n' "$nlabel" "$ntext"
+    if [[ -n "$ncode" ]]; then printf '  %-12s %s\n' "" "$ncode"; fi
+  done
+fi
+printf '  %-12s %s\n' "Good to know" "her guardians run in EVERY Claude Code session of this user, not only hers."
+printf '  %-12s %s\n' "" "To keep Mila apart, install her under a separate user."
+printf '\n'
+M=mila
+case ":$PATH:" in *":$BIN_DIR:"*) ;; *) M="$(tilde "$BIN_DIR")/mila" ;; esac
+if [[ $BAD -eq 0 ]]; then
+  printf '  Her home is ready. One step left:\n'
+else
+  printf '  Her home is almost ready — fix the ✗ above first (details in the log), then one step:\n'
+fi
+printf '\n      %s\n\n' "$M"
+printf '  Check her health any time:  %s doctor\n' "$M"
+printf '  Full log: %s\n\n' "$(tilde "$LOG")"
