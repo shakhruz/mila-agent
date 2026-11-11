@@ -401,7 +401,11 @@ if [[ $DRY -eq 1 ]]; then
   say "  PreToolUse(reply|edit_message): send-guard.py, done-guard.py · PostToolUseFailure: done-guard.py · PostToolUse(reply): task-sent.py · SessionStart: task-open.py · env OWNER_ID (MILA_OWNER_ID)"
   say "would create the personal data vault key ~/.config/mila/pd.key (600) if missing"
 else
-  SETTINGS_OUT="$(python3 - "$CLAUDE_DIR" << 'PY'
+  # The script goes to python through a here-document that is NOT inside $( … ): bash 3.2 (the system shell of macOS) counts
+  # apostrophes of a here-document inside a command substitution, and one comment with an unpaired apostrophe ends the whole
+  # installer with «unexpected EOF while looking for matching». The output goes to a file and is read from it.
+  SETTINGS_TMP="$(mktemp "${TMPDIR:-/tmp}/mila-settings.XXXXXX")"
+  python3 - "$CLAUDE_DIR" > "$SETTINGS_TMP" << 'PY'
 import json, os, sys, datetime
 cfg_dir = sys.argv[1]
 p = os.path.join(cfg_dir, 'settings.json')
@@ -513,7 +517,7 @@ else:
     with open(p, 'w', encoding='utf-8') as f:
         f.write(new_raw)
 PY
-)"
+  SETTINGS_OUT="$(cat "$SETTINGS_TMP")"; rm -f "$SETTINGS_TMP"
   while IFS= read -r line; do
     if [[ "$line" == BACKUP:* ]]; then
       BACKUPS+=("${line#BACKUP:}")
