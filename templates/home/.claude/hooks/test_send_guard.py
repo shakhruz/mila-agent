@@ -76,6 +76,8 @@ chk("виджет хозяину, чистый — уходит", {"tool_name": 
 chk("виджет чужому чату — стоп", {"tool_name": W, "tool_input": {"chat_id": "999", "html": HTML}}, "deny")
 chk("ключ провайдера в коде виджета — стоп", {"tool_name": W, "tool_input": {"chat_id": "111", "html": HTML + "<!-- " + "sk-" + "abcdefghijklmnopqrstuv -->"}}, "deny")
 chk("серверный путь в данных виджета — стоп", {"tool_name": W, "tool_input": {"chat_id": "111", "html": HTML, "chat_data": "{\"file\": \"" + "/srv/" + "mila/x\"}"}}, "deny")
+chk("ключ провайдера в подписи виджета — стоп (подпись — то, что человек видит в чате)", {"tool_name": W, "tool_input": {"chat_id": "111", "html": HTML, "caption": "ключ " + "sk-" + "abcdefghijklmnopqrstuv"}}, "deny")
+chk("подпись виджета чужому: получатель проверяется", {"tool_name": W, "tool_input": {"chat_id": "999", "html": HTML, "caption": "Пульт"}}, "deny")
 chk("серверный путь в подписи виджета — стоп", {"tool_name": W, "tool_input": {"chat_id": "111", "html": HTML, "caption": "файлы в " + "/srv/" + "mila/x"}}, "deny")
 chk("ключ в новых данных виджета (widget_data) — стоп", {"tool_name": WD, "tool_input": {"chat_id": "111", "message_id": "5", "chat_data": "{\"k\": \"" + "sk-" + "abcdefghijklmnopqrstuv\"}"}}, "deny")
 chk("обычные новые данные виджета — уходят", {"tool_name": WD, "tool_input": {"chat_id": "111", "message_id": "5", "chat_data": "{\"n\": 2}"}}, "pass")

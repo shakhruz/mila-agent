@@ -37,7 +37,7 @@ if TOPIC and not str(args.get("name") or "").strip():
 _body = str(args.get("name") if TOPIC else args.get("text") or "")
 if WIDGET:   # everything the widget carries is checked as one text: keys, server paths, other chats' ids, card numbers
     _body = "\n".join(str(args.get(k) or "") for k in ("html", "chat_data", "public_data"))
-_cap = str(args.get("caption") or "")   # a photo/album caption goes to Telegram too — checked with the text
+_cap = str(args.get("caption") or "")   # a caption (of a photo, an album, a widget) goes to Telegram too — checked with the text
 text = (_body + "\n" + _cap).strip() if _cap else _body
 chat_id = str(args.get("chat_id") or "").strip()
 owner = (os.environ.get("OWNER_ID") or "").strip()
