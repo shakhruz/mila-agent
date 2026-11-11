@@ -7,6 +7,7 @@
 
   widget.py check <widget.json> --pack ID          → годится ли описание (зовёт установка пака); код 1 и причины — нет
   widget.py show <пак> --chat C --bot B [--lang]   → что отправить инструментом widget; затем: sent <пак> --message N
+                                                     <пак> — id пака или модуль ядра: planirovshchik, zadachi, biblioteka, sejf, telegram
   widget.py sent <пак> [--message N]               → записать отправленное (id сообщения — из ответа инструмента)
   widget.py refresh [<пак> | --all]                → пересчитать; изменилось — что отправить инструментом widget_data; нет — ничего
   widget.py press <метка>                          → чьё это нажатие и что с ним делать; сам ничего не исполняет
@@ -24,6 +25,9 @@ import stat
 import sys
 import time
 import zlib
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import status as core_status      # noqa: E402 — the closed list of core modules and their status, next to this file
 
 WORK = os.environ.get("MILA_WORK") or os.path.expanduser("~/work")
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -93,6 +97,7 @@ def check_manifest(m, pid):
     why = []
     if not PACK_ID.match(str(pid)): return ["id пака не по форме"]
     if pid in RESERVED: return ["пак с id «%s» не получает папку данных: это папка самого дома" % pid]
+    if pid in core_status.CORE: return ["«%s» — имя модуля ядра: виджет этого модуля рисует само ядро, пак его не подменит" % pid]
     if not isinstance(m, dict): return ["widget.json: нужен объект"]
     extra = set(m) - TOP_KEYS
     if extra: why.append("лишние поля %s — в описании виджета только title, numbers, state, actions; команд и кода нет" % ", ".join(sorted(map(str, extra)))[:80])
@@ -132,7 +137,8 @@ def manifest_path(pid):
 
 
 def load_manifest(pid):
-    """(описание, причины). Нет файла — (None, [])."""
+    """(описание, причины). Нет файла — (None, []). У модуля ядра описание — в коде ядра, файла нет."""
+    if pid in core_status.CORE: return core_status.CORE[pid], []
     p = manifest_path(pid)
     try:
         st = os.lstat(p)
@@ -152,7 +158,7 @@ def read_value(pid, ptr):
     if not isinstance(ptr, dict): return None
     f, k = ptr.get("file"), ptr.get("key")
     if not (isinstance(f, str) and FILE.match(f) and ".." not in f and not SECRET_NAME.search(f) and isinstance(k, str) and KEY.match(k)): return None
-    if not PACK_ID.match(pid) or pid in RESERVED: return None
+    if not PACK_ID.match(pid) or pid in RESERVED or pid in core_status.CORE: return None
     base = os.path.join(os.path.realpath(WORK), pid)
     p = os.path.join(base, f)
     try:
@@ -213,6 +219,12 @@ def pack_data(d):
 def build_data(pid, m, lang):
     w = words(lang)
     d = {"t": pick(m.get("title"), lang)}
+    if pid in core_status.CORE:       # a core module: the numbers come from the core's own code, not from a pack's files
+        st = core_status.status(pid); code = st["state"] or "nodata"
+        d["s"], d["sl"] = code, w[code]
+        d["n"] = [[v, pick(label, lang)] for v, label in st["numbers"]]
+        d["a"] = [pick(x.get("label"), lang) for x in m.get("actions", [])]
+        return pack_data(d)
     if "state" in m:
         v = read_value(pid, m["state"])
         code = v if v in STATES else "nodata"
@@ -290,7 +302,7 @@ def cmd_show(a):
     if not BOT.match(a.bot or ""): fail("--bot: имя бота без @")
     m, why = load_manifest(pid)
     if why: fail("виджет пака не показываю", why=why[:20])
-    if m is None: fail("у пака «%s» нет виджета (нет packs/%s/widget.json)" % (pid, pid))
+    if m is None: fail("у пака «%s» нет виджета (нет packs/%s/widget.json)" % (pid, pid), core=sorted(core_status.CORE))
     lang = a.lang if LANG.match(a.lang or "") else "ru"
     try:
         marks = marks_of(pid, m); html, size, packed = build_html(a.bot, marks); data = build_data(pid, m, lang)
@@ -367,6 +379,9 @@ def cmd_press(a):
     x = next((x for x in (m or {}).get("actions", []) if x.get("mark") == act), None)
     if x is None: out(nothing)
     lock = x.get("lock") is True
+    if pid in core_status.CORE:
+        out({"ok": True, "known": True, "pack": pid, "core": True, "action": act, "label": pick(x.get("label"), r.get("lang") or "ru"), "lock": False,
+             "do": "модуль ядра: " + core_status.DO[(pid, act)], "note": "сам скрипт ничего не исполнил"})
     out({"ok": True, "known": True, "pack": pid, "action": act, "label": pick(x.get("label"), r.get("lang") or "ru"), "lock": lock,
          "do": ("под замком: сначала Согласование — карточка хозяину на этот шаг; до его нажатия ничего не делаю" if lock
                 else "это шаг пака «%s»: делаю его по навыку пака как обычную работу, со всеми её правилами" % pid),

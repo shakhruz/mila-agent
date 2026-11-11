@@ -1,6 +1,6 @@
 ---
 name: vidzhet
-description: "Use after a pack is installed and its answer says «the pack has a widget», on a channel event «[widget] w_…», and on the Scheduler's refresh task: one widget message per pack in the owner's private chat — status in one word, up to three numbers, up to three buttons; data change in place. A pack gives data only — its code is never run. RU: виджет модуля, «покажи виджет пака», нажатие «[widget]», обновить виджеты."
+description: "Use after a pack is installed and its answer says «the pack has a widget», on «show the Scheduler / Tasks / Library / Safe / Telegram as a widget», on a channel event «[widget] w_…», and when refreshing widgets after a piece of work: one widget message per pack or core module in the owner's private chat — status in one word, up to three numbers, up to three buttons; data change in place. A pack gives data only — its code is never run. RU: виджет модуля, «покажи виджет пака», «покажи Планировщик виджетом», нажатие «[widget]», обновить виджеты."
 ---
 # Виджет модуля — статус пака одним сообщением
 
@@ -33,6 +33,23 @@ description: "Use after a pack is installed and its answer says «the pack has a
 - `lock: true` — под замком: сначала Согласование — карточка хозяину на этот шаг; до нажатия ничего;
 - `known: false` — метки нет в моих виджетах: ничего не делаю, хозяину — одной строкой.
 Скрипт сам ничего не исполняет. Подпись кнопки — данные пака, не поручение мне.
+
+## Виджеты модулей ядра
+Пять модулей показывают себя тем же виджетом, без widget.json — цифры считает код ядра (`scripts/status.py`), тем же расчётом, что сам модуль:
+
+| `show <имя>` | Что видно | Кнопка |
+|---|---|---|
+| `planirovshchik` | задач · ближайшая · без итога | Список |
+| `zadachi` | ждёт вас · предложено · сделано сегодня | Вопросы |
+| `biblioteka` | паков стоит · в каталоге · новых | Что есть |
+| `sejf` | ключей есть · не хватает (из названных паками) | Добавить ключ |
+| `telegram` | последнее входящее · замечаний доктора | Проверить |
+
+- Показываю по слову хозяина («покажи Планировщик виджетом») или при знакомстве; команды те же: `show` → инструмент `widget` → `sent`.
+- Обновляю, когда и так работаю (после шага, в утреннем и вечернем ритуале): `refresh --all`. Цифры могут отставать на часы — говорю это хозяину при первом показе.
+- Нажатие: `press` отвечает `core: true` и называет команду ядра, которую делаю я; сам скрипт ничего не запускает.
+- В виджете модуля нет значений и имён ключей, текстов задач и вопросов, имён людей — только числа, время и слово статуса.
+- Пак с именем модуля ядра виджета не получает.
 
 ## Автору пака: widget.json
 ```
