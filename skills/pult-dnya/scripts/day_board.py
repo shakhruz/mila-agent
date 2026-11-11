@@ -93,12 +93,12 @@ L = {
            "empty": "пусто", "after": "после №%s", "on": "ждёт: %s · вопрос: %s", "carried": "со вчера", "red": "🔴",
            "added": "№%d в очередь%s, потому что %s", "added_now": "№%d беру сразу%s", "after_x": ", беру после №%s",
            "why_default": "так по порядку", "evening": "Итог дня %s: сделано %d, в работе %d, в очереди %d, ждут %d",
-           "carry": "Переносится: %s", "mins": "ждёт %d мин", "stale": "переспросить или решить сам"},
+           "carry": "Переносится: %s", "mins": "ждёт %d мин", "stale": "переспросить или решить сам", "more": "…и ещё %d дел"},
     "en": {"title": "📋 Day board · %s", "now": "▶️ In progress", "queue": "⏳ Queue", "wait": "🤝 Waiting for an answer", "done": "✅ Done",
            "empty": "empty", "after": "after #%s", "on": "waiting: %s · asked: %s", "carried": "from yesterday", "red": "🔴",
            "added": "#%d queued%s, because %s", "added_now": "#%d taking it now%s", "after_x": ", after #%s",
            "why_default": "it is next in order", "evening": "Day %s: done %d, in progress %d, queued %d, waiting %d",
-           "carry": "Carried over: %s", "mins": "waiting %d min", "stale": "ask again or decide myself"},
+           "carry": "Carried over: %s", "mins": "waiting %d min", "stale": "ask again or decide myself", "more": "…and %d more"},
 }
 
 
@@ -161,12 +161,19 @@ def out(d, code=0):
     return code
 
 
+def one_line(x):
+    """Перенос строки внутри дела ломает строку «№N …» на доске — заменяю пробелом."""
+    return re.sub(r"\s*[\r\n]+\s*", " ", x or "").strip()
+
+
 def cmd_add(a, b):
     t = L[lang_of(a)]
+    if not one_line(a.text):
+        return out({"error": "у дела нужен текст (--text)"}, 1)
     no = b["next_no"]; b["next_no"] += 1
     nows = [i for i in b["items"] if i["state"] == "now"]
     queue = [i for i in b["items"] if i["state"] == "queue"]
-    it = {"no": no, "text": mask(a.text.strip()), "who": mask(a.who or ""), "why": mask(a.why or ""), "prio": "red" if a.red else "", "ts": now_ts()}
+    it = {"no": no, "text": mask(one_line(a.text)), "who": mask(one_line(a.who)), "why": mask(one_line(a.why)), "prio": "red" if a.red else "", "ts": now_ts()}
     if a.red or not nows:
         it["state"] = "now"
         b["items"].append(it); save(b)
@@ -211,6 +218,7 @@ def cmd_drop(a, b):
     it = find(b, a.no)
     if not it: return out({"error": "нет №%d" % a.no}, 1)
     if not (a.why or "").strip(): return out({"error": "снять можно только с причиной (--why)"}, 1)
+    if it["state"] == "done": return out({"error": "№%d закрыто с уликой — снять нельзя (закрытое — история)" % a.no}, 1)
     it.update(state="dropped", why=mask(a.why.strip())); save(b)
     return out({"ok": True, "no": a.no, "state": "dropped"})
 
@@ -223,7 +231,7 @@ def cmd_plan(a, b):
     for x in pool:
         no = b["next_no"]; b["next_no"] += 1
         nows = [i for i in b["items"] if i["state"] == "now"]
-        it = {"no": no, "text": mask(x), "who": "сама", "why": "пул дня", "prio": "", "ts": now_ts(), "pool": True}
+        it = {"no": no, "text": mask(one_line(x)), "who": "сама", "why": "пул дня", "prio": "", "ts": now_ts(), "pool": True}
         if not nows: it["state"] = "now"
         else:
             q = [i for i in b["items"] if i["state"] == "queue"]
@@ -250,11 +258,22 @@ def render_text(b, lang):
             if mins >= WAIT_RED_MIN: s = "🔴 " + s + " — " + t["stale"]
         if i["state"] == "done": s += " → " + i.get("result", "") + (" · " + i["evidence"] if i.get("evidence") else "")
         return mask(s)
-    for st in ("now", "queue", "wait", "done"):
-        rows = [row(i) for i in b["items"] if i["state"] == st]
-        parts.append("\n%s\n%s" % (t[st], "\n".join(rows) if rows else t["empty"]))
-    text = "\n".join(parts)
-    return text if len(text) <= 3800 else text[:3790] + "\n…"
+    sect = {st: [row(i) for i in b["items"] if i["state"] == st] for st in ("now", "queue", "wait", "done")}
+    hidden = {"queue": 0, "done": 0}
+
+    def build():
+        ps = list(parts)
+        for st in ("now", "queue", "wait", "done"):
+            rows = list(sect[st][:len(sect[st]) - hidden.get(st, 0)])
+            if hidden.get(st): rows.append(t["more"] % hidden[st])
+            ps.append("\n%s\n%s" % (t[st], "\n".join(rows) if rows else t["empty"]))
+        return "\n".join(ps)
+    text = build()
+    # длинная доска: «в работе» и «ждёт ответа» не режутся никогда; сначала с хвоста «Сделано», потом с хвоста «Очереди»
+    for st in ("done", "queue"):
+        while len(text) > 3800 and hidden[st] < len(sect[st]):
+            hidden[st] += 1; text = build()
+    return text
 
 
 OWNER_RE = re.compile(r"хозя|владел|owner|^вы$|^you$", re.I)
