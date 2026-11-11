@@ -6,7 +6,7 @@ have both; the two point at each other in the first lines; they have the same nu
 Run: python3 tests/test_docs_pairs.py"""
 import os, re, sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); D = os.path.join(REPO, "docs")
-PAIRS = ["SCHEDULER", "CONCEPTS", "MODULES", "MIND", "design/PASSPORT"]          # pages written as pairs from the start; older pairs are checked for the twin and the links only
+PAIRS = ["SCHEDULER", "CONCEPTS", "MODULES", "MIND", "WIDGETS", "design/PASSPORT"]          # pages written as pairs from the start; older pairs are checked for the twin and the links only
 ok = n = 0
 def chk(m, c, x=""):
     global ok, n
@@ -52,6 +52,16 @@ if m:
                        ("SCHEDULER.ru.md", ("не больше %s" % jobs, "1–%s знаков" % text, "%s дней по умолчанию, не больше %s" % (days, top)))):
         t = read(name); miss = [w for w in want if w not in t]
         chk(name + ": число задач, длина текста и срок жизни — как в коде", not miss, miss)
+# the widget's limits on the page are the limits in the code
+wsrc = open(os.path.join(REPO, "skills", "vidzhet", "scripts", "widget.py"), encoding="utf-8").read()
+wm = [re.search(p, wsrc, re.M) for p in (r"^MAX_NUMBERS = MAX_ACTIONS = (\d+)", r"^DATA_MAX = (\d+)", r"^HTML_MAX, HTML_ZLIB_MAX = \d+, (\d+)", r"^EDITS_PER_HOUR = (\d+)")]
+chk("пределы виджета найдены в коде", all(wm))
+if all(wm):
+    three, data, code, edits = (int(x.group(1)) for x in wm); sp = lambda v: ("%d %03d" % divmod(v, 1000)) if v >= 1000 else str(v)
+    for name, want in (("WIDGETS.md", ("up to three" if three == 3 else "?", sp(data) + " bytes", sp(code) + " bytes", "| %d per hour" % edits)),
+                       ("WIDGETS.ru.md", ("до трёх" if three == 3 else "?", sp(data) + " байта", sp(code) + " байт", "| %d в час" % edits))):
+        t = read(name); miss = [w for w in want if w not in t]
+        chk(name + ": число цифр и кнопок, размер данных и кода, потолок правок — как в коде", not miss, miss)
 bar = open(os.path.join(REPO, "install", "baraban.py"), encoding="utf-8").read()
 spec = open(os.path.join(REPO, "skills", "raspisanie", "cronspec.py"), encoding="utf-8").read()
 chk("пояс и тихие часы по умолчанию на странице — как в службе", 'DEFAULT_TZ = "Asia/Tashkent"' in spec and "else 22–08" in bar and all("Asia/Tashkent" in read(f) and "22–08" in read(f) for f in ("SCHEDULER.md", "SCHEDULER.ru.md")))

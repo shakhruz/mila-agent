@@ -16,6 +16,7 @@ Start with the map: [MODULES.md](MODULES.md) names every module of a newborn Mil
 |---|---|
 | [MODULES.md](MODULES.md) | the map of fifteen modules with state marks |
 | [SCHEDULER.md](SCHEDULER.md) | jobs on time, outside the session |
+| [WIDGETS.md](WIDGETS.md) | the state of a pack or a module in one message; the day board |
 | [SAFE.md](SAFE.md) | keys and passwords past the chat |
 | [CONSENT.md](CONSENT.md) | an outside action only after the owner's press |
 | [ARCHIVE.md](ARCHIVE.md) | every message kept, read only by the receiver |
