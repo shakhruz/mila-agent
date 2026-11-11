@@ -1,9 +1,9 @@
 {
   "product": "Mila Agent",
-  "version": "1.7.7",
-  "tag": "v1.7.7",
-  "date": "2026-11-10",
-  "notes": "CHANGELOG.md - section v1.7.7",
+  "version": "1.7.8",
+  "tag": "v1.7.8",
+  "date": "2026-11-11",
+  "notes": "CHANGELOG.md - section v1.7.8",
   "zones": [
     {
       "what": "навыки ядра",
