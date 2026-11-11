@@ -18,7 +18,7 @@ spec = importlib.util.spec_from_file_location("feeder", os.path.join(HERE, "comp
 fed = []; F.feed = lambda text: fed.append(text); F._save_pending = lambda: None
 TR = os.path.join(PROJ, "s.jsonl")
 def iso(t): return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(t))
-def env(mid): return '<channel source="telegram" chat_id="1" message_id="%s" user="Барабан" ts="x">задание</channel>' % mid
+def env(mid): return '<channel source="telegram" chat_id="1" message_id="%s" user="Планировщик" ts="x">задание</channel>' % mid
 def enq(mid, t): return {"type": "queue-operation", "operation": "enqueue", "timestamp": iso(t), "sessionId": "s1", "content": env(mid)}
 def att(mid, t): return {"type": "attachment", "timestamp": iso(t), "attachment": {"type": "queued_command", "prompt": env(mid)}}
 def user(mid, t): return {"type": "user", "timestamp": iso(t), "message": {"role": "user", "content": env(mid)}}

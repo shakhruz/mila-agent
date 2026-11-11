@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""cronspec — расчёт сроков Барабана: разбор, ближайший срок, последний срок, лимит частоты. Usage: python3 test_cronspec.py"""
+"""cronspec — расчёт сроков Планировщика: разбор, ближайший срок, последний срок, лимит частоты. Usage: python3 test_cronspec.py"""
 import datetime, os, sys, zoneinfo
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cronspec as C

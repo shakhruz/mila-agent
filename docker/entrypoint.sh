@@ -263,7 +263,7 @@ if [ "${MILA_IO:-}" = 1 ]; then   # the receiver runs as mila-io (root step); he
 else
   ( while :; do RECEIVER_DAEMON=1 TELEGRAM_STATE_DIR="$TG" TELEGRAM_VOICE_TRANSCRIBE_CMD="${TELEGRAM_VOICE_TRANSCRIBE_CMD:-$MILA_KIT/install/transcribe-voice.sh}" bun "$PLUG/receiver.ts" >> "$ST/receiver.log" 2>&1; sleep 5; done ) & PIDS+=($!)
 fi
-# schedule outside the session (Baraban): mila-cron jobs of this home become events once a minute — «remind me in an hour»,
+# schedule outside the session (the Scheduler; the file keeps its name, baraban.py): mila-cron jobs of this home become events once a minute — «remind me in an hour»,
 # the morning summary — even while the session restarts. State in ~/state/baraban (one owner, one home in the container).
 # The owner is read on every tick: paired by a code in the log after start (no OWNER_ID), the schedule starts without a restart.
 # Errors keep only the last 64 KB.

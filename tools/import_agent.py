@@ -150,7 +150,7 @@ def cron_draft(t, origin):
     except ValueError:
         return None
     L = ["# Scheduled tasks from Hermes — drafts, all OFF", "",
-         "Each one is turned on only after the owner's «yes» (a Baraban job or a loop). Delivery targets are not copied.", ""]
+         "Each one is turned on only after the owner's «yes» (a Scheduler job or a loop). Delivery targets are not copied.", ""]
     for n, j in enumerate([x for x in jobs if isinstance(x, dict)], 1):
         sc = j.get("schedule") if isinstance(j.get("schedule"), dict) else {}
         when = j.get("schedule_display") or sc.get("expr") or (("every %s min" % sc["minutes"]) if sc.get("minutes") else "") or sc.get("run_at") or str(j.get("schedule") or "?")

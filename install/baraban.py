@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Baraban — the schedule service outside the Claude Code session. Jobs a Mila set with mila-cron (~/work/schedule/jobs.json)
+"""The Scheduler (RU: «Планировщик»; the file and the state keep the old name, baraban) — the schedule service outside the Claude Code session. Jobs a Mila set with mila-cron (~/work/schedule/jobs.json)
 reach her as events in the plugin's journal, the same way rituals and ticks do; a session restart loses nothing.
 
   baraban.py tick --home H [--slug S] [--owner ID] [--state DIR] [--now ISO]   # one pass; a systemd timer runs it every minute
@@ -136,7 +136,7 @@ def event(slug, owner, jid, slot, content, now):
 
 
 def default_state():
-    """Where the Baraban keeps its per-home state when BARABAN_STATE is not set: the XDG state folder of whoever runs it."""
+    """Where the Scheduler keeps its per-home state when BARABAN_STATE is not set: the XDG state folder of whoever runs it."""
     return os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "mila", "baraban")
 
 
@@ -206,7 +206,7 @@ def tick(home, slug, owner="", state_dir=None, now=None):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Baraban: deliver mila-cron jobs as events")
+    ap = argparse.ArgumentParser(description="Scheduler: deliver mila-cron jobs as events")
     ap.add_argument("cmd", choices=("tick", "status"))
     ap.add_argument("--home", required=True)
     ap.add_argument("--slug")

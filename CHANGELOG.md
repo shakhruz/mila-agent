@@ -19,6 +19,7 @@
 - `problemy.py povtory` also lists a place with three or more cases of different classes in 14 days — a line to look at, not a refusal.
 - `dela.py`: the «already written» check and the new line are under one lock — two writers at once never log one stage twice.
 - New skill `shturman` — the owner's personal Telegram account, reading and drafts only, off until the owner signs in himself in a live terminal (`login`); personal chats and private groups only those he opened (`allow`: his own word, read from his account, fresh, used once); a draft only where he writes; no sending, deleting, editing, reactions or «mark as read» in the code — a test lists the names and runs every command on a fake client; a pause and a ceiling per hour; `revoke` signs out at Telegram and wipes the files (no network — a red mark in `status`). The session files live in a key place closed to the session's tools; `docs/THREAT-MODEL.md` says what this access is; the library is pinned with sums (`skills/shturman/requirements.txt`).
+- The schedule service is called the Scheduler (RU: «Планировщик») in every text a person reads; file names and state paths keep the old name (`install/baraban.py`, `state/baraban`) — nothing to migrate.
 - send-guard: a report with an apology passes only in the owner's chat and only when it names a problem number that is in `work/problemy.jsonl` (a whole «found» line: the fact and a pointer to evidence) and is open or was closed today; a number alone no longer opens the filter.
 
 ## v1.7.7 · 10.11 — the pack library: free packs from Mila Library

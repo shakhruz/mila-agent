@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""mila-cron (Барабан): задачи расписания в доме Милы — что принимаю, что отказываю, импорт кронов из снимка, list по журналу плагина.
+"""mila-cron (Планировщик): задачи расписания в доме Милы — что принимаю, что отказываю, импорт кронов из снимка, list по журналу плагина.
 Всё во временной папке (MILA_WORK, MILA_EVENTS), время подменено (MILA_CRON_NOW). Usage: python3 test_mila_cron.py [папка с mila_cron.py]"""
 import json, os, subprocess, sys, tempfile, threading
 D = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__)); K = os.path.join(D, "mila_cron.py")
