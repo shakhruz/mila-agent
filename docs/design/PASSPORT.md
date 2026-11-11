@@ -33,7 +33,7 @@ The owner's twelve words are the key to the envelope and the archive. **Mila nev
 *Open decision:* whether the words may instead be shown by Mila in the chat. The design recommends the window: words shown in a chat stay in the chat's history.
 
 ## The recovery envelope
-One file, encrypted to the owner's public key: the passport, Mila's signing key, the bot's key, the basic settings (name, language, calling) and where the archive of memory is. It is rebuilt when a key changes and sent to the owner as a file. A check once a quarter: the owner opens the envelope with his words and Mila verifies that the key inside is the living one.
+One file, encrypted to the owner's public key: the passport, Mila's signing key, the bot's key, the basic settings (name, language, calling) and where the archive of memory is. It is rebuilt when a key changes and sent to the owner as a file. A check once a quarter: the owner opens the envelope with his words — in the same window on his side, never in the chat — and Mila verifies that the key inside is the living one.
 
 ## The archive of memory
 On a schedule of the [Scheduler](../SCHEDULER.md): a copy of the home without secrets, encrypted to the owner's public key, sent to him as a file (in parts when large), with one line — when and how much. Other places to keep it (a drive, a repository, one's own server) come as packs.
