@@ -216,10 +216,16 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
 </plist>
 PLISTEOF
     chmod 644 "$PLIST"
-    launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-    launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null \
-      || launchctl load -w "$PLIST" 2>/dev/null || true
-    say "$LABEL — every hour at :$(printf '%02d' "$TURNS_MIN")"
+    # MILA_SKIP_TIMERS=1 (tests, images): the file is written and nothing is loaded. Without it a trial install with a temporary
+    # HOME would take down the machine's own job of the same name and put one that looks into the temporary folder in its place.
+    if [[ "${MILA_SKIP_TIMERS:-}" == "1" ]]; then
+      say "$LABEL — written, not loaded (MILA_SKIP_TIMERS)"
+    else
+      launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+      launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null \
+        || launchctl load -w "$PLIST" 2>/dev/null || true
+      say "$LABEL — every hour at :$(printf '%02d' "$TURNS_MIN")"
+    fi
   fi
 elif command -v systemctl >/dev/null 2>&1; then
   UNITS="$HOME/.config/systemd/user"
@@ -252,10 +258,14 @@ Persistent=true
 WantedBy=timers.target
 UNITEOF
     chmod 644 "$UNITS"/mila-turns-collect.*
-    systemctl --user daemon-reload 2>/dev/null || true
-    systemctl --user enable --now mila-turns-collect.timer 2>/dev/null \
-      && say "mila-turns-collect.timer — every hour at :$(printf '%02d' "$TURNS_MIN")" \
-      || say "NOTE: could not enable the timer — run: systemctl --user enable --now mila-turns-collect.timer"
+    if [[ "${MILA_SKIP_TIMERS:-}" == "1" ]]; then
+      say "mila-turns-collect.timer — written, not enabled (MILA_SKIP_TIMERS)"
+    else
+      systemctl --user daemon-reload 2>/dev/null || true
+      systemctl --user enable --now mila-turns-collect.timer 2>/dev/null \
+        && say "mila-turns-collect.timer — every hour at :$(printf '%02d' "$TURNS_MIN")" \
+        || say "NOTE: could not enable the timer — run: systemctl --user enable --now mila-turns-collect.timer"
+    fi
   fi
 else
   say "NOTE: neither launchd nor systemd found — run \`mila turns\` from your own scheduler"
