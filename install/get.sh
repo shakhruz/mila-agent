@@ -25,7 +25,6 @@ DRYRUN=0
 # What this script does before install.sh (version, clone, update) goes to a buffer that install.sh puts at the top of its log
 # (nothing is written to the home on a dry run); with --verbose it is on the screen as well.
 PRE_LOG=""
-if [[ $DRYRUN -eq 0 ]]; then PRE_LOG="$(mktemp "${TMPDIR:-/tmp}/mila-get.XXXXXX")"; trap 'rm -f "$PRE_LOG"' EXIT; fi
 glog() {
   if [[ -n "$PRE_LOG" ]]; then printf '%s\n' "$*" >> "$PRE_LOG"; fi
   if [[ $VERBOSE -eq 1 ]]; then printf '%s\n' "$*"; fi
@@ -40,6 +39,7 @@ if [[ "${MILA_SKIP_CHECKS:-0}" != "1" ]]; then
 fi
 need git "git: https://git-scm.com/downloads"
 [[ $miss -eq 0 ]] || { echo "Install the missing tools above and run the same command again."; exit 1; }
+if [[ $DRYRUN -eq 0 ]]; then PRE_LOG="$(mktemp "${TMPDIR:-/tmp}/mila-get.XXXXXX")"; trap 'rm -f "$PRE_LOG"' EXIT; fi
 if [[ -z "$REF" && -n "$PIN_REF" ]]; then REF="$PIN_REF"; glog "  version: $REF (this get.sh was released for it)"; fi
 if [[ -z "$REF" ]]; then
   REF=$(git ls-remote --tags --sort=-v:refname "$REPO" 'v*' 2>/dev/null | grep -v '\^{}' | sed 's#.*refs/tags/##' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
