@@ -108,8 +108,17 @@ image and voice generation, payment links). Keys for those services are the main
     own journal keeps no text and no names.
   - Telegram may restrict an account driven by a program. The skill paces itself (a pause, a ceiling per hour, never the whole
     dialog list at once); the risk stays, and the owner is told.
-  - Revoke: `shturman.py revoke` signs the session out at Telegram and wipes the files. Without the network the files are wiped
-    and the status stays red until the owner ends the session in Telegram → Settings → Devices.
+  - What comes out of the client wrapper is plain functions and plain data: no bound method, no library object, nothing with a
+    client behind it. Python still lets code that runs in the same process reach inside a closure — again, not a boundary.
+  - A chat is opened only by the owner's «yes» given as a reply to Mila's exact question about that chat (the name comes from his
+    account, the chat's id is in the text); the bot it is asked in is named in a file his sign-in wrote, not in the environment.
+    A private channel (no public name) is read without a list, like any channel: one author speaks there, not a circle of people.
+  - Revoke: `shturman.py revoke` stops reading at once, signs the session out at Telegram and wipes the files. If Telegram did not
+    confirm (no network), the session file is kept aside — no command reads with it — the status stays red, and every `status`
+    and `revoke` tries again; the mark goes only when a check shows the session is dead, never by a typed word.
+  - Names of channels in the files Mila may read back (`map.json`, `live.json`) are a stranger's text as well: cut to one line,
+    invisible characters removed, the file says so. The key guard does not catch a path that is glued together or globbed in a
+    shell command — the test names two such commands as «passes».
   - In the cloud (Mila Agent in a container) Shturman does not connect yet: the session file must live with the key keeper, not
     with the session — a separate step. Sending as the owner does not exist on a laptop at all: it will come only behind the
     consent proxy, where the proxy is another OS user.
