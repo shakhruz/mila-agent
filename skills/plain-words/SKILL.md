@@ -60,6 +60,8 @@ description: "Apply to EVERY question to the owner, panel card, button and «wai
 | апрув, «да» на | ваше решение |
 | таргет | реклама |
 | лид | человек, который написал |
+| deploy, prod, preview, lead, deadline, onboarding, dashboard, push, merge, commit, bundle, CI | выложить, на сайте, черновик, человек, который написал, срок, знакомство, панель, отправка, слияние, правка, пакет, проверка |
+| пуш, коммит, мерж, бандл (кириллицей), main | отправка, правка, слияние, пакет, основная версия |
 
 ## Шаблон карточки
 

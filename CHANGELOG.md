@@ -26,6 +26,7 @@
 - `copyblock` (`tg_md2.py`): a backslash in plain text is escaped for MarkdownV2 — before, it swallowed the next character or broke the message.
 - `pult-dnya` (`scripts/day_board.py`): a task's text, «who» and «why» are kept as one line (a line break used to split the «№N …» row); a task with no text is refused; a task closed with evidence cannot be dropped; a board longer than a message is shortened from the tail of «Done», then of «Queue», with a line «…and N more» — «In work» and «Waiting» are never cut, and no row is cut in the middle.
 - `subscription.py --own`: only this machine's sign-ins, without the reports received from other machines — for a machine that writes its own report for another one (otherwise the reader showed one sign-in twice).
+- `plain-words` (`plain_words_check.py`): English work words and their Cyrillic calques in a card for the owner (deploy, prod, preview, lead, deadline, push, merge, commit, bundle, CI, «пуш», «коммит», «мерж»…) get a remark that names the Russian replacement from the panel dictionary; an empty card is a remark, not «clear». A test keeps every suggested replacement out of the banned list.
 
 ## v1.7.9 · 12.11 — the v1.7.8 release with its release page
 
