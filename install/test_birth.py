@@ -288,9 +288,14 @@ p4, first4, rest4 = serve(dict(ENV, MILA_BIRTH_PARENT="my_parent_bot"))
 page4 = req("GET", BASE)[1]
 chk("кнопка «одним нажатием» ведёт на t.me/<MILA_BIRTH_PARENT>?start=birth; по умолчанию — mila_gpt_bot",
     'href="https://t.me/my_parent_bot?start=birth"' in page4 and 'href="https://t.me/mila_gpt_bot?start=birth"' in page and "__PARENT__" not in page4)
-chk("новые тексты на четырёх языках: кнопка, строка про родительского бота, ошибки кода, «Открыть моего бота»",
-    len(re.findall(r'"(?:en|ru|uz|zh)":\{"t0"', page4)) == 4 and all(len(re.findall(r'"%s":' % k, page4)) == 4 for k in ("bone", "honest", "own", "e_code_refused", "e_relay", "e_relay_no_token", "bopen", "orsend", "sub4")))
-chk("шаг «голос»: сначала кнопка и поле кода, свой ключ BotFather — в свёрнутом <details>", page4.index('id="bone"') < page4.index('id="bcodein"') < page4.index("<details>") < page4.index('id="tok"'))
+chk("новые тексты на четырёх языках: кнопки, строка про родительского бота, ошибки, «Открыть моего бота»",
+    len(re.findall(r'"(?:en|ru|uz|zh)":\{"t0"', page4)) == 4 and all(len(re.findall(r'"%s":' % k, page4)) == 4 for k in ("bone", "bbot", "bothint", "honest", "e_input", "e_code_refused", "e_relay", "e_relay_no_token", "bopen", "orsend", "sub4")))
+chk("шаг «адрес»: одно поле (код или ключ), одна кнопка «Дальше»; кнопки «одним нажатием» и «Открыть @BotFather» над ним; второго поля и <details> нет",
+    page4.index('id="bone"') < page4.index('id="bbot"') < page4.index('id="pasted"') < page4.index('id="bgo"') and 'href="https://t.me/BotFather"' in page4
+    and page4.count("<input") == 1 and "<details" not in page4 and 'id="tok"' not in page4 and 'id="bcodein"' not in page4 and '"own"' not in page4)
+chk("страница различает вставленное по формату: ключ бота → api/token, код рождения → api/code, остальное — ошибка e_input",
+    'k==="code"?{code:v}:{token:v}' in page4 and "api(k," in page4 and '"e_input"' in page4 and "MILA-XXXX-XXXX-XXXX / 1234567890:AA" in page4)
+chk("шаги названы: «A place to meet», «Her mind», «You»; «A voice» нет", '"t1":"A place to meet"' in page4 and '"t2":"Her mind"' in page4 and '"t3":"You"' in page4 and "A voice" not in page4 and "Место встречи" in page4 and "Её ум" in page4)
 nothing = lambda: not os.path.exists(envf) and not os.path.exists(os.path.join(T, "tg", "access.json"))
 r = api("code", {"code": "hello"})[1]
 chk("код не того вида: отказ code_format, в relay не ходили, ничего не сохранено", r.get("error") == "code_format" and not HITS and nothing())
