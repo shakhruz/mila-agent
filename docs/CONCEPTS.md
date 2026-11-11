@@ -28,7 +28,7 @@ A word in the owner's name, money, anything that cannot be undone. A lock is a m
 ## Consent
 The owner opens a lock with a button — on this exact text and for this one time.
 - A changed character or a changed recipient — the consent is void; a new card is needed.
-- One press, one action. A consent lives 15 minutes.
+- One press, one action. A consent lives 15 minutes; a card asked at night goes out in the morning, and its 15 minutes count from then.
 - Every step — asked, given, refused, done — is a line in the consent journal; the lines are chained, so a removed or rewritten line is visible.
 - Silence is not consent. A reaction to a message is not consent. Yesterday's «yes» is not today's.
 
@@ -41,7 +41,7 @@ If the matter is Mila's own reversible work — how to assemble a report, which 
 **There are no forks under a lock.** Money, a word in his name, sending, publishing, deleting — only Consent. The fork journal refuses such a point by its mark and by its words, and the refusal stays in the journal.
 
 ## The next move
-Every answer Mila sends to a person ends with two lines, so he never has to guess whether to wait:
+Every answer Mila's session sends to a person — the owner, the team, a client in a connected chat — ends with two lines, so he never has to guess whether to wait (the guest lane, where strangers in the bot's DM are answered, is outside this rule):
 
 ```
 Мой ход: делаю сейчас — свожу три листа в один.
@@ -49,7 +49,7 @@ Every answer Mila sends to a person ends with two lines, so he never has to gues
 [✅ Показать черновик] [Позже] [Не нужно]
 ```
 
-«My move» is one of three honest forms: doing it now; it stands in the [Scheduler](SCHEDULER.md) under a named job and comes at a named time; nothing is running. «Your move» is Mila's recommended step with two or three buttons, the recommended one first. The send guard checks the form before the message leaves; a promise «I will send it later» with no job in the Scheduler does not pass.
+«My move» is one of three honest forms: doing it now; it stands in the [Scheduler](SCHEDULER.md) under a named job and comes at a named time; nothing is running. «Your move» is Mila's recommended step with two or three buttons, the recommended one first. The send guard checks the form before the message leaves; a promise with a time — «I will send it tomorrow», «I'll remind you at 18:00» — with no job in the Scheduler does not pass.
 
 ## Which word when
 | The situation | The word |

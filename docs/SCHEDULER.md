@@ -32,9 +32,9 @@ The owner does not type these: he says «remind me on Mondays» in the chat, Mil
 | Jobs in one home | at most 30 |
 | Text of a job | 1–2000 characters |
 | Lifetime | 30 days by default, 90 at most; then one event «extend?» and silence. There are no jobs without an end: an eternal job spends the subscription silently |
-| Whose job | Mila's own (`by mila`), or by the owner's or the administrator's word — then with `--word <chat>/<message>` |
+| Whose job | Mila's own (`by mila`), or by the owner's or the administrator's word — then with `--word <chat>/<message>`. The script checks only the form of this pointer: it cannot see the chat |
 
-The time zone and the quiet hours are read from the owner's `USER.md` (the lines «Часовой пояс — Area/City» and «Тихие часы — 22:00–08:00»); without them — Asia/Tashkent and 22–08.
+The time zone and the quiet hours are read from the owner's `USER.md` (the lines «Часовой пояс — Area/City» and «Тихие часы — 22:00–08:00»). Write the time zone line: without it the service fires by Asia/Tashkent (quiet hours 22–08), while `mila_cron.py` (the slots it shows) and the send guard take the zone of the machine — on a machine in another zone «09:00» in an answer would not be 09:00 of the fire. With the line all three agree.
 
 ## How a job reaches Mila
 Once a minute the Scheduler makes one pass (`baraban.py tick`). A job fires when its slot is newer than its last fire and newer than its creation. The fire is one line appended to the Telegram plugin's inbound journal — the same road rituals and the owner's messages take — so the session sees:
@@ -58,7 +58,7 @@ Mila does the job and writes the result with `done`.
 - `<state>/watch.jsonl` — a job that fired twice with no `done` after the first of the two: one line. A job that fires and is never finished is visible, not silent.
 
 ## Where it runs
-- **The container image** (`docker/entrypoint.sh`): a loop runs the tick every minute for the home in the container; state in `~/state/baraban`. Nothing to set up.
+- **The container image** (`docker/entrypoint.sh`): a loop runs the tick every minute for the home in the container; state in `~/state/baraban`. Nothing to set up beyond the owner: the pass runs once the owner is known (`OWNER_ID`, the paired owner) and is silent until then.
 - **A server with several homes**: a timer of the machine runs `baraban.py tick --home <home> --slug <name> --owner <id> --state <dir>` once a minute, one line per home.
 - **A laptop** (`install/install.sh`): the installer does not set up this timer. Until you add one, jobs are stored but do not fire. One line of your own scheduler is enough:
   `* * * * * python3 <kit>/install/baraban.py tick --home "$HOME" --owner <your Telegram id>`.
