@@ -1,5 +1,7 @@
 # The owner's personal Telegram — an opt-in add-on
 
+> Reading and drafts are now in the core — the `shturman` skill (off until the owner signs in himself). This add-on stays for what the core does not do: reactions and folders.
+
 > **🔴 Read before installing.** This add-on gives Mila a *user session* (Telethon) of your own Telegram account. Whoever
 > has that session file can read **and write** as you, in every chat — including chats that belong to other people. The
 > read-only mode below is a whitelist of requests inside the client, **not a security boundary**: code running as the same

@@ -5,17 +5,20 @@
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
 **Для хозяина**
+- Штурман: по вашему слову читаю ваш личный Telegram — каналы, группы и те личные чаты, которые вы открыли сами, — и кладу черновики; отправляете вы. Подключаете сами, в терминале; отключить — одной командой.
 - Журнал проблем: каждый мой сбой записан — что случилось, что исправлено, чем проверено. Третий повтор одной причины я закрываю не обещанием, а проверкой или настройкой. Спросите «что пошло не так» — отвечу из журнала.
 
 </details>
 
 **For the owner**
+- Shturman: on your word I read your personal Telegram — channels, groups and the personal chats you opened yourself — and put drafts; you send. You connect it yourself, in a terminal; one command disconnects it.
 - The problem journal: every slip of mine is written down — what happened, what was fixed, how it was verified. A third repeat of one cause is closed with a check or a setting, not a promise. Ask «what went wrong» — I answer from the journal.
 
 **For Milas**
 - New skill `problemy` (`work/problemy.jsonl`, 600, append-only, number and line under one lock): found → cause → fix → verified → closed, each stage with evidence (the rules of `dela`); places and classes are closed lists; the verification is another pointer and later than the fix; the third case of one class in one place (a reopen and a new problem — one count) refuses a promise and writes the refusal; `itog`, `list --open`, `povtory`. The evening `self-check` asks whether the owner corrected Mila today.
 - `problemy.py povtory` also lists a place with three or more cases of different classes in 14 days — a line to look at, not a refusal.
 - `dela.py`: the «already written» check and the new line are under one lock — two writers at once never log one stage twice.
+- New skill `shturman` — the owner's personal Telegram account, reading and drafts only, off until the owner signs in himself in a live terminal (`login`); personal chats and private groups only those he opened (`allow`: his own word, read from his account, fresh, used once); a draft only where he writes; no sending, deleting, editing, reactions or «mark as read» in the code — a test lists the names and runs every command on a fake client; a pause and a ceiling per hour; `revoke` signs out at Telegram and wipes the files (no network — a red mark in `status`). The session files live in a key place closed to the session's tools; `docs/THREAT-MODEL.md` says what this access is; the library is pinned with sums (`skills/shturman/requirements.txt`).
 - send-guard: a report with an apology passes only in the owner's chat and only when it names a problem number that is in `work/problemy.jsonl` (a whole «found» line: the fact and a pointer to evidence) and is open or was closed today; a number alone no longer opens the filter.
 
 ## v1.7.7 · 10.11 — the pack library: free packs from Mila Library

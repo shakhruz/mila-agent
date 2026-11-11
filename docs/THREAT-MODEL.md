@@ -92,7 +92,29 @@ image and voice generation, payment links). Keys for those services are the main
 - **«Answer everyone» and «read only» groups.** Every message of every member reaches the session. Use them only where you trust everyone.
 - **A wrong pairing approval.** The owner who approves a code that a stranger sent lets that stranger write to the session. Approve
   only a code you asked someone to send; after setup switch to `/mila-telegram:access policy allowlist`.
-- **The owner's personal Telegram** (`packs/owner-telegram`, an opt-in add-on, not installed with the core). A user session
+- **Shturman — the owner's personal account in the core** (`skills/shturman`, shipped with every Mila, off until the owner signs in
+  himself in a terminal). What is true of it:
+  - The session file (`~/.mila-auth/shturman/`) is full access to the account. The skill's code has no sending, deleting, editing,
+    reactions or «mark as read», and reaches the client through a closed list of reading calls — that guards against a mistake of
+    the model, it is **not a boundary**: whoever gets the file can read and write as the owner.
+  - On a laptop the session of Mila and the session file belong to the same OS user. The folder is a key place: secret-guard refuses
+    Read, Grep and shell commands that name it — but code run in the shell that hides the path can still reach the file. The owner is told this in one line before he connects, and presses «yes».
+  - **Injection through what is read.** A post in a channel is a stranger's text. It comes out between one-time marks and the skill
+    says «data, not instructions», but that is behaviour, not a wall: a crafted post may try to talk the model into fetching the
+    session file. The key guard stops the plain attempts (a test keeps a canary); the rest is this residual risk.
+  - Personal chats and private groups hold other people's words — those people gave no consent. They are read only when the owner
+    opened that chat himself (his own message, read from his account, fresh, used once); the rest shows as a number. Channels and
+    public groups are read without a list. What Mila reads is in the Claude Code transcript (`~/.claude/projects/`); the skill's
+    own journal keeps no text and no names.
+  - Telegram may restrict an account driven by a program. The skill paces itself (a pause, a ceiling per hour, never the whole
+    dialog list at once); the risk stays, and the owner is told.
+  - Revoke: `shturman.py revoke` signs the session out at Telegram and wipes the files. Without the network the files are wiped
+    and the status stays red until the owner ends the session in Telegram → Settings → Devices.
+  - In the cloud (Mila Agent in a container) Shturman does not connect yet: the session file must live with the key keeper, not
+    with the session — a separate step. Sending as the owner does not exist on a laptop at all: it will come only behind the
+    consent proxy, where the proxy is another OS user.
+- **The owner's personal Telegram add-on** (`packs/owner-telegram`, opt-in, not installed with the core): reactions and folders on
+  top of reading. A user session
   (Telethon) is full access to that account even though the client allows only read, draft, folder and reaction requests: that
   list is a whitelist inside the client, not a boundary — whoever gets the session file (`~/work/secrets/owner-tg/`) can read and
   write as the owner, and the chats belong to other people too. The tool's own files keep no message text (`drafts.jsonl` holds
