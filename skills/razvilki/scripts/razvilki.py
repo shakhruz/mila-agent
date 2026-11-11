@@ -2,7 +2,7 @@
 """Журнал развилок Милы: иду по рекомендуемому пути, не дожидаясь, и записываю точку — что выбрала, почему и что придётся
 переделать, если хозяин позже выберет другое. Файл work/razvilki.jsonl в доме Милы (600), только дописывается, номер и запись — под одним замком.
   razvilki.py add --vopros <≤160> --varianty "А: …|Б: …[|В: …]" --vybrala Б --pochemu <≤160> --peredelat <что переделывать при смене, ≤200> --ulika <указатель>   → R-0001
-  razvilki.py switch R-0001 --na А --ulika <слово хозяина: msg:…>     → курс сменён; печатает, что переделать
+  razvilki.py switch R-0001 --na А --ulika <сообщение хозяина: msg:…>     → курс сменён; печатает, что переделать
   razvilki.py done R-0001 --prichina <≤120>                           → точка больше не меняется (принято, срок прошёл, дальше необратимо)
   razvilki.py list [--open] · itog [--days 7] [--json]
 Развилка — только для своей обратимой работы Милы. Под замком развилок нет: деньги, слово от имени хозяина, отправка, публикация,
@@ -18,8 +18,14 @@ NUM = re.compile(r"^R-\d{4,6}$")
 LETTERS = "АБВГ"
 # words of a lock: money, the owner's name, sending out, publishing, deleting, signing — never a fork
 ZAMOK = re.compile(r"(?i)(?<![а-яёa-z])(?:оплат|оплач|плат[её]ж|купи|куплю|покуп|закаж|заказать|деньг|перевод|перевед|перевест|счёт|счет[а-я]*\b|"
-                   r"отправ|разосл|рассыл|опублик|публикац|выложи|запост|удал|сотри\b|сотру\b|стер[её]т|от имени|подпиш|подписа|"
+                   r"отправ|разосл|рассыл|пересл|перешл|опублик|публикац|выложи|запост|удал|сотри\b|сотру\b|стер[её]т|от имени|подпиш|подписа|"
+                   r"от (?:вашего|его|её|моего|своего) лица|за вас\b|"
+                   r"(?:напис|напиш|ответ[ьи]|отвеч)[а-яё]*\s+(?:\S+\s+)?(?:клиент|партн[её]р|гост|заказчик|поставщик|подписчик)|forward|"
                    r"pay\b|payment|purchase|buy\b|transfer|send|publish|post it|delete|remove|sign\b|signed|signing)")
+
+
+# a word that mixes Latin and Cyrillic letters («Oплатить» with a Latin O) hides from the list above — refused as it is
+MIXED = re.compile(r"(?i)[a-z][a-z0-9]*[а-яё]|[а-яё][а-яё0-9]*[a-z]")
 
 
 def _dela():
@@ -119,7 +125,10 @@ def add(a):
     pochemu = text_ok(D, "почему", a.pochemu, 160); peredelat = text_ok(D, "переделать", a.peredelat, 200)
     ne_zamok = text_ok(D, "не замок", a.ne_zamok, 120, need=False)
     u = ulika(D, a.ulika); t = now(a)
-    hit = ZAMOK.search(" · ".join([vopros, peredelat] + list(var.values())))
+    whole = " · ".join([vopros, peredelat] + list(var.values()))
+    mixed = MIXED.search(whole)
+    if mixed: sys.exit("в тексте слово, где смешаны латинские и русские буквы (около «%s») — перепишите одним алфавитом" % whole[max(0, mixed.start() - 3):mixed.end() + 6])
+    hit = ZAMOK.search(whole)
     def fn(rs, st):
         n = "R-%04d" % (max([int(r["n"][2:]) for r in rs] or [0]) + 1)
         if a.zamok or (hit and not ne_zamok):
