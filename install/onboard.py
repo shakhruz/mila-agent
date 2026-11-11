@@ -228,6 +228,36 @@ def set_owner(uid):
         os.replace(tmp, SETTINGS)
 
 
+def new_code():
+    return "".join(secrets.choice(ALPHABET) for _ in range(6))
+
+
+def code_from(updates, code):
+    """The `from` object of the person who sent exactly this code in a private chat, else None. Groups and other texts are ignored."""
+    for u in updates:
+        m = u.get("message") or {}
+        if (m.get("chat") or {}).get("type") != "private":
+            continue
+        if (m.get("text") or "").strip().lower() == code:
+            f = m.get("from") or {}
+            if str(f.get("id", "")).isdigit():
+                return f
+    return None
+
+
+def code_sender(updates, code):
+    f = code_from(updates, code)
+    return str(f["id"]) if f else None
+
+
+def finish_pair(tok, uid):
+    """The sender of the code becomes the owner (access.json + settings.json) and gets the first greeting."""
+    set_owner(uid)
+    hi = "Paired ✓ You are my owner. Start Claude Code with `mila` in your terminal."
+    if not tg_photo(tok, uid, hi):
+        tg(tok, "sendMessage", {"chat_id": uid, "text": hi})
+
+
 def step_pair(tok, me, check):
     ids = owner_ids()
     if ids and load_access().get("dmPolicy") == "allowlist":
@@ -236,7 +266,7 @@ def step_pair(tok, me, check):
     if check:
         say("✗", "3/3 owner: not paired yet")
         return False
-    code = "".join(secrets.choice(ALPHABET) for _ in range(6))
+    code = new_code()
     wait = int(os.environ.get("MILA_PAIR_WAIT", "300"))
     say("…", "3/3 Send this code to @%s in Telegram (a private message):  %s" % (me.get("username", "your bot"), code))
     say(" ", "    waiting up to %d s; Ctrl-C to stop" % wait)
@@ -256,21 +286,12 @@ def step_pair(tok, me, check):
                 return False
             time.sleep(2)
             continue
-        for u in r.get("result", []):
-            m = u.get("message") or {}
-            if (m.get("chat") or {}).get("type") != "private":
-                continue
-            if (m.get("text") or "").strip().lower() == code:
-                uid = str((m.get("from") or {}).get("id", ""))
-                if not uid.isdigit():
-                    continue
-                set_owner(uid)
-                hi = "Paired ✓ You are my owner. Start Claude Code with `mila` in your terminal."
-                if not tg_photo(tok, uid, hi):
-                    tg(tok, "sendMessage", {"chat_id": uid, "text": hi})
-                say("✓", "3/3 owner paired (id %s): allowFrom + allowlist, OWNER_ID in settings.json" % uid)
-                say(" ", "    Mila will see your code as your first message when she starts — that's normal.")
-                return True
+        uid = code_sender(r.get("result", []), code)
+        if uid:
+            finish_pair(tok, uid)
+            say("✓", "3/3 owner paired (id %s): allowFrom + allowlist, OWNER_ID in settings.json" % uid)
+            say(" ", "    Mila will see your code as your first message when she starts — that's normal.")
+            return True
         res = r.get("result", [])
         if len(res) >= 100:   # глубже 100 без подтверждения не заглянуть: код может быть 101-м
             say("…", "3/3 the bot has 100+ unread messages from before, so the code may be behind them.")
