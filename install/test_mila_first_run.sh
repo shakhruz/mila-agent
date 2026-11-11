@@ -7,7 +7,8 @@ mkdir -p "$T/bin" "$T/home" "$T/proj"
 printf '#!/bin/sh\necho "ARGS: $*"\n' > "$T/bin/claude"; printf '#!/bin/sh\nexit 0\n' > "$T/bin/pgrep"; chmod +x "$T/bin/claude" "$T/bin/pgrep"
 # Mila is born in these checks: the launcher decides it from files on the machine (a saved bot token together with access.json,
 # or a birth record), never from the network; the birth page has its own checks below
-ST="$T/home/.claude/channels/telegram"; mkdir -p "$T/home/.claude/hooks" "$ST"; : > "$ST/.env"; echo '{}' > "$ST/access.json"
+ST="$T/home/.claude/channels/telegram"; mkdir -p "$T/home/.claude/hooks" "$ST" "$T/cfg"; : > "$ST/.env"; echo '{}' > "$ST/access.json"
+echo '{"env":{"OWNER_ID":"1"}}' > "$T/home/.claude/settings.json"; cp "$T/home/.claude/settings.json" "$T/cfg/settings.json"
 P="$(cd "$T/proj" && pwd -P)"; SLUG="$(printf '%s' "$P" | sed 's/[^A-Za-z0-9]/-/g')"
 run(){ (cd "$T/proj" && env -u CLAUDE_CONFIG_DIR HOME="$T/home" PATH="$T/bin:$PATH" "$@" bash "$H/mila" 2>&1); }
 O1="$(run)"
@@ -23,6 +24,9 @@ chk "mila new — всегда без --continue" "printf '%s' \"\$O4\" | grep '
 printf 'import sys\nsys.exit(1)\n' > "$T/home/.claude/hooks/onboard.py"; printf 'print("BIRTH PAGE STARTED")\n' > "$T/home/.claude/hooks/birth.py"
 O8="$(run)"
 chk "рождена (ключ бота и access.json на месте), проверка в сети падает — всё равно сессия, не страница рождения" "printf '%s' \"\$O8\" | grep -q 'ARGS:' && ! printf '%s' \"\$O8\" | grep -q 'BIRTH'"
+echo '{}' > "$T/home/.claude/settings.json"
+O11="$(run)"
+chk "ключ бота и access.json есть, а хозяина в settings.json нет (чужой канал Telegram в Claude Code) — страница рождения" "printf '%s' \"\$O11\" | grep -q 'BIRTH PAGE STARTED' && ! printf '%s' \"\$O11\" | grep -q 'ARGS:'"
 rm -f "$ST/.env" "$ST/access.json"; echo '{"born_at":"2026-01-01T00:00:00+00:00"}' > "$T/home/.claude/mila-birth.json"
 O9="$(run)"
 chk "рождена по записи о рождении — сессия, не страница" "printf '%s' \"\$O9\" | grep -q 'ARGS:' && ! printf '%s' \"\$O9\" | grep -q 'BIRTH'"

@@ -603,7 +603,7 @@ PY
     case "$line" in
       BACKUP:*) BACKUPS+=("${line#BACKUP:}") ;;
       FAIL:*) problem "${line#FAIL:}" ;;
-      WARN:*) say "${line#WARN:}"; NOTICES+=("Heads-up|${line#WARN:}|") ;;
+      WARN:*) say "${line#WARN:}"; NOTICES+=("Heads up|${line#WARN:}|") ;;
       "") ;;
       *) say "${line#  }" ;;
     esac
@@ -661,17 +661,17 @@ fi
 printf '\n'
 if [[ ${#BACKUPS[@]} -gt 0 ]]; then
   KS_W="files"; [[ ${#BACKUPS[@]} -eq 1 ]] && KS_W="file"
-  printf '  %-12s %s\n' "Kept safe" "${#BACKUPS[@]} earlier $KS_W → next to the originals, named <file>.bak-<date>-<time> (full list in the log)"
+  printf '  %-14s %s\n' "Kept safe" "${#BACKUPS[@]} earlier $KS_W → next to the originals, named <file>.bak-<date>-<time> (full list in the log)"
 fi
 if [[ ${#NOTICES[@]} -gt 0 ]]; then
   for nt in "${NOTICES[@]}"; do
     nlabel="${nt%%|*}"; nrest="${nt#*|}"; ntext="${nrest%%|*}"; ncode="${nrest#*|}"
-    printf '  %-12s %s\n' "$nlabel" "$ntext"
-    if [[ -n "$ncode" ]]; then printf '  %-12s %s\n' "" "$ncode"; fi
+    printf '  %-14s %s\n' "$nlabel" "$ntext"
+    if [[ -n "$ncode" ]]; then printf '  %-14s %s\n' "" "$ncode"; fi
   done
 fi
-printf '  %-12s %s\n' "Good to know" "her guardians run in EVERY Claude Code session of this user, not only hers."
-printf '  %-12s %s\n' "" "To keep Mila apart, install her under a separate user."
+printf '  %-14s %s\n' "Good to know" "her guardians run in EVERY Claude Code session of this user, not only hers."
+printf '  %-14s %s\n' "" "To keep Mila apart, install her under a separate user."
 printf '\n'
 M=mila
 case ":$PATH:" in *":$BIN_DIR:"*) ;; *) M="$(tilde "$BIN_DIR")/mila" ;; esac

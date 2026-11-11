@@ -260,11 +260,13 @@ HELP
                ;;
   *)           # Not born yet: the birth page instead of a session. Born is decided from files on this machine, never from
                # the network: a birth record, or (a home set up in the terminal before the page existed) a saved bot token
-               # together with access.json. A network blip or an expired Claude sign-in must not send a living Mila back
-               # to the birth page — the session and `mila doctor` speak about those.
-               bi=""; born=0
-               [ -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/mila-birth.json" ] && born=1
-               [ -f "$STATE/.env" ] && [ -f "$STATE/access.json" ] && born=1
+               # together with access.json AND an owner written by the pairing (OWNER_ID in settings.json). A token and
+               # access.json alone are not enough: a Claude Code that already had a Telegram channel of its own has both
+               # and no Mila. A network blip or an expired Claude sign-in must not send a living Mila back to the birth
+               # page — the session and `mila doctor` speak about those.
+               bi=""; born=0; cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+               [ -f "$cfg/mila-birth.json" ] && born=1
+               [ -f "$STATE/.env" ] && [ -f "$STATE/access.json" ] && grep -q '"OWNER_ID"' "$cfg/settings.json" 2>/dev/null && born=1
                for c in "$HOME/.claude/hooks/birth.py" "$(dirname "$0")/birth.py"; do [ -f "$c" ] && { bi="$c"; break; }; done
                if [ "$born" = 0 ] && [ -n "$bi" ]; then
                  exec python3 "$bi"
