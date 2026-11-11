@@ -8,6 +8,7 @@
   widget.py check <widget.json> --pack ID          → годится ли описание (зовёт установка пака); код 1 и причины — нет
   widget.py show <пак> --chat C --bot B [--lang]   → что отправить инструментом widget; затем: sent <пак> --message N
                                                      <пак> — id пака или модуль ядра: planirovshchik, zadachi, biblioteka, sejf, telegram
+                                                     pult — пульт дня: один на день (закрепить), днём — refresh pult; [--again] — заново
   widget.py sent <пак> [--message N]               → записать отправленное (id сообщения — из ответа инструмента)
   widget.py refresh [<пак> | --all]                → пересчитать; изменилось — что отправить инструментом widget_data; нет — ничего
   widget.py press <метка>                          → чьё это нажатие и что с ним делать; сам ничего не исполняет
@@ -28,6 +29,7 @@ import zlib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import status as core_status      # noqa: E402 — the closed list of core modules and their status, next to this file
+import pult as core_pult          # noqa: E402 — the day board as a widget: its own template, data from the day board and the inbox
 
 WORK = os.environ.get("MILA_WORK") or os.path.expanduser("~/work")
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -97,7 +99,7 @@ def check_manifest(m, pid):
     why = []
     if not PACK_ID.match(str(pid)): return ["id пака не по форме"]
     if pid in RESERVED: return ["пак с id «%s» не получает папку данных: это папка самого дома" % pid]
-    if pid in core_status.CORE: return ["«%s» — имя модуля ядра: виджет этого модуля рисует само ядро, пак его не подменит" % pid]
+    if pid in core_status.CORE or pid == core_pult.ID: return ["«%s» — имя модуля ядра: виджет этого модуля рисует само ядро, пак его не подменит" % pid]
     if not isinstance(m, dict): return ["widget.json: нужен объект"]
     extra = set(m) - TOP_KEYS
     if extra: why.append("лишние поля %s — в описании виджета только title, numbers, state, actions; команд и кода нет" % ", ".join(sorted(map(str, extra)))[:80])
@@ -139,6 +141,7 @@ def manifest_path(pid):
 def load_manifest(pid):
     """(описание, причины). Нет файла — (None, []). У модуля ядра описание — в коде ядра, файла нет."""
     if pid in core_status.CORE: return core_status.CORE[pid], []
+    if pid == core_pult.ID: return core_pult.MANIFEST, []
     p = manifest_path(pid)
     try:
         st = os.lstat(p)
@@ -158,7 +161,7 @@ def read_value(pid, ptr):
     if not isinstance(ptr, dict): return None
     f, k = ptr.get("file"), ptr.get("key")
     if not (isinstance(f, str) and FILE.match(f) and ".." not in f and not SECRET_NAME.search(f) and isinstance(k, str) and KEY.match(k)): return None
-    if not PACK_ID.match(pid) or pid in RESERVED or pid in core_status.CORE: return None
+    if not PACK_ID.match(pid) or pid in RESERVED or pid in core_status.CORE or pid == core_pult.ID: return None
     base = os.path.join(os.path.realpath(WORK), pid)
     p = os.path.join(base, f)
     try:
@@ -203,9 +206,17 @@ def nbytes(s):
 
 
 def pack_data(d):
-    """chat_data: JSON не длиннее 1024 байт; не влезает — самый длинный текст короче на знак, с «…», пока не влезет."""
+    """chat_data: JSON не длиннее 1024 байт; не влезает — самый длинный текст короче на знак, с «…», пока не влезет.
+    Режется всегда самый длинный текст, числа не трогаются; короткие слова (код статуса, заголовки) до очереди не доходят."""
     def dump(): return json.dumps(d, ensure_ascii=False, separators=(",", ":"))
-    def cells(): return [(d, "t")] + [(x, i) for x in d.get("n", []) for i in (0, 1)] + [(d["a"], i) for i in range(len(d.get("a", [])))]
+    def cells(box=None):
+        box = d if box is None else box
+        for k in (list(box) if isinstance(box, dict) else range(len(box))):
+            v = box[k]
+            if isinstance(v, str):
+                yield box, k
+            elif isinstance(v, list):
+                yield from cells(v)
     s = dump()
     while nbytes(s) > DATA_MAX:
         box, key = max(cells(), key=lambda c: nbytes(c[0][c[1]]))
@@ -217,6 +228,10 @@ def pack_data(d):
 
 
 def build_data(pid, m, lang):
+    if pid == core_pult.ID:           # the day board: its own shape of data
+        try: return pack_data(core_pult.data(lang))
+        except ValueError: raise
+        except Exception as e: raise ValueError("пульт дня не собрался: %s" % type(e).__name__)
     w = words(lang)
     d = {"t": pick(m.get("title"), lang)}
     if pid in core_status.CORE:       # a core module: the numbers come from the core's own code, not from a pack's files
@@ -242,8 +257,8 @@ def marks_of(pid, m):
     return ["w_%s_%s" % (pid, x["mark"]) for x in m.get("actions", [])]
 
 
-def build_html(bot, marks):
-    with open(TEMPLATE, encoding="utf-8") as f: t = f.read()
+def build_html(bot, marks, template="module.html"):
+    with open(os.path.join(os.path.dirname(TEMPLATE), template), encoding="utf-8") as f: t = f.read()
     if t.count("/*LINKS*/") != 1: raise ValueError("шаблон виджета повреждён")
     links = ",".join(json.dumps("https://t.me/%s?start=%s" % (bot, mk)) for mk in marks)
     html = t.replace("/*LINKS*/", links)
@@ -302,18 +317,27 @@ def cmd_show(a):
     if not BOT.match(a.bot or ""): fail("--bot: имя бота без @")
     m, why = load_manifest(pid)
     if why: fail("виджет пака не показываю", why=why[:20])
-    if m is None: fail("у пака «%s» нет виджета (нет packs/%s/widget.json)" % (pid, pid), core=sorted(core_status.CORE))
+    if m is None: fail("у пака «%s» нет виджета (нет packs/%s/widget.json)" % (pid, pid), core=sorted(core_status.CORE) + [core_pult.ID])
     lang = a.lang if LANG.match(a.lang or "") else "ru"
+    day = None
+    if pid == core_pult.ID:           # one day board a day: a new message in the morning, the same one refreshed during the day
+        try: day = core_pult.day()
+        except Exception as e: fail("пульт дня не собрался: %s" % type(e).__name__)
+        with Store() as s0:
+            r0 = s0.d["widgets"].get(pid) or {}
+        if r0.get("message_id") and r0.get("day") == day and not a.again:
+            fail("пульт на сегодня уже отправлен (сообщение %s) — обновляйте его: refresh pult; отправить заново — show pult --again" % r0["message_id"])
     try:
-        marks = marks_of(pid, m); html, size, packed = build_html(a.bot, marks); data = build_data(pid, m, lang)
+        marks = marks_of(pid, m); html, size, packed = build_html(a.bot, marks, "pult.html" if pid == core_pult.ID else "module.html"); data = build_data(pid, m, lang)
     except (OSError, ValueError) as e:
         fail(str(e))
     with Store() as s:
         s.d["widgets"][pid] = dict(s.d["widgets"].get(pid) or {}, pending={"chat_id": a.chat, "marks": marks, "data": data, "lang": lang,
-                                                                         "title": pick(m.get("title"), lang), "new": True})
+                                                                         "title": pick(m.get("title"), lang), "new": True, **({"day": day} if day else {})})
         s.save()
     out({"tool": "widget", "args": {"chat_id": a.chat, "html": html, "chat_data": data}, "html_bytes": size, "html_zlib": packed,
-         "then": "widget.py sent %s --message <id сообщения из ответа инструмента>" % pid})
+         "then": "widget.py sent %s --message <id сообщения из ответа инструмента>" % pid,
+         **({"pin": "после отправки закрепите это сообщение инструментом pin — пульт дня один и на виду"} if day else {})})
 
 
 def cmd_sent(a):
@@ -325,6 +349,7 @@ def cmd_sent(a):
         if p.get("new"):
             if not a.message or a.message <= 0: fail("нужен --message: id сообщения-виджета из ответа инструмента")
             r = {"chat_id": p["chat_id"], "message_id": a.message, "marks": p["marks"], "lang": p["lang"], "title": p["title"], "last": p["data"], "ts": int(now)}
+            if p.get("day"): r["day"] = p["day"]
         else:
             if not r.get("message_id"): fail("виджет пака «%s» ещё не отправлен" % pid[:41])
             r = {k: v for k, v in r.items() if k != "pending"}
@@ -346,6 +371,11 @@ def cmd_refresh(a):
         for pid in ([a.pack] if a.pack else sorted(ws)):
             r = ws[pid]
             if not isinstance(r, dict) or not r.get("message_id") or r.get("retired"): continue
+            if pid == core_pult.ID:
+                try: today = core_pult.day()
+                except Exception: today = None
+                if r.get("day") != today:
+                    res.append({"pack": pid, "stale": "наступил новый день — отправьте новый пульт: show pult"}); continue
             m, why = load_manifest(pid)
             gone = m is None
             if not gone and marks_of(pid, m) != r.get("marks"):
@@ -379,9 +409,9 @@ def cmd_press(a):
     x = next((x for x in (m or {}).get("actions", []) if x.get("mark") == act), None)
     if x is None: out(nothing)
     lock = x.get("lock") is True
-    if pid in core_status.CORE:
+    if pid in core_status.CORE or pid == core_pult.ID:
         out({"ok": True, "known": True, "pack": pid, "core": True, "action": act, "label": pick(x.get("label"), r.get("lang") or "ru"), "lock": False,
-             "do": "модуль ядра: " + core_status.DO[(pid, act)], "note": "сам скрипт ничего не исполнил"})
+             "do": "модуль ядра: " + (core_pult.DO if pid == core_pult.ID else core_status.DO[(pid, act)]), "note": "сам скрипт ничего не исполнил"})
     out({"ok": True, "known": True, "pack": pid, "action": act, "label": pick(x.get("label"), r.get("lang") or "ru"), "lock": lock,
          "do": ("под замком: сначала Согласование — карточка хозяину на этот шаг; до его нажатия ничего не делаю" if lock
                 else "это шаг пака «%s»: делаю его по навыку пака как обычную работу, со всеми её правилами" % pid),
@@ -393,6 +423,7 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("check"); p.add_argument("file"); p.add_argument("--pack", required=True)
     p = sub.add_parser("show"); p.add_argument("pack"); p.add_argument("--chat", required=True); p.add_argument("--bot", required=True); p.add_argument("--lang", default="ru")
+    p.add_argument("--again", action="store_true", help="the day board only: send a new one although today's was sent")
     p = sub.add_parser("sent"); p.add_argument("pack"); p.add_argument("--message", type=int); p.add_argument("--now")
     p = sub.add_parser("refresh"); p.add_argument("pack", nargs="?"); p.add_argument("--all", action="store_true"); p.add_argument("--now")
     p = sub.add_parser("press"); p.add_argument("mark")

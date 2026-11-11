@@ -37,6 +37,9 @@ Script: `python3 ~/.claude/skills/pult-dnya/scripts/day_board.py <command>`. The
 #3 macOS tests → rollback fixed · b29e066
 ```
 
+## The board as a widget
+Where the Telegram plugin has the widget tools, the day board can be one widget message in the owner's private chat instead of the pinned text: `python3 ~/.claude/skills/vidzhet/scripts/widget.py show pult --chat <owner> --bot <my bot>` in the morning (then pin it), `refresh pult` after every change. It shows what is in progress, ONE question that waits for the owner with a single button «Answer», and what is done. The button only asks me to send that question as a usual card — the widget takes no answers. The commands of the board itself (`add`, `start`, `wait`, `done`) stay the same. Details: the skill `vidzhet`.
+
 ## Don'ts
 
 - Don't write "waiting for you" anywhere except as a question with buttons.

@@ -20,10 +20,10 @@ def chk(m, c, x=""):
     n += 1; ok += bool(c); print(("✅ " if c else "❌ ") + m + ("" if c else "  ← " + str(x)[:400]))
 BASE = dt.datetime.now().astimezone(); NOW = [BASE]      # the test's own clock: moved by hand, never read from the machine again
 def tick(seconds): NOW[0] += dt.timedelta(seconds=seconds)
-def machine_now():
-    """The machine's clock as a child process sees it. update.py runs as a child and checks that the pressed card is fresh by ITS
-    clock; a card stamped by the clock of the test's own process would look stale whenever the two clocks differ."""
-    return float(subprocess.run([sys.executable, "-I", "-c", "import time; print(time.time())"], capture_output=True, text=True, timeout=30).stdout)
+def machine_iso():
+    """The machine's clock as a child process sees it, already as the card's text. update.py runs as a child and checks that the
+    pressed card is fresh by ITS clock; the stamp is made wholly in a child, so nothing of the test's own time functions touches it."""
+    return subprocess.run([sys.executable, "-I", "-c", "import time; print(time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime()))"], capture_output=True, text=True, timeout=30).stdout.strip()
 def R(*a):
     if a and a[0] in ("sent", "refresh") and "--now" not in a: a = (*a, "--now", NOW[0].isoformat())
     r = subprocess.run([sys.executable, "-I", os.path.join(H, "widget.py"), *a], capture_output=True, text=True, env=ENV, stdin=subprocess.DEVNULL, timeout=30)
@@ -250,7 +250,7 @@ try:
     def put_pack(pid):
         rc, plan = U("pack-plan", pid)
         if "text" not in plan: return rc, plan
-        cid[0] += 1; c = "c%d" % cid[0]; ts = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(machine_now()))
+        cid[0] += 1; c = "c%d" % cid[0]; ts = machine_iso()
         open(CARDS, "a").write(json.dumps({"card_id": c, "chat_id": OWNER, "text": plan["text"], "ts": ts, "buttons": plan["buttons"]}, ensure_ascii=False) + "\n")
         open(CARDS, "a").write(json.dumps({"card_id": c, "used_ts": ts, "used_by": OWNER}) + "\n")
         open(EV, "a").write(json.dumps({"params": {"meta": {"type": "callback", "card_id": c, "user_id": OWNER, "callback_data": "pack:yes"}}}) + "\n")
@@ -276,7 +276,7 @@ try:
     def drop_pack(pid):
         rc, plan = U("remove-pack", pid)
         if "text" not in plan: return rc, plan
-        cid[0] += 1; c = "c%d" % cid[0]; ts = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(machine_now()))
+        cid[0] += 1; c = "c%d" % cid[0]; ts = machine_iso()
         open(CARDS, "a").write(json.dumps({"card_id": c, "chat_id": OWNER, "text": plan["text"], "ts": ts, "buttons": plan["buttons"]}, ensure_ascii=False) + "\n")
         open(CARDS, "a").write(json.dumps({"card_id": c, "used_ts": ts, "used_by": OWNER}) + "\n")
         open(EV, "a").write(json.dumps({"params": {"meta": {"type": "callback", "card_id": c, "user_id": OWNER, "callback_data": "pack:yes"}}}) + "\n")

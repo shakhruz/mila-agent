@@ -165,7 +165,7 @@ try:
     rc, o = R("press", "w_planirovshchik_list"); chk("нажатие: шаг модуля ядра, названа команда ядра, скрипт ничего не исполнил", o.get("known") is True and o.get("core") is True and "mila_cron.py list" in o.get("do", "") and o.get("lock") is False, o)
     rc, o = R("press", "w_planirovshchik_delete"); chk("нажатие: кнопки, которой у модуля нет, — ничего", o.get("known") is False, o)
     rc, o = R("press", "w_sejf_add"); chk("нажатие на виджет модуля, который не отправляли, — ничего", o.get("known") is False, o)
-    rc, o = R("show", "no-such-module", "--chat", OWNER, "--bot", BOT); chk("show неизвестного — отказ со списком модулей ядра", rc != 0 and o.get("core") == sorted(S.CORE), o)
+    rc, o = R("show", "no-such-module", "--chat", OWNER, "--bot", BOT); chk("show неизвестного — отказ со списком модулей ядра и пультом", rc != 0 and o.get("core") == sorted(S.CORE) + ["pult"], o)
 finally:
     shutil.rmtree(T, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
