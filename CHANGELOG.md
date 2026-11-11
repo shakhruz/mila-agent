@@ -1,6 +1,6 @@
 # CHANGELOG · Mila
 
-## Unreleased — Mila is born in the browser; a calm install screen; connectors: Mila's senses, the first one is hearing; the words «skill, talent, connector»
+## v1.7.10 · 12.11 — Mila is born in the browser; a calm install screen; connectors and the first chat; the words «skill, talent, connector»
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
@@ -8,7 +8,6 @@
 - Рождение в браузере: после установки вы набираете одно слово `mila` — и открывается страница на вашем компьютере. Три шага: бот для Милы, вход в Claude, первое сообщение ей в Telegram. Страница работает один раз и закрывается; дальше мы говорим в Telegram.
 - Бот для Милы — одно поле: вставляете ключ из @BotFather или код рождения, кнопка «Open @BotFather» рядом.
 - Установка стала спокойнее: один экран, зелёные строки, в конце одно действие. Если слово `mila` у вас уже занято другой программой, я скажу об этом и покажу полный путь.
-- Слух: я предлагаю активировать его сразу после знакомства — карточкой «Активировать слух / Позже». Нужен один ключ Deepgram (при регистрации дают пробный кредит); ключ вы вводите по ссылке сейфа, не в чат. После активации — проба: пришлите голосовое, отвечу текстом. Выключить — «выключи слух».
 - Знакомство стало короче: имя, город, что вам важно — по одному вопросу.
 - Сейф: когда я проверяю, что пароль или ключ на месте, в чате от него видны только точки — ни одного знака.
 
@@ -18,7 +17,6 @@
 - Birth in the browser: after the install you type one word, `mila`, and a page opens on your own computer. Three steps: a bot for Mila, the Claude sign-in, your first message to her in Telegram. The page works once and closes; from then on we talk in Telegram.
 - A bot for Mila is one field: paste a token from @BotFather or a birth code; the «Open @BotFather» button is next to it.
 - A calmer install: one screen, green lines, one action at the end. If the word `mila` already means another program on your machine, I say so and show the full path.
-- Hearing: I offer to activate it right after we get acquainted — a card «Activate hearing / Later». It needs one Deepgram key (a trial credit comes with sign-up); you enter the key by the safe link, not in the chat. After activation — a trial: send a voice message, I answer in text. To switch it off — «turn hearing off».
 - Getting acquainted is shorter: your name, your city, what matters to you — one question at a time.
 - The safe: when I check that a password or a key is in place, the chat shows dots only — not a single character of it.
 
