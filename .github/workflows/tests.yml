@@ -1,5 +1,8 @@
 name: tests
-on: [push, pull_request]
+on:
+  push:
+    branches: ['**']   # branch pushes only. A release tag sits on a commit that main has already tested (release.sh runs the tests before it tags): a tag push started the same run a second time, the two competed for one macOS runner, and the one left without a runner was cancelled — a red mark and a mail with no failing test
+  pull_request:
 permissions: { contents: read }   # least-privilege CI token, also for pull requests from forks
 jobs:
   run_all:
