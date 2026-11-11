@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """kitchen_lint.py — следы «кухни» не в публичном ядре: внутренние коды задач (вида АБВ-ДДММ латиницей), ссылки на номера
 чьих-то сообщений («владелец NNNNN», «личка NNNNN», «msg NNN», «dev NNNN»), время приёмок («Качество ЧЧ:ММ»), номера раскаток
-(ROLL…OUT с номером), датированные ссылки на чьё-то решение, личные пути одного дома, пути нашего сервера (их только показывает, не правит). Смысл правила остаётся — уходит только «кто,
+(ROLL…OUT с номером), датированные ссылки на чьё-то решение, личные пути одного дома, ссылки на чьё-то слово об этой правке (только показывает), пути нашего сервера (их только показывает, не правит). Смысл правила остаётся — уходит только «кто,
 когда, какой номер».
   kitchen_lint.py            — проверка (файлы git, кроме CHANGELOG.md и legacy/), код 1 при находках
   kitchen_lint.py --fix      — убрать метки на месте (только метки и пустые скобки/знаки, оставшиеся от них)
@@ -23,6 +23,9 @@ RX = re.compile("|".join("(?:%s)" % t for t in TOKENS))
 SERVER = re.compile(r"/" + r"srv/mila\b")
 # Key prefix written in one piece (glued here too): a copied sample looks like a real key to an eye and slips past scanners — glue it in the source.
 KEYP = re.compile("|".join(re.escape(x) for x in ("sk-" + "ant-", "sk-" + "or-v1-", "xo" + "xb-", "gh" + "p_", "AK" + "IA", "github" + "_pat_")))
+# A reference to someone's say-so about this very edit (the phrase is glued below) is kitchen too; reported, never auto-fixed: the sentence
+# needs a human rewrite («по просьбе хозяина» is a product phrase and stays).
+SAYSO = re.compile(r"по сло" + r"ву (?:хозяина|владельца)", re.I)
 EXCLUDE = re.compile(r"^(CHANGELOG\.md|legacy/|tools/kitchen_lint\.py|tools/test_kitchen_lint\.py)")
 
 
@@ -66,7 +69,7 @@ def check_log(rng):
         for l in body.splitlines():
             if l.startswith("Co-Authored-By:"):
                 continue
-            if RX.search(l) or REVIEW.search(l):
+            if RX.search(l) or REVIEW.search(l) or SAYSO.search(l):
                 found += 1; print("%s: %s" % (h, l.strip()[:140]))
     print("следов кухни в сообщениях коммитов: %d" % found)
     return 1 if found else 0
@@ -88,6 +91,8 @@ def main():
                 found += 1; server += 1; print("%s:%d: префикс ключа одним куском — соберите склейкой: %s" % (f, i, l.strip()[:120]))
             if SERVER.search(l):
                 found += 1; server += 1; print("%s:%d: путь нашего сервера — задайте через переменную окружения: %s" % (f, i, l.strip()[:120]))
+            if SAYSO.search(l):
+                found += 1; server += 1; print("%s:%d: ссылка на чьё-то слово об этой правке — перепишите («по просьбе хозяина»): %s" % (f, i, l.strip()[:120]))
             if RX.search(l):
                 found += 1
                 if not fix:
