@@ -148,6 +148,24 @@ case ":$PATH:" in
   *) say "NOTE: $BIN_DIR is not on your PATH"
      NOTICES+=("PATH|$(tilde "$BIN_DIR") is not on your PATH yet. Add this line to ~/.zshrc or ~/.bashrc:|export PATH=\"\$HOME/.local/bin:\$PATH\"") ;;
 esac
+# Is the word `mila` already something else for this user? A function or an alias in an rc file is invisible to this
+# non-interactive bash, so the rc files are read (never edited) and so is the PATH lookup.
+SHADOW=""
+if [[ $DRY -eq 0 ]]; then
+  _found="$(command -v mila 2>/dev/null || true)"
+  if [[ -n "$_found" && ! "$_found" -ef "$BIN_DIR/mila" ]]; then SHADOW="$_found"; fi
+  if [[ -z "$SHADOW" ]]; then
+    for _rc in .zshrc .zprofile .bashrc .bash_profile .profile; do
+      [[ -f "$HOME/$_rc" ]] || continue
+      _hit="$(grep -nE '^[[:space:]]*(function[[:space:]]+mila([[:space:]({]|$)|mila[[:space:]]*\(\)|alias[[:space:]]+mila=)' "$HOME/$_rc" 2>/dev/null | head -1 || true)"
+      if [[ -n "$_hit" ]]; then SHADOW="~/$_rc:${_hit%%:*}"; break; fi
+    done
+  fi
+  if [[ -n "$SHADOW" ]]; then
+    say "NOTE: mila already means something else in the shell: $SHADOW"
+    NOTICES+=("Heads up|\`mila\` already means something else in your shell ($(tilde "$SHADOW")). Until you rename or remove it, start her with the full path:|$(tilde "$BIN_DIR")/mila")
+  fi
+fi
 note ""
 
 # ── a newborn's home: who Mila is and how the first talk goes ───────────────
@@ -652,6 +670,7 @@ printf '  %-12s %s\n' "" "To keep Mila apart, install her under a separate user.
 printf '\n'
 M=mila
 case ":$PATH:" in *":$BIN_DIR:"*) ;; *) M="$(tilde "$BIN_DIR")/mila" ;; esac
+[[ -n "$SHADOW" ]] && M="$(tilde "$BIN_DIR")/mila"
 if [[ $BAD -eq 0 ]]; then
   printf '  Her home is ready. One step left:\n'
 else

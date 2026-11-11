@@ -137,4 +137,19 @@ chk "MILA_INSTALL_VERBOSE=1 — то же" "grep -q 'hook → ' $T/verb2.out"
 HOME="$T/home" CLAUDE_CONFIG_DIR="$T/home/.claude" MILA_OWNER_ID=$OID PATH=/usr/bin:/bin:/usr/local/bin bash "$REPO/install/install.sh" --dry-run > "$T/dry.out" 2>&1
 chk "--dry-run: строки «would» на экране, журнал не переписан" "grep -q 'would' $T/dry.out && grep -q 'Dry run finished' $T/dry.out && [ \$(grep -c '^Mila installer' $LOGH) -eq 1 ] && ! grep -q 'would' $LOGH"
 chk "обычная установка временного файла настроек после себя тоже не оставляет" "[ -z \"\$(ls $T/tmpx | grep mila-settings)\" ]"
+# ── the word `mila` taken in the user's shell: an rc file with a function / an alias, or another `mila` earlier on PATH
+shw() {   # $1 - home, $2 - extra PATH dir (or empty); prints the screen
+  mkdir -p "$1/.claude"; HOME="$1" CLAUDE_CONFIG_DIR="$1/.claude" MILA_OWNER_ID=$OID PATH="${2:+$2:}/usr/bin:/bin:/usr/local/bin" bash "$REPO/install/install.sh" 2>&1
+}
+shw "$T/sh-clean" "" > "$T/sh-clean.out"
+chk "mila: чистый дом — предупреждения нет" "! grep -q 'already means something else' $T/sh-clean.out"
+mkdir -p "$T/sh-fn"; printf 'export A=1\nmila() { echo other; }\n' > "$T/sh-fn/.zshrc"
+shw "$T/sh-fn" "" > "$T/sh-fn.out"
+chk "mila: функция в ~/.zshrc — предупреждение на экране с файлом и строкой, шаг — полный путь; rc-файл не тронут" "grep -q 'already means something else in your shell (~/.zshrc:2)' $T/sh-fn.out && grep -q '^      .*/.local/bin/mila\$' $T/sh-fn.out && [ \"\$(wc -l < $T/sh-fn/.zshrc | tr -d ' ')\" = 2 ]"
+mkdir -p "$T/sh-al"; printf 'alias mila="claude"\n' > "$T/sh-al/.bashrc"
+shw "$T/sh-al" "" > "$T/sh-al.out"
+chk "mila: alias в ~/.bashrc — то же предупреждение" "grep -q 'already means something else in your shell (~/.bashrc:1)' $T/sh-al.out"
+mkdir -p "$T/sh-path/other"; printf '#!/bin/sh\necho other\n' > "$T/sh-path/other/mila"; chmod +x "$T/sh-path/other/mila"
+shw "$T/sh-path" "$T/sh-path/other" > "$T/sh-path.out"
+chk "mila: другой mila раньше по PATH — предупреждение с его путём, шаг — полный путь" "grep -q 'already means something else in your shell (~/other/mila)' $T/sh-path.out && grep -q '^      .*/.local/bin/mila\$' $T/sh-path.out"
 echo "итог $ok/$n"; rm -rf "$T"
