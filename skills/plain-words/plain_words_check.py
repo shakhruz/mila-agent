@@ -14,11 +14,20 @@ except ImportError:   # навыка iniciativa нет рядом — прове
 BANNED = [r"превью", r"деплой\w*", r"прод(?:е|а|у)?", r"стенд\w*", r"прогон\w*", r"перегон\w*", r"трекшн\w*",
           r"milestone", r"онбординг\w*", r"эскалац\w*", r"дедлайн\w*", r"апрув\w*", r"таргет\w*", r"лид(?:ы|ов|а|у)?",
           r"выкладк\w*"]
+# Латиница и кальки с неё: слово → русская замена из словаря пульта
+HINTS = {r"deploy(?:s|ed|ing|ment)?": "выложить", r"prod": "на сайте", r"preview(?:s|ed)?": "черновик", r"leads?": "человек, который написал",
+         r"deadlines?": "срок", r"onboarding": "знакомство", r"dashboards?": "панель", r"push(?:es|ed|ing)?": "отправка",
+         r"merge(?:s|d)?|merging": "слияние", r"commits?|committed|committing": "правка", r"bundles?|bundled": "пакет",
+         r"(?-i:CI)": "проверка", r"main": "основная версия",
+         # кальки кириллицей — те же замены
+         r"пуш\w*": "отправка", r"коммит\w*": "правка", r"мерж\w*": "слияние", r"бандл\w*": "пакет"}
 CODE = re.compile(r"\b(M-\d+|D-\d+|R\d+|\d{4,6})\b")
 
 
 def check(text: str) -> list[str]:
     out = []
+    if not text.strip():
+        return ["пустая карточка — проверять нечего"]
     body = text.split("\n")
     first = next((l for l in body if l.strip()), "")
     if len(first.split()) > 12:
@@ -30,9 +39,13 @@ def check(text: str) -> list[str]:
         if n > 20:
             out.append(f"предложение {n} слов (≤20): «{s[:60]}…»")
     for w in BANNED:
-        m = re.search(r"(?<!\w)" + w + r"(?!\w)", text, re.I)
+        m = re.search(r"(?<!\w)(?:" + w + r")(?!\w)", text, re.I)
         if m:
             out.append(f"слово «{m.group(0)}» — см. таблицу замен")
+    for w, ru in HINTS.items():
+        m = re.search(r"(?<!\w)(?:" + w + r")(?!\w)", text, re.I)
+        if m:
+            out.append(f"слово «{m.group(0)}» — по-русски: {ru}")
     for m in CODE.findall(text):
         out.append(f"код/номер «{m}» в тексте — перенести в конец в скобки или убрать")
     out += ["инициатива: " + x for x in iniciativa(text)]

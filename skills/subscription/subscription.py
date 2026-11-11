@@ -411,13 +411,20 @@ def collect_account(entry, cache, force=False):
     return acc
 
 
-def collect(force=False, local_only=False):
+def collect(force=False, local_only=False, own_only=False):
+    """own_only — только входы этой машины, без отчётов с других машин (записи с "report").
+
+    Нужно машине, которая сама пишет свой отчёт для другой: иначе в её файл попадает и копия
+    отчёта, который ей же положили, и читатель показывает один вход дважды.
+    """
     cache = load_cache()
     state = {"local": local_spend(), "accounts": [], "generated_at": now_local().isoformat()}
     if local_only:
         state["note"] = "сеть не спрашивали (--local)"
         return state
     for entry in load_accounts():
+        if own_only and entry.get("report"):
+            continue
         acc = collect_account(entry, cache, force=force)
         acc["windows"] = [enrich(dict(w)) for w in (acc.get("windows") or [])]
         state["accounts"].append(acc)
@@ -615,9 +622,11 @@ def main():
     ap.add_argument("--local", action="store_true", help="только местный расход, без сети")
     ap.add_argument("--card", nargs="?", const="auto", metavar="PNG",
                     help="картинка-дэшборд (Chrome есть → рисую; нет → беру свежий общий PNG из accounts.json «card»; иначе пусто)")
+    ap.add_argument("--own", action="store_true",
+                    help="только входы этой машины, без отчётов с других — когда свой отчёт пишется для другой машины")
     args = ap.parse_args()
 
-    state = collect(force=args.force, local_only=args.local)
+    state = collect(force=args.force, local_only=args.local, own_only=args.own)
     if args.card:
         try:
             import subscription_card
