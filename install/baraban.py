@@ -2,7 +2,8 @@
 """The Scheduler (RU: «Планировщик»; the file and the state keep the old name, baraban) — the schedule service outside the Claude Code session. Jobs a Mila set with mila-cron (~/work/schedule/jobs.json)
 reach her as events in the plugin's journal, the same way rituals and ticks do; a session restart loses nothing.
 
-  baraban.py tick --home H [--slug S] [--owner ID] [--state DIR] [--now ISO]   # one pass; a systemd timer runs it every minute
+  baraban.py tick --home H [--slug S] [--owner ID] [--state DIR] [--beat-dir DIR] [--now ISO]   # one pass; a timer runs it every minute
+                                                              # no --owner: the paired owner of the home (access.json)
   baraban.py status --home H [--state DIR]                                    # jobs, last fire, last done, overdue
 Rules (the same contract mila-cron and its skill describe):
 - a job fires when its cron slot (in the owner's time zone, USER.md «Часовой пояс — …», else Asia/Tashkent) is newer than the
@@ -12,7 +13,9 @@ Rules (the same contract mila-cron and its skill describe):
   and then fires once;
 - expired job: one event «продлить?» and silence after it;
 - event: params.meta {chat_id: owner, message_id: cron-<slug>-<id>-<slot>, ritual: cron, job: id}; content «[⏰ расписание] <id>»;
-- watchdog: a job fired twice without a `done` after the first of them → one line in <state>/watch.jsonl (Quality reads it).
+- watchdog: a job fired twice without a `done` after the first of them → one line in <state>/watch.jsonl (Quality reads it);
+- every pass that has an owner to deliver to leaves <state>/<slug>.beat (or --beat-dir) with the time of the pass: the send guard
+  lets «it stands in the Scheduler» through only while this file is fresh, and the doctor shows a Scheduler that stopped.
 State lives OUTSIDE the home (<state>/<slug>.json, journal fired.jsonl). Run as root over a home: every file in the home is
 opened component by component without following links (openat), must be a regular file; the journal is only appended to, never created.
 Only stdlib + cronspec from skills/raspisanie."""
@@ -73,11 +76,7 @@ def append_in_home(home, rel, line):
 
 def user_md(home):
     t = read_in_home(home, "work/USER.md") or ""
-    m = re.search(r"Часовой пояс\s*[—-]\s*([A-Za-z_]+/[A-Za-z_]+)", t)
-    try:
-        tz = zoneinfo.ZoneInfo(m.group(1)) if m else zoneinfo.ZoneInfo("Asia/Tashkent")
-    except zoneinfo.ZoneInfoNotFoundError:
-        tz = zoneinfo.ZoneInfo("Asia/Tashkent")
+    tz = C.owner_tz(t)      # one rule with mila-cron and the send guard
     q = re.search(r"Тихие часы\s*[—-]\s*(\d{1,2})(?::\d\d)?\s*[–-]\s*(\d{1,2})", t)
     return tz, ((int(q.group(1)), int(q.group(2))) if q else (22, 8))
 
@@ -117,6 +116,21 @@ def save_state(path, s):
     os.replace(tmp, path)
 
 
+def write_beat(beat_dir, slug, now, public=False):
+    """«I passed for this home at …» — one small file per home. The send guard and the doctor read it: a job in jobs.json is
+    a promise only while the service is passing. In the state folder (the default) it is as closed as the state; a separate
+    --beat-dir is made readable for the homes' users (755, the file 644) — the state itself stays closed."""
+    if not os.path.isdir(beat_dir):
+        os.makedirs(beat_dir, mode=0o755 if public else 0o700, exist_ok=True)
+        if public: os.chmod(beat_dir, 0o755)
+    p = os.path.join(beat_dir, "%s.beat" % slug); tmp = p + ".tmp"; mode = 0o644 if public else 0o600
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, mode)
+    with open(fd, "w", encoding="utf-8") as f:
+        os.fchmod(fd, mode)
+        f.write(now.isoformat(timespec="seconds") + "\n")
+    os.replace(tmp, p)
+
+
 def dones(home):
     out = {}
     for line in (read_in_home(home, "work/schedule/done.jsonl") or "").splitlines():
@@ -140,12 +154,15 @@ def default_state():
     return os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "mila", "baraban")
 
 
-def tick(home, slug, owner="", state_dir=None, now=None):
+def tick(home, slug, owner="", state_dir=None, now=None, beat_dir=None):
     state_dir = state_dir or default_state()
     home = os.path.realpath(home)
     tz, quiet = user_md(home)
     now = (now or dt.datetime.now(tz)).astimezone(tz)
     owner = owner_of(home, owner)
+    if owner:                                                  # no owner — nobody to deliver to: this is not a pass
+        try: write_beat(beat_dir or state_dir, slug, now, public=bool(beat_dir))
+        except OSError as e: sys.stderr.write("baraban: beat not written: %s\n" % e)
     raw = read_in_home(home, "work/schedule/jobs.json")
     if raw is None or not owner:
         return {"fired": [], "why": "no jobs.json" if raw is None else "no owner"}
@@ -212,13 +229,14 @@ def main(argv=None):
     ap.add_argument("--slug")
     ap.add_argument("--owner", default="")
     ap.add_argument("--state", default=os.environ.get("BARABAN_STATE") or default_state())
+    ap.add_argument("--beat-dir", help="where to put <slug>.beat (default: the state folder); a root-run service points it at a folder the home's user can read")
     ap.add_argument("--now")
     a = ap.parse_args(argv)
     slug = a.slug or os.path.basename(os.path.realpath(a.home).rstrip("/"))
     if a.cmd == "status":
         print(json.dumps(load_state(os.path.join(a.state, "%s.json" % slug)), ensure_ascii=False, indent=1)); return 0
     now = dt.datetime.fromisoformat(a.now) if a.now else None
-    print(json.dumps(tick(a.home, slug, a.owner, a.state, now), ensure_ascii=False))
+    print(json.dumps(tick(a.home, slug, a.owner, a.state, now, a.beat_dir), ensure_ascii=False))
     return 0
 
 

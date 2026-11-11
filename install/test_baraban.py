@@ -8,6 +8,7 @@ import datetime as dt, json, os, shutil, subprocess, sys, tempfile, zoneinfo
 H = os.path.dirname(os.path.abspath(__file__)); R = os.path.dirname(H); ok = n = 0
 def check(name, c, x=""):
     global ok, n; n += 1; ok += bool(c); print(("✅ " if c else "❌ ") + name + ("" if c else "  ← " + str(x)[:300]))
+os.umask(0o077)   # a strict umask: the modes the service sets must not depend on it
 sys.path.insert(0, H); import baraban as B
 TZ = zoneinfo.ZoneInfo("Asia/Tashkent"); T = tempfile.mkdtemp(prefix="baraban-")
 HOME = os.path.join(T, "home"); W = os.path.join(HOME, "work"); EV = os.path.join(HOME, ".claude/channels/telegram/inbound/events.jsonl")
@@ -71,4 +72,29 @@ check("промежуточная папка заменена ссылкой н�
 os.remove(inb); os.rename(inb + ".real", inb)
 os.remove(EV); f = tick(F + dt.timedelta(hours=1, minutes=21))
 check("журнала нет — не создаётся, ничего не доставлено", f == [] and not os.path.exists(EV))
+# ── the pass mark: every pass that has an owner leaves <state>/<slug>.beat; the guard and the doctor judge the Scheduler by it
+sys.path.insert(0, os.path.join(R, "skills", "raspisanie")); import cronspec as C
+H2 = os.path.join(T, "dom"); os.makedirs(os.path.join(H2, ".claude/channels/telegram/inbound")); os.makedirs(os.path.join(H2, "work"))
+ST2 = os.path.join(T, "state2"); P = at(5, 9, 0); beat = os.path.join(ST2, "dom.beat")
+r = B.tick(H2, "dom", "", ST2, P)
+check("хозяин не известен — это не проход: отметки нет", r.get("why") in ("no owner", "no jobs.json") and not os.path.exists(beat), r)
+json.dump({"allowFrom": [OWN]}, open(os.path.join(H2, ".claude/channels/telegram/access.json"), "w"))
+r = B.tick(H2, "dom", "", ST2, P)
+check("хозяин подключён, задач нет — проход есть: отметка со временем прохода", r.get("why") == "no jobs.json" and open(beat).read().strip() == P.isoformat(timespec="seconds"), r)
+check("отметка в папке состояния закрыта, как само состояние: папка 700, файл 600", oct(os.stat(beat).st_mode & 0o777) == "0o600" and oct(os.stat(ST2).st_mode & 0o777) == "0o700", (oct(os.stat(beat).st_mode & 0o777), oct(os.stat(ST2).st_mode & 0o777)))
+P2 = P + dt.timedelta(minutes=1); B.tick(H2, "dom", "", ST2, P2)
+check("следующий проход переписывает отметку", open(beat).read().strip() == P2.isoformat(timespec="seconds") and not os.path.exists(beat + ".tmp"))
+BD = os.path.join(T, "beats"); B.tick(H2, "dom", "", ST2, P2 + dt.timedelta(minutes=1), BD)
+check("--beat-dir: отметка — в названной папке, открытой для чтения (папка 755, файл 644), состояние — в своей закрытой",
+      oct(os.stat(BD).st_mode & 0o777) == "0o755" and oct(os.stat(os.path.join(BD, "dom.beat")).st_mode & 0o777) == "0o644"
+      and open(beat).read().strip() == P2.isoformat(timespec="seconds") and oct(os.stat(ST2).st_mode & 0o777) == "0o700")
+outside = os.path.join(T, "outside.txt"); open(outside, "w").write("чужое\n"); os.symlink(outside, os.path.join(BD, "dom.beat.tmp"))
+r = B.tick(H2, "dom", "", ST2, P2 + dt.timedelta(minutes=2), BD)
+check("на месте временного файла отметки — ссылка наружу: чужой файл цел, проход не упал", open(outside).read() == "чужое\n" and "fired" in r, r)
+os.remove(os.path.join(BD, "dom.beat.tmp"))
+rc = B.main(["tick", "--home", H2, "--state", ST2, "--beat-dir", BD, "--now", (P2 + dt.timedelta(minutes=9)).isoformat()])
+check("командой, как её зовёт таймер ноутбука (без --owner и --slug): имя отметки — по папке дома, хозяин — подключённый", rc == 0 and open(os.path.join(BD, "dom.beat")).read().strip() == (P2 + dt.timedelta(minutes=9)).astimezone(TZ).isoformat(timespec="seconds"))
+env = {"MILA_SCHEDULER_BEAT": BD}
+check("cronspec.last_beat находит эту отметку по дому", C.last_beat(H2, env) == P2 + dt.timedelta(minutes=9), C.last_beat(H2, env))
+check("служба и mila-cron берут пояс у одного правила", B.user_md(HOME)[0] == C.owner_tz(open(os.path.join(W, "USER.md")).read()) and str(B.user_md(H2)[0]) == C.DEFAULT_TZ == "Asia/Tashkent")
 shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

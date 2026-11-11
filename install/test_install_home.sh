@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Дом новорождённой: install.sh кладёт ~/work/CLAUDE.md (знакомство, а не «Чем могу помочь?»), USER.md и конституцию в canon/,
+export MILA_SKIP_TIMERS=1   # the installer writes its timers and never loads them here: a test must not start a job on the machine that runs it
 # только если их нет; своё у хозяина не перезаписывает. Песочница: свой HOME.
 set -u; REPO="$(cd "$(dirname "$0")/.." && pwd)"; T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT; mkdir -p "$T/home"
 ok=0; n=0; chk() { n=$((n+1)); if eval "$2"; then ok=$((ok+1)); echo "✅ $1"; else echo "❌ $1"; fi; }

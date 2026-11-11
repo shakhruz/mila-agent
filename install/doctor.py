@@ -374,6 +374,39 @@ def check_turns_timer(rep):
         rep.add(OK, T("doctor.turns_timer.6"), detail)
 
 
+def check_scheduler(rep):
+    """Планировщик: если задачи стоят, служба должна проходить по этому дому каждую минуту.
+
+    Задача в расписании без работающей службы — обещание, которое не сбудется, и выглядит оно точно так же, как
+    обещание, которое сбудется. Отличить можно по одному: оставляет ли служба свежую отметку прохода.
+    """
+    work = os.path.expanduser(os.environ.get("MILA_WORK") or "~/work")
+    try:
+        with open(os.path.join(work, "schedule", "jobs.json"), encoding="utf-8") as f:
+            jobs = [j for j in (json.load(f).get("jobs") or []) if isinstance(j, dict) and j.get("enabled", True)]
+    except (OSError, ValueError, AttributeError):
+        jobs = []
+    if not jobs:
+        rep.add(OK, T("doctor.scheduler.1"), T("doctor.scheduler.2"))
+        return
+    here = os.path.dirname(os.path.abspath(__file__))
+    for base in (os.path.join(here, "..", "skills", "raspisanie"), os.path.expanduser("~/.claude/skills/raspisanie")):
+        if os.path.isfile(os.path.join(base, "cronspec.py")) and base not in sys.path:
+            sys.path.insert(0, base)
+    try:
+        import cronspec
+        at = cronspec.last_beat(os.path.dirname(os.path.realpath(work)))
+        fresh = cronspec.BEAT_FRESH
+    except ImportError:
+        at, fresh = None, 300
+    age = None if at is None else time.time() - at.timestamp()
+    if age is not None and age <= fresh:
+        rep.add(OK, T("doctor.scheduler.1"), T("doctor.scheduler.3") % at.astimezone().strftime("%H:%M"))
+    else:
+        when = T("doctor.scheduler.6") if at is None else at.astimezone().strftime("%d.%m %H:%M")
+        rep.add(WARN, T("doctor.scheduler.1"), T("doctor.scheduler.4") % (len(jobs), when), T("doctor.scheduler.5"))
+
+
 def check_records(rep):
     """Учёт: обе базы на месте, схема полная, пишутся и не пустеют.
 
@@ -557,6 +590,7 @@ def main():
     check_journal(rep)
     check_perms(rep)
     check_records(rep)
+    check_scheduler(rep)
     check_switches(rep)
     check_flag(rep)
 

@@ -49,4 +49,11 @@ th = [threading.Thread(target=k, args=("add", "p%d" % i, "0 9 * * *", "x")) for 
 chk("12 одновременных add — все 12 записаны (замок, без потерь)", len(jobs()) == 12)
 for i in range(12, 30): k("add", "p%d" % i, "0 9 * * *", "x")
 chk("31-я задача — отказ (не больше 30)", k("add", "p30", "0 9 * * *", "x") == (1, k("add", "p30", "0 9 * * *", "x")[1]) and len(jobs()) == 30)
+# the zone without the USER.md line is the one the service fires by (Asia/Tashkent), not the machine's
+W2 = tempfile.mkdtemp(prefix="cron-tz-")
+p = subprocess.run([sys.executable, K, "next", "0 9 * * *", "1"], env=dict(os.environ, MILA_WORK=W2, MILA_EVENTS=EV, TZ="America/New_York", MILA_CRON_NOW="2026-10-26T10:00:00+05:00"), capture_output=True, text=True, timeout=30)
+chk("без строки пояса в USER.md — сроки в Asia/Tashkent, хоть машина в другом поясе (правило службы)", p.returncode == 0 and "27.10 09:00" in p.stdout)      # 10:00 in Tashkent: today's 09:00 has passed; by New York's clock (01:00) it would be «26.10»
+open(os.path.join(W2, "USER.md"), "w", encoding="utf-8").write("Часовой пояс — Europe/Berlin\n")
+p = subprocess.run([sys.executable, K, "next", "0 9 * * *", "1"], env=dict(os.environ, MILA_WORK=W2, MILA_EVENTS=EV, TZ="America/New_York", MILA_CRON_NOW="2026-10-26T10:00:00+05:00"), capture_output=True, text=True, timeout=30)
+chk("со строкой — пояс хозяина (в Берлине 06:00 — срок сегодня)", p.returncode == 0 and "26.10 09:00" in p.stdout)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

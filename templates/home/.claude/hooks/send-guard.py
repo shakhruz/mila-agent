@@ -282,19 +282,16 @@ def _nm_job(name, work):
     job = next((j for j in jobs if isinstance(j, dict) and str(j.get("id")) == name), None)
     if not job: return None, "задачи «%s» в расписании нет" % name[:40]
     if job.get("enabled") is False: return None, "задача «%s» выключена" % name[:40]
-    tz = _d.datetime.now().astimezone().tzinfo
-    try:
-        import zoneinfo
-        m = re.search(r"Часовой пояс\s*[—-]\s*([A-Za-z_]+/[A-Za-z_]+)", open(os.path.join(work, "USER.md"), encoding="utf-8").read())
-        if m: tz = zoneinfo.ZoneInfo(m.group(1))
-    except Exception: pass
-    v = os.environ.get("MILA_CRON_NOW")
-    now = _d.datetime.fromisoformat(v).astimezone(tz) if v else _d.datetime.now(tz)
-    if job.get("expires") and str(job["expires"])[:10] < now.date().isoformat(): return None, "задача «%s» истекла" % name[:40]
     for base in (os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"), "skills", "raspisanie"),
                  os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", "skills", "raspisanie")):
         if os.path.isfile(os.path.join(base, "cronspec.py")) and base not in sys.path: sys.path.insert(0, base)
     import cronspec
+    try: user_md = open(os.path.join(work, "USER.md"), encoding="utf-8").read()
+    except OSError: user_md = ""
+    tz = cronspec.owner_tz(user_md)      # the zone the service fires by — one rule (cronspec.owner_tz)
+    v = os.environ.get("MILA_CRON_NOW")
+    now = _d.datetime.fromisoformat(v).astimezone(tz) if v else _d.datetime.now(tz)
+    if job.get("expires") and str(job["expires"])[:10] < now.date().isoformat(): return None, "задача «%s» истекла" % name[:40]
     nxt = cronspec.parse(str(job.get("cron") or "")).next_after(now)
     if nxt is None: return None, "у задачи «%s» нет следующего срока" % name[:40]
     return (nxt, now), None
@@ -323,6 +320,9 @@ def next_move(body, a, work):
             if err: out.append("обещанное «само придёт» не стоит в расписании (%s) — сначала поставьте задачу (mila_cron.py add)" % err)
             else:
                 nxt, now = got; low = mine.lower()
+                dead = _nm_alive(work, now)
+                if dead: out.append("«стоит в Планировщике» обещать нельзя: Планировщик здесь не работает (%s) — задача не сработает. Скажите прямо, что само не придёт, "
+                                    "или запустите службу: python3 ~/.claude/hooks/doctor.py подскажет как" % dead)
                 hm = re.findall(r"\b(\d{1,2})[:.](\d{2})\b", mine)
                 if not hm: out.append("«стоит в Планировщике» — со временем из расписания: ближайший срок %s" % nxt.strftime("%d.%m %H:%M"))
                 elif not any((int(h), int(mi)) == (nxt.hour, nxt.minute) for h, mi in hm):
@@ -364,6 +364,17 @@ def _nm_now():
     import datetime as _d
     v = os.environ.get("MILA_CRON_NOW")
     return (_d.datetime.fromisoformat(v) if v else _d.datetime.now().astimezone()).timestamp()
+
+
+def _nm_alive(work, now):
+    """Is the Scheduler passing for this home? A job in jobs.json is a promise only while the service runs: on a machine where
+    nobody set the timer up the job never fires. → None when a fresh pass is seen (cronspec.last_beat), otherwise the reason."""
+    import cronspec      # already on the path: _nm_job found it
+    at = cronspec.last_beat(os.path.dirname(os.path.realpath(work)))
+    if at is None: return "ни одного прохода службы на этой машине не видно"
+    age = (now - at).total_seconds()
+    if age > cronspec.BEAT_FRESH: return "последний проход службы — %s, %d мин назад" % (at.astimezone(now.tzinfo).strftime("%d.%m %H:%M"), age // 60)
+    return None
 
 
 NM_WAIT = 600   # a part that says «(продолжение следует)» must be followed by the rest within ten minutes

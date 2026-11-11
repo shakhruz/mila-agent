@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # каждый хук, который install.sh прописал в settings.json, лежит файлом (иначе Stop-хук без файла = код 2 = сессия не останавливается).
+export MILA_SKIP_TIMERS=1   # the installer writes its timers and never loads them here: a test must not start a job on the machine that runs it
 set -u; unset TELEGRAM_STATE_DIR
 REPO="$(cd "$(dirname "$0")/.." && pwd)"; T="$(mktemp -d)"; trap 'chmod -R u+w "$T" "${T2:-}" 2>/dev/null; rm -rf "$T" "${T2:-}"' EXIT; mkdir -p "$T/home/.claude"
 export MILA_CC_VERSION=2.1.310
@@ -54,5 +55,49 @@ MILA_CC_VERSION=2.1.200 HOME="$T2/home" CLAUDE_CONFIG_DIR="$T2/home/.claude" PAT
 chk "SG-ONFAIL: старая CC (2.1.200) — хук сторожа есть, ключа нет, строка «пропущен»" "grep -q 'send-guard.py' $T2/home/.claude/settings.json && ! grep -q onFailure $T2/home/.claude/settings.json && ! grep -q PostToolUseFailure $T2/home/.claude/settings.json && grep -q 'onFailure пропущен' $T2/out"
 rm -rf "$T2"
 chk "шаблон settings.json без зашитого /home/companion" "! grep -q '/home/companion' $REPO/templates/home/.claude/settings.json"
+# ── the Scheduler's pass every minute: both kinds of machine, by a fake `uname` (and `systemctl`) first in PATH; nothing is loaded
+sched() {   # $1 — what uname says, $2 — home; prints the installer's output
+  local fb="$T/fakebin-$1"; mkdir -p "$fb" "$2/.claude"
+  printf '#!/bin/sh\necho %s\n' "$1" > "$fb/uname"; printf '#!/bin/sh\nexit 0\n' > "$fb/systemctl"; chmod +x "$fb/uname" "$fb/systemctl"
+  HOME="$2" CLAUDE_CONFIG_DIR="$2/.claude" MILA_OWNER_ID=$OID PATH="$fb:/usr/bin:/bin:/usr/local/bin" bash "$REPO/install/install.sh" 2>&1
+}
+SM="$T/mac"; sched Darwin "$SM" > "$T/mac.out"; PL="$SM/Library/LaunchAgents/com.milagpt.scheduler.plist"
+chk "Мак: служба Планировщика записана — проход раз в минуту по этому дому, установленным baraban.py, с -B" "grep -q '<integer>60</integer>' $PL && grep -q '<string>-B</string>' $PL && grep -q '<string>tick</string>' $PL && grep -q \"<string>$SM</string>\" $PL && grep -q \"<string>$SM/.claude/hooks/baraban.py</string>\" $PL"
+chk "Мак: в тесте служба записана, но не загружена — так и сказано" "grep -q 'com.milagpt.scheduler — written, not loaded' $T/mac.out"
+SL="$T/lin"; sched Linux "$SL" > "$T/lin.out"; UN="$SL/.config/systemd/user"
+chk "Linux: таймер и служба записаны — раз в минуту, тот же проход, без записи __pycache__ (-B)" "grep -q 'OnCalendar=minutely' $UN/mila-scheduler.timer && grep -q \"ExecStart=.* -B $SL/.claude/hooks/baraban.py tick --home $SL\$\" $UN/mila-scheduler.service"
+chk "Linux: в тесте таймер записан, но не включён" "grep -q 'mila-scheduler.timer — written, not enabled' $T/lin.out"
+chk "baraban.py лежит в хуках рядом с остальными" "[ -f $SL/.claude/hooks/baraban.py ] && [ -f $SL/.claude/skills/raspisanie/cronspec.py ]"
+mkdir -p "$SL/.claude/channels/telegram/inbound"; printf '{"allowFrom": ["%s"]}' "$OID" > "$SL/.claude/channels/telegram/access.json"
+out=$(env -u XDG_STATE_HOME -u BARABAN_STATE HOME="$SL" python3 -B "$SL/.claude/hooks/baraban.py" tick --home "$SL" 2>&1); BEAT="$SL/.local/state/mila/baraban/$(basename "$SL").beat"
+chk "проход установленной копией, как его зовёт таймер (без --owner и --state): хозяин — подключённый, отметка прохода на месте" "echo '$out' | grep -q '\"fired\"' && [ -f $BEAT ] && grep -q '^20[0-9][0-9]-' $BEAT"
+alive=$(env -u XDG_STATE_HOME -u BARABAN_STATE -u MILA_SCHEDULER_BEAT python3 -B -c "import sys, datetime; sys.path.insert(0, '$SL/.claude/skills/raspisanie'); import cronspec; a = cronspec.last_beat('$SL'); print(int((datetime.datetime.now(datetime.timezone.utc) - a).total_seconds() <= cronspec.BEAT_FRESH))" 2>&1)
+chk "эту отметку видит то же правило, по которому судят сторож и доктор: Планировщик жив" "[ \"$alive\" = 1 ]"
+rm -rf "$SL/.claude/channels" "$BEAT"; out=$(env -u XDG_STATE_HOME -u BARABAN_STATE HOME="$SL" python3 -B "$SL/.claude/hooks/baraban.py" tick --home "$SL" 2>&1)
+chk "хозяин не подключён — это не проход: отметки нет (доставлять некому)" "echo '$out' | grep -q '\"fired\": \[\]' && [ ! -e $BEAT ]"
+SE="$T/else"; mkdir -p "$SE/state/baraban"; python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'))" > "$SE/state/baraban/$(basename "$SE").beat"
+sched Linux "$SE" > "$T/else.out"
+chk "по дому уже проходит другой Планировщик (свежая отметка, таймер не наш) — второй не ставится, так и сказано" "grep -q 'already passing for this home' $T/else.out && [ ! -e $SE/.config/systemd/user/mila-scheduler.timer ]"
+mkdir -p "$SL/.claude/channels/telegram"; printf '{"allowFrom": ["%s"]}' "$OID" > "$SL/.claude/channels/telegram/access.json"
+env -u XDG_STATE_HOME -u BARABAN_STATE HOME="$SL" python3 -B "$SL/.claude/hooks/baraban.py" tick --home "$SL" >/dev/null 2>&1; rm -f "$UN/mila-scheduler.service"
+sched Linux "$SL" > "$T/lin2.out"
+chk "повторная установка там, где таймер наш и он проходит (отметка свежая): своя отметка не мешает — служба записана заново" "[ -f $BEAT ] && [ -f $UN/mila-scheduler.service ] && ! grep -q 'already passing' $T/lin2.out"
+# ── a used skill is not a customised skill: __pycache__ left by a script's run does not make the next install back the skill up
+# a kit as a clone gives it — tracked files only, no __pycache__ of this working tree — installed into a fresh home
+KIT="$T/kit"; mkdir -p "$KIT" "$T/clean/.claude"
+if (cd "$REPO" && git ls-files -z 2>/dev/null | tar --null -T - -cf - 2>/dev/null) | tar -xf - -C "$KIT" 2>/dev/null && [ -f "$KIT/install/install.sh" ]; then
+  fbc="$T/fakebin-Linux"; env -u PYTHONDONTWRITEBYTECODE HOME="$T/clean" CLAUDE_CONFIG_DIR="$T/clean/.claude" MILA_OWNER_ID=$OID PATH="$fbc:/usr/bin:/bin:/usr/local/bin" bash "$KIT/install/install.sh" >/dev/null 2>&1   # the runner's own «no bytecode» setting must not hide what the installer leaves
+  chk "установка из чистого набора не оставляет в навыках дома ни одного __pycache__ (её проверка «уже проходит» идёт с -B)" "[ -d $T/clean/.claude/skills/raspisanie ] && [ -z \"\$(find $T/clean/.claude/skills -name __pycache__ | head -1)\" ]"
+else
+  chk "(набор не из git — проверка чистоты __pycache__ пропущена)" "true"
+fi
+SP="$T/pyc"; sched Linux "$SP" > /dev/null; mkdir -p "$SP/.claude/skills/raspisanie/__pycache__"; echo x > "$SP/.claude/skills/raspisanie/__pycache__/cronspec.cpython-312.pyc"
+sched Linux "$SP" > "$T/pyc.out"
+chk "навык, которым пользовались (__pycache__ внутри), при повторной установке «без изменений», копии нет" "grep -q 'raspisanie — unchanged' $T/pyc.out && [ -z \"\$(ls -d $SP/.claude/skills/raspisanie.bak-* 2>/dev/null)\" ]"
+# a clock that stands still: both installs get the same second in the backup's name — the collision, every time
+printf '#!/bin/sh\ncase "$1" in +%%Y*) echo 20260504-090000;; *) exec /bin/date "$@";; esac\n' > "$T/fakebin-Linux/date"; chmod +x "$T/fakebin-Linux/date"
+echo '# моя правка' >> "$SP/.claude/skills/raspisanie/SKILL.md"; sched Linux "$SP" > "$T/pyc2.out"; echo '# ещё правка' >> "$SP/.claude/skills/raspisanie/SKILL.md"; sched Linux "$SP" > "$T/pyc3.out"; rcx=$?
+rm -f "$T/fakebin-Linux/date"
+chk "навык, который хозяин правил, по-прежнему получает копию; две установки подряд (в одну секунду) — две копии, без падения" "grep -q 'raspisanie — exists, keeping a copy' $T/pyc2.out && grep -q 'raspisanie — exists, keeping a copy' $T/pyc3.out && [ $rcx -eq 0 ] && [ \$(ls -d $SP/.claude/skills/raspisanie.bak-* | wc -l) -eq 2 ] && grep -q 'Done' $T/pyc3.out"
 [ -n "$miss" ] && echo "нет файлов: $miss"
 echo "итог $ok/$n"; rm -rf "$T"

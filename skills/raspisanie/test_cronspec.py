@@ -54,4 +54,36 @@ chk("ежегодный 1.01: последний ≤ 25.10.2026 — 01.01.2026",
 chk("min_step: 9:00 и 9:03 → 3 (и отказ при разборе)", bad("0,3 9 * * *", "шаг 3"))
 chk("min_step: раз в сутки → 1440", C.parse("0 9 * * *").min_step_minutes() == 1440)
 chk("min_step: 23:58 и 00:01 через полночь → отказ", bad("58 23 * * *", "x") is False and bad("1,58 0,23 * * *", "чаще"))
+# ── the owner's zone: one rule for the service, mila-cron and the send guard
+import os, shutil, tempfile, zoneinfo
+chk("пояс: строка USER.md", str(C.owner_tz("Имя — Иван\nЧасовой пояс — Europe/Berlin\n")) == "Europe/Berlin")
+chk("пояс: строки нет — Asia/Tashkent, а не пояс машины", str(C.owner_tz("Имя — Иван\n")) == "Asia/Tashkent" and str(C.owner_tz("")) == "Asia/Tashkent" and str(C.owner_tz(None)) == "Asia/Tashkent")
+chk("пояс: несуществующий в строке — Asia/Tashkent, без падения", str(C.owner_tz("Часовой пояс — Mars/Olympus\n")) == "Asia/Tashkent")
+chk("пояс: дефис вместо тире тоже читается", str(C.owner_tz("Часовой пояс - America/New_York")) == "America/New_York")
+# ── the pass mark of the service: which file is this home's, and how fresh it is
+T = tempfile.mkdtemp(prefix="beat-"); home = os.path.join(T, "ivan"); os.makedirs(home)
+t0 = datetime.datetime(2026, 5, 4, 9, 0, tzinfo=zoneinfo.ZoneInfo("Asia/Tashkent"))
+def beat(folder, name, when=t0, text=None):
+    os.makedirs(folder, exist_ok=True); open(os.path.join(folder, name + ".beat"), "w").write(text if text is not None else when.isoformat() + "\n")
+E = {}
+chk("отметок нет нигде — None", C.last_beat(home, E) is None)
+st = os.path.join(home, "state", "baraban"); beat(st, "ivan")
+chk("контейнер: ~/state/baraban/<дом>.beat", C.last_beat(home, E) == t0)
+xdg = os.path.join(home, ".local", "state", "mila", "baraban"); beat(xdg, "ivan", t0 + datetime.timedelta(minutes=3))
+chk("ноутбук: ~/.local/state/mila/baraban; из двух папок берётся свежая", C.last_beat(home, E) == t0 + datetime.timedelta(minutes=3))
+chk("XDG_STATE_HOME меняет папку ноутбука", C.last_beat(home, {"XDG_STATE_HOME": os.path.join(T, "nowhere")}) == t0)
+far = os.path.join(T, "far"); beat(far, "ivan", t0 + datetime.timedelta(minutes=9))
+chk("папка, о которой правило не знает, не читается; названная MILA_SCHEDULER_BEAT или BARABAN_STATE — читается",
+    C.last_beat(home, E) == t0 + datetime.timedelta(minutes=3) and C.last_beat(home, {"MILA_SCHEDULER_BEAT": far}) == t0 + datetime.timedelta(minutes=9) and C.last_beat(home, {"BARABAN_STATE": far}) == t0 + datetime.timedelta(minutes=9))
+shutil.rmtree(st); shutil.rmtree(xdg); beat(st, "petr"); beat(st, "anna")
+chk("в папке отметки двух других домов — не мои: None", C.last_beat(home, E) is None)
+beat(st, "ivan", t0 - datetime.timedelta(days=1)); chk("есть моя — беру её, хоть чужие свежее", C.last_beat(home, E) == t0 - datetime.timedelta(days=1))
+shutil.rmtree(st); beat(st, "mila"); chk("одна отметка под другим именем (один дом в папке) — моя", C.last_beat(home, E) == t0)
+for bad_text, what in (("вчера", "не время"), ("", "пусто"), ("2026-05-04T09:00:00", "время без пояса")):
+    beat(st, "mila", text=bad_text); chk("в отметке %s — None" % what, C.last_beat(home, E) is None)
+os.remove(os.path.join(st, "mila.beat")); os.symlink(os.path.join(T, "gone"), os.path.join(st, "mila.beat")); chk("отметка — битая ссылка — None, без падения", C.last_beat(home, E) is None)
+link = os.path.join(T, "link-home"); os.symlink(home, link); os.remove(os.path.join(st, "mila.beat")); beat(st, "petr"); beat(st, "ivan")
+chk("дом назван через ссылку — имя отметки по настоящей папке", C.last_beat(link, E) == t0)
+chk("свежесть — пять минут", C.BEAT_FRESH == 300)
+shutil.rmtree(T, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

@@ -6,6 +6,7 @@
 #   2. installs the `mila` launcher into ~/.local/bin/
 #   3. installs the hooks and registers them in ~/.claude/settings.json (backup first)
 #   4. an hourly turns-collect job: launchd on macOS, a systemd user timer on Linux
+#   4a. the Scheduler's pass every minute (jobs set with mila-cron fire only while it runs): launchd / systemd user timer
 #   5. ~/.claude/channels/telegram/permissions.json from the example — only if there is none
 #   6. the personal-data vault key ~/.config/mila/pd.key (600) — only if there is none
 #
@@ -65,12 +66,15 @@ for d in "$ROOT"/skills/*/; do
   name="$(basename "$d")"
   target="$CLAUDE_DIR/skills/$name"
   if [[ -e "$target" ]]; then
-    if diff -rq "$d" "$target" >/dev/null 2>&1; then
+    # __pycache__ is not the owner's work: Python leaves it when a skill's script runs (mila-cron, the Scheduler's pass).
+    # Counted as a change, every used skill was «customised» on the next install and got a backup copy.
+    if diff -rq -x __pycache__ "$d" "$target" >/dev/null 2>&1; then
       say "$name — unchanged, no copy needed"
       continue
     fi
     # Never overwrite silently: a customised skill is someone's work.
     backup="$target.bak-$(date +%Y%m%d-%H%M%S)"
+    [[ -e "$backup" ]] && backup="$backup-$$"   # two installs within one second: never move a skill INTO an older backup
     if [[ $DRY -eq 1 ]]; then
       say "would back up existing $name to $(basename "$backup")"
       BACKUPS+=("$backup")
@@ -255,6 +259,114 @@ UNITEOF
   fi
 else
   say "NOTE: neither launchd nor systemd found — run \`mila turns\` from your own scheduler"
+fi
+echo
+
+# ── the Scheduler: one pass a minute ──────────────────────────────────────
+# A job set with mila-cron fires only while something runs `baraban.py tick` for
+# this home. The container has its own loop; on a laptop nothing did, so jobs
+# were stored and never fired — and an answer «it stands in the Scheduler» was
+# a promise that would not come true. The pass leaves a mark
+# (~/.local/state/mila/baraban/<home>.beat): the send guard lets that answer
+# through only while the mark is fresh, and `doctor` shows a Scheduler that
+# stopped. The owner is the one paired with the bot (access.json).
+# MILA_SKIP_TIMERS=1 writes the files and does not load them (tests, images).
+# The pass runs with -B: a service that runs every minute must not leave __pycache__ inside the home's skills.
+echo "Scheduler (one pass a minute)"
+install_file "$HERE/baraban.py" "$HOOK_DIR/baraban.py" "baraban.py"
+SCHED="$HOOK_DIR/baraban.py"
+SCHED_LOG="$CLAUDE_DIR/scheduler.log"
+SLABEL="com.milagpt.scheduler"
+SPLIST="$HOME/Library/LaunchAgents/$SLABEL.plist"
+SUNIT="$HOME/.config/systemd/user/mila-scheduler.timer"
+# Two Schedulers over one home would fire every job twice. If a pass mark for this home is fresh and the timer is not ours
+# (a container's loop, a service of the server), leave it alone.
+SCHED_ELSE=0
+if [[ ! -e "$SPLIST" && ! -e "$SUNIT" ]] && "$PY_BIN" -B - "$HOME" "$CLAUDE_DIR/skills/raspisanie" <<'PYEOF' 2>/dev/null
+import datetime, sys
+sys.path.insert(0, sys.argv[2])
+import cronspec
+at = cronspec.last_beat(sys.argv[1])
+sys.exit(0 if at and (datetime.datetime.now(datetime.timezone.utc) - at).total_seconds() <= cronspec.BEAT_FRESH else 1)
+PYEOF
+then SCHED_ELSE=1; fi
+if [[ $SCHED_ELSE -eq 1 ]]; then
+  say "the Scheduler is already passing for this home (a service of this machine) — no timer of ours is added"
+elif [[ "$(uname -s)" == "Darwin" ]]; then
+  if [[ $DRY -eq 1 ]]; then
+    say "would: write $SPLIST (every minute)"
+  else
+    mkdir -p "$HOME/Library/LaunchAgents"
+    cat > "$SPLIST" <<PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$SLABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$PY_BIN</string>
+    <string>-B</string>
+    <string>$SCHED</string>
+    <string>tick</string>
+    <string>--home</string><string>$HOME</string>
+  </array>
+  <key>StartInterval</key><integer>60</integer>
+  <key>StandardOutPath</key><string>/dev/null</string>
+  <key>StandardErrorPath</key><string>$SCHED_LOG</string>
+  <key>RunAtLoad</key><true/>
+</dict>
+</plist>
+PLISTEOF
+    chmod 644 "$SPLIST"
+    if [[ "${MILA_SKIP_TIMERS:-}" == "1" ]]; then
+      say "$SLABEL — written, not loaded (MILA_SKIP_TIMERS)"
+    else
+      launchctl bootout "gui/$(id -u)/$SLABEL" 2>/dev/null || true
+      launchctl bootstrap "gui/$(id -u)" "$SPLIST" 2>/dev/null \
+        || launchctl load -w "$SPLIST" 2>/dev/null || true
+      say "$SLABEL — every minute"
+    fi
+  fi
+elif command -v systemctl >/dev/null 2>&1; then
+  UNITS="$HOME/.config/systemd/user"
+  if [[ $DRY -eq 1 ]]; then
+    say "would: write $UNITS/mila-scheduler.{service,timer} (every minute)"
+  else
+    mkdir -p "$UNITS"
+    cat > "$UNITS/mila-scheduler.service" <<UNITEOF
+[Unit]
+Description=Mila — the Scheduler: one pass over this home's jobs
+
+[Service]
+Type=oneshot
+ExecStart=$PY_BIN -B $SCHED tick --home $HOME
+StandardOutput=null
+StandardError=append:$SCHED_LOG
+UNITEOF
+    cat > "$UNITS/mila-scheduler.timer" <<UNITEOF
+[Unit]
+Description=Mila — the Scheduler, every minute
+
+[Timer]
+OnCalendar=minutely
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
+UNITEOF
+    chmod 644 "$UNITS"/mila-scheduler.*
+    if [[ "${MILA_SKIP_TIMERS:-}" == "1" ]]; then
+      say "mila-scheduler.timer — written, not enabled (MILA_SKIP_TIMERS)"
+    else
+      systemctl --user daemon-reload 2>/dev/null || true
+      systemctl --user enable --now mila-scheduler.timer 2>/dev/null \
+        && say "mila-scheduler.timer — every minute" \
+        || say "NOTE: could not enable the timer — run: systemctl --user enable --now mila-scheduler.timer"
+    fi
+  fi
+else
+  say "NOTE: neither launchd nor systemd found — jobs set with mila-cron will not fire until your own scheduler runs every minute: $PY_BIN -B $SCHED tick --home $HOME"
 fi
 echo
 

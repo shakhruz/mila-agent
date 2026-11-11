@@ -49,7 +49,7 @@ Every answer Mila's session sends to a person — the owner, the team, a client 
 [✅ Показать черновик] [Позже] [Не нужно]
 ```
 
-«My move» is one of three honest forms: doing it now; it stands in the [Scheduler](SCHEDULER.md) under a named job and comes at a named time; nothing is running. «Your move» is Mila's recommended step with two or three buttons, the recommended one first. The send guard checks the form before the message leaves; a promise with a time — «I will send it tomorrow», «I'll remind you at 18:00» — with no job in the Scheduler does not pass.
+«My move» is one of three honest forms: doing it now; it stands in the [Scheduler](SCHEDULER.md) under a named job and comes at a named time — said only while the Scheduler is passing on this machine; nothing is running. «Your move» is Mila's recommended step with two or three buttons, the recommended one first. The send guard checks the form before the message leaves; a promise with a time — «I will send it tomorrow», «I'll remind you at 18:00» — with no job in the Scheduler does not pass.
 
 ## Which word when
 | The situation | The word |

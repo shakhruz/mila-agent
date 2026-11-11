@@ -10,7 +10,9 @@ os.makedirs(os.path.join(CL, "channels/telegram")); os.makedirs(os.path.join(wor
 json.dump({"groups": {"-1001": {}}, "allowFrom": ["555"]}, open(os.path.join(CL, "channels/telegram/access.json"), "w"))
 for s in ("raspisanie", "problemy", "dela", "pd-vault"):
     if os.path.isdir(os.path.join(REPO, "skills", s)): shutil.copytree(os.path.join(REPO, "skills", s), os.path.join(CL, "skills", s), ignore=shutil.ignore_patterns("__pycache__", "test_*"))
-NOW = dt.datetime.now().astimezone().replace(hour=10, minute=0, second=0, microsecond=0)
+import zoneinfo
+open(os.path.join(work, "USER.md"), "w", encoding="utf-8").write("Часовой пояс — Asia/Tashkent\n")      # the owner's zone: the guard, mila-cron and the service read this one line
+NOW = dt.datetime.now(zoneinfo.ZoneInfo("Asia/Tashkent")).replace(hour=10, minute=0, second=0, microsecond=0)
 if NOW.weekday() == 6: NOW += dt.timedelta(days=1)          # not a Sunday: «tomorrow 09:00» must be a plain next day
 DAYS = ("понедельник", "вторник", "среду", "четверг", "пятницу", "субботу", "воскресенье")
 TOM = NOW + dt.timedelta(days=1)
@@ -20,6 +22,16 @@ jobs = {"jobs": [{"id": "отчёт за день", "cron": "0 9 * * *", "text":
                  {"id": "выключенная", "cron": "0 9 * * *", "text": "x", "enabled": False, "expires": None}]}
 J = os.path.join(work, "schedule", "jobs.json"); json.dump(jobs, open(J, "w"), ensure_ascii=False)
 env = dict(os.environ, HOME=home, OWNER_ID="111", MILA_WORK=work, CLAUDE_CONFIG_DIR=CL, MILA_CRON_NOW=NOW.isoformat(), PYTHONDONTWRITEBYTECODE="1")
+for k in ("MILA_SCHEDULER_BEAT", "BARABAN_STATE", "XDG_STATE_HOME"): env.pop(k, None)
+SLUG = os.path.basename(os.path.realpath(home)); BEATS = os.path.join(home, "state", "baraban")
+def beat(age_s=0, name=None, folder=None, text=None):
+    """The Scheduler's pass mark as the service leaves it: <state>/<home name>.beat with the time of the pass."""
+    d = folder or BEATS; os.makedirs(d, exist_ok=True)
+    t = dt.datetime.fromisoformat(env["MILA_CRON_NOW"]) - dt.timedelta(seconds=age_s)
+    open(os.path.join(d, (name or SLUG) + ".beat"), "w").write(text if text is not None else t.isoformat(timespec="seconds") + "\n")
+def no_beats():
+    for d in (BEATS, os.path.join(home, ".local", "state", "mila", "baraban"), os.path.join(home, "beat-here")): shutil.rmtree(d, ignore_errors=True)
+beat()
 R = "mcp__plugin_mila-telegram_telegram__reply"
 B2 = [[{"label": "Показать черновик", "choice": "show", "style": "success"}, {"label": "Не сейчас", "choice": "later"}]]
 B3 = [[{"label": "Делай Б", "choice": "b", "style": "success"}, {"label": "Вариант А", "choice": "a"}, {"label": "Отложить", "choice": "wait"}]]
@@ -99,7 +111,7 @@ chk("«продолжаю» в «Вашем ходе» — отказ", guard(an
 F = os.path.join(work, "state", "next-move-fail.jsonl"); PJ = os.path.join(work, "problemy.jsonl"); WAIT = os.path.join(work, "state", "next-move-wait.json")
 def notes(): return [json.loads(l) for l in open(F, encoding="utf-8")] if os.path.exists(F) else []
 def problems(): return [json.loads(l) for l in open(PJ, encoding="utf-8")] if os.path.exists(PJ) else []
-def at(minutes): env["MILA_CRON_NOW"] = (NOW + dt.timedelta(minutes=minutes)).isoformat()
+def at(minutes): env["MILA_CRON_NOW"] = (NOW + dt.timedelta(minutes=minutes)).isoformat(); beat()      # the service keeps passing as the clock moves
 for f in (F, PJ, WAIT):
     if os.path.exists(f): os.remove(f)
 at(0); chk("первая часть с «(продолжение следует)» — уходит, чат помечен «жду продолжение»", guard("Часть первая.\n(продолжение следует)", None, chat="555"), False)
@@ -137,6 +149,30 @@ print(("✅ " if good else "❌ ") + "сбой записан строкой в 
 pr = problems()
 n += 1; good = len(pr) == 1 and pr[0].get("шаг") == "найдено" and "Следующего хода" in pr[0].get("что", "") and pr[0].get("улика", "").startswith("journal:state/next-move-fail.jsonl:"); ok += good
 print(("✅ " if good else "❌ ") + "и проблемой в журнале проблем — с уликой на эту строку" + ("" if good else "  ← %s" % pr))
+# ── «it stands in the Scheduler» is a promise only while the Scheduler passes for this home
+json.dump(jobs, open(J, "w"), ensure_ascii=False)
+at(0); OKMSG = ans(P("«отчёт за день», придёт завтра в 09:00.")); DEAD = "Планировщик здесь не работает"; fails_before = len(notes())
+no_beats(); chk("Планировщик ни разу не проходил (ноутбук без таймера) — «стоит в Планировщике» отказ, с причиной и подсказкой", guard(OKMSG), True, "ни одного прохода")
+chk("в отказе сказано прямо: Планировщик не работает", guard(OKMSG), True, DEAD)
+chk("и что делать: сказать, что само не придёт, или запустить службу (доктор подскажет)", guard(OKMSG), True, "само не придёт, или запустите службу: python3 ~/.claude/hooks/doctor.py")
+chk("при мёртвом Планировщике «ничего не запущено» уходит как раньше", guard(ans()), False)
+chk("и «делаю сейчас» — тоже", guard(ans(MY1), B3), False)
+beat(age_s=301); chk("последний проход 301 секунду назад — отказ, с давностью", guard(OKMSG), True, "5 мин назад")
+beat(age_s=299); chk("проход 299 секунд назад — уходит", guard(OKMSG), False)
+beat(age_s=3 * 86400); chk("служба стояла три дня — отказ", guard(OKMSG), True, DEAD)
+no_beats(); beat(name="drugoj-dom"); beat(name="tretij-dom"); chk("в папке отметки двух ДРУГИХ домов, моей нет — отказ", guard(OKMSG), True, "ни одного прохода")
+beat(age_s=4000); chk("моя отметка старая, чужие свежие — отказ: смотрю свою", guard(OKMSG), True, DEAD)
+no_beats(); beat(name="mila"); chk("в папке одна отметка под другим именем (контейнер: один дом) — она и есть моя, уходит", guard(OKMSG), False)
+no_beats(); beat(folder=os.path.join(home, ".local", "state", "mila", "baraban")); chk("отметка в папке состояния ноутбука (~/.local/state) — уходит", guard(OKMSG), False)
+no_beats(); beat(folder=os.path.join(home, "beat-here")); chk("отметка в папке, о которой сторож не знает, — отказ", guard(OKMSG), True, DEAD)
+env["MILA_SCHEDULER_BEAT"] = os.path.join(home, "beat-here"); chk("та же папка названа серверу переменной — уходит", guard(OKMSG), False); env.pop("MILA_SCHEDULER_BEAT")
+no_beats(); beat(text="вчера\n"); chk("в отметке не время — отказ", guard(OKMSG), True, DEAD)
+beat(text=dt.datetime.fromisoformat(env["MILA_CRON_NOW"]).replace(tzinfo=None).isoformat() + "\n"); chk("время в отметке без пояса — отказ", guard(OKMSG), True, DEAD)
+beat(age_s=-600); chk("отметка из будущего (часы службы впереди на 10 минут) — уходит: служба жива", guard(OKMSG), False)
+no_beats(); os.makedirs(BEATS); os.symlink(os.path.join(home, "nowhere"), os.path.join(BEATS, SLUG + ".beat")); chk("отметка — битая ссылка — отказ, без падения", guard(OKMSG), True, DEAD)
+n += 1; good = len(notes()) == fails_before; ok += good
+print(("✅ " if good else "❌ ") + "отказ по Планировщику — находка, а не сбой проверки: в журнал сбоев ничего не записано" + ("" if good else "  ← %s" % notes()[fails_before:]))
+no_beats(); beat()
 os.remove(J); os.makedirs(J)
 chk("вместо расписания папка: форма 2 — отказ, остальное уходит", guard(ans(P("«отчёт за день», придёт завтра в 09:00."))), True, "не читается")
 chk("другие сторожа живы рядом с ходом: извинение — отказ", guard(ans(head="Извините, не успела.")), True, "извинение")

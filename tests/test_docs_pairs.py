@@ -52,6 +52,11 @@ if m:
         t = read(name); miss = [w for w in want if w not in t]
         chk(name + ": число задач, длина текста и срок жизни — как в коде", not miss, miss)
 bar = open(os.path.join(REPO, "install", "baraban.py"), encoding="utf-8").read()
-chk("пояс и тихие часы по умолчанию на странице — как в службе", "Asia/Tashkent" in bar and "else 22–08" in bar and all("Asia/Tashkent" in read(f) and "22–08" in read(f) for f in ("SCHEDULER.md", "SCHEDULER.ru.md")))
-chk("страница не обещает таймер на ноутбуке, пока установщик его не ставит", ("baraban" in open(os.path.join(REPO, "install", "install.sh"), encoding="utf-8").read()) != ("does not set up this timer" in read("SCHEDULER.md")))
+spec = open(os.path.join(REPO, "skills", "raspisanie", "cronspec.py"), encoding="utf-8").read()
+chk("пояс и тихие часы по умолчанию на странице — как в службе", 'DEFAULT_TZ = "Asia/Tashkent"' in spec and "else 22–08" in bar and all("Asia/Tashkent" in read(f) and "22–08" in read(f) for f in ("SCHEDULER.md", "SCHEDULER.ru.md")))
+inst = open(os.path.join(REPO, "install", "install.sh"), encoding="utf-8").read()
+chk("страница говорит о таймере на ноутбуке то, что делает установщик: ставит — и названы те же имена служб", ("baraban.py" in inst) == ("the installer sets a pass every minute" in read("SCHEDULER.md"))
+    and all(x in inst and x in read(f) for x in ("com.milagpt.scheduler", "mila-scheduler") for f in ("SCHEDULER.md", "SCHEDULER.ru.md")))
+chk("срок свежести отметки прохода на странице — как в коде (пять минут), папки отметок названы те же", "BEAT_FRESH = 300" in spec and "five minutes" in read("SCHEDULER.md") and "пяти минут" in read("SCHEDULER.ru.md")
+    and all(x in spec and x in read("SCHEDULER.md") for x in ("/run/mila/scheduler", "MILA_SCHEDULER_BEAT")))
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

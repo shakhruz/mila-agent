@@ -155,6 +155,8 @@ It checks Claude Code, Bun and git, clones the kit to `~/mila`, runs `install/in
 - `~/.config/mila/pd.key` — the key of the personal-data vault (600);
 - an hourly job that sums up the cost of turns: launchd `com.milagpt.turns-collect` on macOS
   (`~/Library/LaunchAgents/`), a systemd user timer `mila-turns-collect` on Linux;
+- the Scheduler's pass once a minute, so that «remind me on Mondays» fires while the session is closed: launchd
+  `com.milagpt.scheduler` on macOS, a systemd user timer `mila-scheduler` on Linux; its state is in `~/.local/state/mila/baraban/`;
 - the Telegram plugin `mila-telegram`, installed through `claude plugin install`.
 
 Then three steps, each checked before the next:

@@ -34,7 +34,7 @@ The owner does not type these: he says «remind me on Mondays» in the chat, Mil
 | Lifetime | 30 days by default, 90 at most; then one event «extend?» and silence. There are no jobs without an end: an eternal job spends the subscription silently |
 | Whose job | Mila's own (`by mila`), or by the owner's or the administrator's word — then with `--word <chat>/<message>`. The script checks only the form of this pointer: it cannot see the chat |
 
-The time zone and the quiet hours are read from the owner's `USER.md` (the lines «Часовой пояс — Area/City» and «Тихие часы — 22:00–08:00»). Write the time zone line: without it the service fires by Asia/Tashkent (quiet hours 22–08), while `mila_cron.py` (the slots it shows) and the send guard take the zone of the machine — on a machine in another zone «09:00» in an answer would not be 09:00 of the fire. With the line all three agree.
+The time zone and the quiet hours are read from the owner's `USER.md` (the lines «Часовой пояс — Area/City» and «Тихие часы — 22:00–08:00»). Without the lines — Asia/Tashkent and 22–08. The zone is one rule (`cronspec.owner_tz`) for the service that fires, for `mila_cron.py` that shows the slots and for the send guard that checks a promised time: «09:00» is one moment for the three. On a machine elsewhere, write the line.
 
 ## How a job reaches Mila
 Once a minute the Scheduler makes one pass (`baraban.py tick`). A job fires when its slot is newer than its last fire and newer than its creation. The fire is one line appended to the Telegram plugin's inbound journal — the same road rituals and the owner's messages take — so the session sees:
@@ -55,13 +55,13 @@ Mila does the job and writes the result with `done`.
 ## Watching it
 - `python3 install/baraban.py status --home <home> [--state <dir>]` — per job: the last fire, the last five fires, what is waiting for the end of quiet hours.
 - `<state>/fired.jsonl` — every delivered fire: time, home, job.
+- `<state>/<home>.beat` — the time of the last pass for this home (every pass that has an owner to deliver to leaves it). The send guard lets «it stands in the Scheduler» through only while this mark is fresher than five minutes; `doctor` shows «jobs set, the service is not passing».
 - `<state>/watch.jsonl` — a job that fired twice with no `done` after the first of the two: one line. A job that fires and is never finished is visible, not silent.
 
 ## Where it runs
 - **The container image** (`docker/entrypoint.sh`): a loop runs the tick every minute for the home in the container; state in `~/state/baraban`. Nothing to set up beyond the owner: the pass runs once the owner is known (`OWNER_ID`, the paired owner) and is silent until then.
-- **A server with several homes**: a timer of the machine runs `baraban.py tick --home <home> --slug <name> --owner <id> --state <dir>` once a minute, one line per home.
-- **A laptop** (`install/install.sh`): the installer does not set up this timer. Until you add one, jobs are stored but do not fire. One line of your own scheduler is enough:
-  `* * * * * python3 <kit>/install/baraban.py tick --home "$HOME" --owner <your Telegram id>`.
+- **A server with several homes**: a timer of the machine runs `baraban.py tick --home <home> --slug <name> --owner <id> --state <dir>` once a minute, one line per home. The state folder is closed to the homes; `--beat-dir <dir>` puts the pass marks into a folder the homes' users can read (the guard looks in `/run/mila/scheduler` and in the folder named by `MILA_SCHEDULER_BEAT`).
+- **A laptop** (`install/install.sh`): the installer sets a pass every minute — launchd `com.milagpt.scheduler` on macOS, a systemd user timer `mila-scheduler` on Linux; state in `~/.local/state/mila/baraban`. A home installed before this had no timer: jobs were stored and did not fire — run the installer again; `doctor` shows a Scheduler that is not passing.
 
 ## What protects the home
 The service may run as root over a home it does not trust. It opens every file inside the home one path component at a time without following links, accepts regular files only, appends to the journal and never creates it, and keeps its own state outside the home — a job cannot rewrite when it last fired.

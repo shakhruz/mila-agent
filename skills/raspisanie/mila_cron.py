@@ -13,7 +13,7 @@
 
 Правила: id [a-z0-9-]{1,40}; cron — 5 полей, не чаще раза в 5 минут; текст ≤ 2000; задач ≤ 30; срок жизни по умолчанию 30 дней,
 максимум 90 для всех — дольше только продлением (extend). by=owner|senior — только с --word (по чьему слову).
-Пути: MILA_WORK (по умолчанию ~/work); пояс — «Часовой пояс — Asia/…» из USER.md, иначе пояс машины. Код 0 — ок, 1 — отказ, 2 — ошибка запуска."""
+Пути: MILA_WORK (по умолчанию ~/work); пояс — «Часовой пояс — Asia/…» из USER.md, иначе Asia/Tashkent (то же правило, что у службы). Код 0 — ок, 1 — отказ, 2 — ошибка запуска."""
 import datetime as dt, fcntl, json, os, re, sys, zoneinfo
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cronspec as C
@@ -29,11 +29,10 @@ MAX_JOBS, MAX_TEXT, DEF_DAYS, MAX_DAYS = 30, 2000, 30, 90
 
 
 def tz():
-    try:
-        m = re.search(r"Часовой пояс\s*[—-]\s*([A-Za-z_]+/[A-Za-z_]+)", open(os.path.join(WORK, "USER.md"), encoding="utf-8").read())
-        return zoneinfo.ZoneInfo(m.group(1)) if m else dt.datetime.now().astimezone().tzinfo
-    except (OSError, zoneinfo.ZoneInfoNotFoundError):
-        return dt.datetime.now().astimezone().tzinfo
+    """the owner's zone — the same rule the service fires by (cronspec.owner_tz): the line in USER.md, else Asia/Tashkent."""
+    try: t = open(os.path.join(WORK, "USER.md"), encoding="utf-8").read()
+    except OSError: t = ""
+    return C.owner_tz(t)
 
 
 def now():

@@ -10,8 +10,54 @@
   Spec.next_after(dt) → ближайший срок строго после dt
   Spec.last_at_or_before(dt) → последний срок ≤ dt (или None, если за 366 дней не было)
   Spec.min_step_minutes() → самый короткий шаг между сроками в сутках (для лимита «не чаще раза в 5 мин»)
+  owner_tz(текст USER.md) → пояс хозяина: одно правило для службы, mila-cron и сторожа отправки
+  last_beat(дом) → время последнего прохода службы для этого дома (или None): по нему сторож и доктор судят, жив ли Планировщик
 """
 import datetime
+import os
+import re
+import zoneinfo
+
+BEAT_FRESH = 300   # the service passes every minute; no pass for five minutes — it is not running for this home
+
+
+def beat_dirs(home, env=None):
+    """Where the service may leave <slug>.beat: named by the server, the container's state, the laptop's state, the fleet's folder."""
+    env = os.environ if env is None else env
+    return [d for d in (env.get("MILA_SCHEDULER_BEAT"), env.get("BARABAN_STATE"), os.path.join(home, "state", "baraban"),
+                        os.path.join(env.get("XDG_STATE_HOME") or os.path.join(home, ".local", "state"), "mila", "baraban"), "/run/mila/scheduler") if d]
+
+
+def last_beat(home, env=None):
+    """The time of the newest pass of the Scheduler for this home, or None. In a folder the file named after the home is taken;
+    if there is none and the folder holds exactly one beat (a container: one home), that one; several strangers — none."""
+    home = os.path.realpath(home); slug = os.path.basename(home.rstrip("/")); newest = None
+    for d in beat_dirs(home, env):
+        if not os.path.isdir(d): continue
+        mine = os.path.join(d, slug + ".beat")
+        try: beats = [mine] if os.path.isfile(mine) else [os.path.join(d, f) for f in os.listdir(d) if f.endswith(".beat")]
+        except OSError: continue
+        if len(beats) != 1: continue
+        try:
+            with open(beats[0], encoding="utf-8") as f: at = datetime.datetime.fromisoformat(f.read(64).strip())
+        except (OSError, ValueError):
+            continue
+        if at.tzinfo is None: continue
+        if newest is None or at > newest: newest = at
+    return newest
+
+DEFAULT_TZ = "Asia/Tashkent"
+TZ_LINE = re.compile(r"Часовой пояс\s*[—-]\s*([A-Za-z_]+/[A-Za-z_]+)")
+
+
+def owner_tz(user_md_text):
+    """The owner's time zone: the line «Часовой пояс — Area/City» of USER.md, else DEFAULT_TZ. The service that fires a job, the
+    tool that shows its next slot and the guard that checks a promised time all ask here — «09:00» means one moment for the three."""
+    m = TZ_LINE.search(user_md_text or "")
+    try:
+        return zoneinfo.ZoneInfo(m.group(1)) if m else zoneinfo.ZoneInfo(DEFAULT_TZ)
+    except (zoneinfo.ZoneInfoNotFoundError, ValueError):
+        return zoneinfo.ZoneInfo(DEFAULT_TZ)
 
 FIELDS = (("минута", 0, 59), ("час", 0, 23), ("день месяца", 1, 31), ("месяц", 1, 12), ("день недели", 0, 7))
 MIN_STEP = 5
