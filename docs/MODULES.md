@@ -29,8 +29,8 @@ Mila thinks with Claude through Claude Code on the owner's own subscription; wit
 ## 4. Telegram
 The owner's private chat, the groups he connected, topics, buttons. The bot itself is the plugin `mila-telegram` — a separate repository ([mila-telegram.md](mila-telegram.md)).
 - **in the core** — the private chat (`skills/owner-dm`), groups (`skills/mila-in-chat`), topics (`skills/topics`), cards with buttons (`skills/cards`), text for copying (`skills/copyblock`), escalation (`skills/escalate-to-owner`), the send guard (`templates/home/.claude/hooks/send-guard.py`).
-- **accepted, awaits release** — reading the owner's personal Telegram account and putting drafts (`skills/shturman`).
-- **in development** — widgets (status of a module in one message); sending from the personal account through the Lock.
+- **accepted, awaits release** — reading the owner's personal Telegram account and putting drafts (`skills/shturman`); widgets — the status of a pack or of a core module in one message (`skills/vidzhet`).
+- **in development** — the day board as a widget; sending from the personal account through the Lock.
 
 ## 5. Memory and journals
 What was done, what went wrong, what is remembered between sessions.
@@ -59,7 +59,7 @@ Every message kept; a copy of the home the owner can take away.
 ## 10. The Library
 Packs: a role and skills on top of the core, installed by a button. A pack's code is never run on install.
 - **in the core** — the catalog and its trust chain (`skills/library`), installing and removing packs (`skills/packs`), the packs that come with the core (`packs/`).
-- **in development** — a pack's status widget; a catalog of Milas next to the packs.
+- **in development** — a catalog of Milas next to the packs.
 
 ## 11. Quality
 She checks herself before she says «done».
