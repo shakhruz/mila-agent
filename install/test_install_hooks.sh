@@ -52,7 +52,7 @@ HOME=$T/home CLAUDE_CONFIG_DIR=$T/home/.claude MILA_OWNER_ID=$OID PATH=/usr/bin:
 chk "SG-WIDGET: дом до виджетов — повторная установка дописывает виджет, без дубля" "sgwidget && [ \$(grep -c 'send-guard.py' $S) -eq 1 ]"
 T2="$(mktemp -d)"; mkdir -p "$T2/home/.claude"
 MILA_CC_VERSION=2.1.200 HOME="$T2/home" CLAUDE_CONFIG_DIR="$T2/home/.claude" PATH=/usr/bin:/bin:/usr/local/bin bash "$REPO/install/install.sh" > "$T2/out" 2>&1
-chk "SG-ONFAIL: старая CC (2.1.200) — хук сторожа есть, ключа нет, строка «пропущен»" "grep -q 'send-guard.py' $T2/home/.claude/settings.json && ! grep -q onFailure $T2/home/.claude/settings.json && ! grep -q PostToolUseFailure $T2/home/.claude/settings.json && grep -q 'onFailure пропущен' $T2/out"
+chk "SG-ONFAIL: старая CC (2.1.200) — хук сторожа есть, ключа нет, строка «skipped» на экране" "grep -q 'send-guard.py' $T2/home/.claude/settings.json && ! grep -q onFailure $T2/home/.claude/settings.json && ! grep -q PostToolUseFailure $T2/home/.claude/settings.json && grep -q 'onFailure skipped' $T2/out"
 rm -rf "$T2"
 chk "шаблон settings.json без зашитого /home/companion" "! grep -q '/home/companion' $REPO/templates/home/.claude/settings.json"
 # ── the Scheduler's pass every minute: both kinds of machine, by a fake `uname` (and `systemctl`) first in PATH; nothing is loaded
@@ -61,7 +61,7 @@ sched() {   # $1 — what uname says, $2 — home; prints the installer's output
   printf '#!/bin/sh\necho %s\n' "$1" > "$fb/uname"
   for tool in systemctl launchctl; do printf '#!/bin/sh\necho "%s $*" >> "%s/calls"\nexit 0\n' "$tool" "$fb" > "$fb/$tool"; done   # stand-ins that write down every call
   chmod +x "$fb/uname" "$fb/systemctl" "$fb/launchctl"
-  HOME="$2" CLAUDE_CONFIG_DIR="$2/.claude" MILA_OWNER_ID=$OID PATH="$fb:/usr/bin:/bin:/usr/local/bin" bash "$REPO/install/install.sh" 2>&1
+  HOME="$2" CLAUDE_CONFIG_DIR="$2/.claude" MILA_OWNER_ID=$OID PATH="$fb:/usr/bin:/bin:/usr/local/bin" bash "$REPO/install/install.sh" --verbose 2>&1
 }
 SM="$T/mac"; sched Darwin "$SM" > "$T/mac.out"; PL="$SM/Library/LaunchAgents/com.milagpt.scheduler.plist"
 chk "Мак: служба Планировщика записана — проход раз в минуту по этому дому, установленным baraban.py, с -B" "grep -q '<integer>60</integer>' $PL && grep -q '<string>-B</string>' $PL && grep -q '<string>tick</string>' $PL && grep -q \"<string>$SM</string>\" $PL && grep -q \"<string>$SM/.claude/hooks/baraban.py</string>\" $PL"
@@ -108,7 +108,7 @@ chk "навык, которым пользовались (__pycache__ внутр
 printf '#!/bin/sh\ncase "$1" in +%%Y*) echo 20260504-090000;; *) exec /bin/date "$@";; esac\n' > "$T/fakebin-Linux/date"; chmod +x "$T/fakebin-Linux/date"
 echo '# моя правка' >> "$SP/.claude/skills/raspisanie/SKILL.md"; sched Linux "$SP" > "$T/pyc2.out"; echo '# ещё правка' >> "$SP/.claude/skills/raspisanie/SKILL.md"; sched Linux "$SP" > "$T/pyc3.out"; rcx=$?
 rm -f "$T/fakebin-Linux/date"
-chk "навык, который хозяин правил, по-прежнему получает копию; две установки подряд (в одну секунду) — две копии, без падения" "grep -q 'raspisanie — exists, keeping a copy' $T/pyc2.out && grep -q 'raspisanie — exists, keeping a copy' $T/pyc3.out && [ $rcx -eq 0 ] && [ \$(ls -d $SP/.claude/skills/raspisanie.bak-* | wc -l) -eq 2 ] && grep -q 'Done' $T/pyc3.out"
+chk "навык, который хозяин правил, по-прежнему получает копию; две установки подряд (в одну секунду) — две копии, без падения" "grep -q 'raspisanie — exists, keeping a copy' $T/pyc2.out && grep -q 'raspisanie — exists, keeping a copy' $T/pyc3.out && [ $rcx -eq 0 ] && [ \$(ls -d $SP/.claude/skills/raspisanie.bak-* | wc -l) -eq 2 ] && grep -q 'Her home is ready' $T/pyc3.out"
 [ -n "$miss" ] && echo "нет файлов: $miss"
 # ── the settings step fails (python stops): the installer stops too, and its temporary file does not stay behind
 FP="$T/fakepy"; mkdir -p "$FP" "$T/tmpx" "$T/fail/.claude"; REALPY="$(command -v python3)"
@@ -116,5 +116,40 @@ printf '#!/bin/sh\nif [ "$1" = "-" ] && [ "$2" = "%s" ]; then cat >/dev/null; ex
 HOME="$T/fail" CLAUDE_CONFIG_DIR="$T/fail/.claude" TMPDIR="$T/tmpx" MILA_OWNER_ID=$OID PATH="$FP:/usr/bin:/bin:/usr/local/bin" bash "$REPO/install/install.sh" >"$T/fail.out" 2>&1; rcf=$?
 chk "шаг настроек упал — установка остановилась (код не 0), settings.json не появился, временный файл убран" "[ $rcf -ne 0 ] && [ ! -e $T/fail/.claude/settings.json ] && [ -z \"\$(ls $T/tmpx | grep mila-settings)\" ]"
 HOME="$T/home" CLAUDE_CONFIG_DIR="$T/home/.claude" TMPDIR="$T/tmpx" MILA_OWNER_ID=$OID PATH=/usr/bin:/bin:/usr/local/bin bash "$REPO/install/install.sh" >/dev/null 2>&1
+chk "шаг настроек упал — это видно на экране: ✗, «NOT complete», путь к журналу; в журнал уже записаны шаги до падения" "grep -q '✗ The install stopped' $T/fail.out && grep -q 'NOT complete' $T/fail.out && ! grep -q 'Her home is ready' $T/fail.out && grep -q 'Full log' $T/fail.out && grep -q 'hook → ' $T/fail/.claude/mila-install.log"
+# a settings.json that is not valid JSON: the guardians are not registered — the screen says so, in words, and the home is not called ready
+mkdir -p "$T/bad/.claude"; echo '{ not json' > "$T/bad/.claude/settings.json"
+HOME="$T/bad" CLAUDE_CONFIG_DIR="$T/bad/.claude" MILA_OWNER_ID=$OID PATH=/usr/bin:/bin:/usr/local/bin bash "$REPO/install/install.sh" > "$T/bad.out" 2>&1
+chk "settings.json не JSON — на экране ✗ с причиной и что делать; «Her home is ready» не говорится" "grep -q '✗ settings.json is not valid JSON' $T/bad.out && grep -q 'almost ready' $T/bad.out && ! grep -q 'Her home is ready' $T/bad.out"
+# the summary counts are the real ones; the log has the per-file lines; --verbose shows them on the screen
+nocyr() { python3 -c "import re,sys; sys.exit(1 if any(re.search('[Ѐ-ӿ]', l) for l in open(sys.argv[1], encoding='utf-8') if 'hello' not in l) else 0)" "$1"; }
+HOME="$T/home" CLAUDE_CONFIG_DIR="$T/home/.claude" MILA_OWNER_ID=$OID PATH=/usr/bin:/bin:/usr/local/bin bash "$REPO/install/install.sh" > "$T/again.out" 2>&1
+NSK=$(ls -d $REPO/skills/*/ | wc -l | tr -d ' ')
+NHK=0; for f in telegram-inbox-feed crons-keeper reply-required pd-mask send-guard done-guard secret-guard skill-hint; do [ -x $T/home/.claude/hooks/$f.py ] && NHK=$((NHK+1)); done
+chk "число навыков на экране = числу навыков набора; стражей = числу файлов хуков в доме (8)" "grep -q \"✓ $NSK skills\" $T/again.out && [ $NHK -eq 8 ] && grep -q \"✓ $NHK guardians\" $T/again.out"
+chk "экран повторной установки: без построчных фактов, без кириллицы (кроме приветствия), короткий" "! grep -q 'unchanged, no copy needed' $T/again.out && ! grep -q 'hook → ' $T/again.out && nocyr $T/again.out && [ \$(wc -l < $T/again.out) -le 30 ]"
+LOGH=$T/home/.claude/mila-install.log
+chk "журнал: есть, права 600, построчные факты внутри, перезаписан (одно «Mila installer»)" "python3 -c \"import os,sys; sys.exit(0 if os.stat(sys.argv[1]).st_mode & 0o777 == 0o600 else 1)\" $LOGH && grep -q 'hook → ' $LOGH && grep -q 'unchanged, no copy needed' $LOGH && [ \$(grep -c '^Mila installer' $LOGH) -eq 1 ]"
+HOME="$T/home" CLAUDE_CONFIG_DIR="$T/home/.claude" MILA_OWNER_ID=$OID PATH=/usr/bin:/bin:/usr/local/bin bash "$REPO/install/install.sh" --verbose > "$T/verb.out" 2>&1
+chk "--verbose: построчные факты на экране" "grep -q 'hook → ' $T/verb.out && grep -q 'unchanged, no copy needed' $T/verb.out"
+HOME="$T/home" CLAUDE_CONFIG_DIR="$T/home/.claude" MILA_OWNER_ID=$OID MILA_INSTALL_VERBOSE=1 PATH=/usr/bin:/bin:/usr/local/bin bash "$REPO/install/install.sh" > "$T/verb2.out" 2>&1
+chk "MILA_INSTALL_VERBOSE=1 — то же" "grep -q 'hook → ' $T/verb2.out"
+HOME="$T/home" CLAUDE_CONFIG_DIR="$T/home/.claude" MILA_OWNER_ID=$OID PATH=/usr/bin:/bin:/usr/local/bin bash "$REPO/install/install.sh" --dry-run > "$T/dry.out" 2>&1
+chk "--dry-run: строки «would» на экране, журнал не переписан" "grep -q 'would' $T/dry.out && grep -q 'Dry run finished' $T/dry.out && [ \$(grep -c '^Mila installer' $LOGH) -eq 1 ] && ! grep -q 'would' $LOGH"
 chk "обычная установка временного файла настроек после себя тоже не оставляет" "[ -z \"\$(ls $T/tmpx | grep mila-settings)\" ]"
+# ── the word `mila` taken in the user's shell: an rc file with a function / an alias, or another `mila` earlier on PATH
+shw() {   # $1 - home, $2 - extra PATH dir (or empty); prints the screen
+  mkdir -p "$1/.claude"; HOME="$1" CLAUDE_CONFIG_DIR="$1/.claude" MILA_OWNER_ID=$OID PATH="${2:+$2:}/usr/bin:/bin:/usr/local/bin" bash "$REPO/install/install.sh" 2>&1
+}
+shw "$T/sh-clean" "" > "$T/sh-clean.out"
+chk "mila: чистый дом — предупреждения нет" "! grep -q 'already means something else' $T/sh-clean.out"
+mkdir -p "$T/sh-fn"; printf 'export A=1\nmila() { echo other; }\n' > "$T/sh-fn/.zshrc"
+shw "$T/sh-fn" "" > "$T/sh-fn.out"
+chk "mila: функция в ~/.zshrc — предупреждение на экране с файлом и строкой, шаг — полный путь; rc-файл не тронут" "grep -q 'already means something else in your shell (~/.zshrc:2)' $T/sh-fn.out && grep -q '^      .*/.local/bin/mila\$' $T/sh-fn.out && [ \"\$(wc -l < $T/sh-fn/.zshrc | tr -d ' ')\" = 2 ]"
+mkdir -p "$T/sh-al"; printf 'alias mila="claude"\n' > "$T/sh-al/.bashrc"
+shw "$T/sh-al" "" > "$T/sh-al.out"
+chk "mila: alias в ~/.bashrc — то же предупреждение" "grep -q 'already means something else in your shell (~/.bashrc:1)' $T/sh-al.out"
+mkdir -p "$T/sh-path/other"; printf '#!/bin/sh\necho other\n' > "$T/sh-path/other/mila"; chmod +x "$T/sh-path/other/mila"
+shw "$T/sh-path" "$T/sh-path/other" > "$T/sh-path.out"
+chk "mila: другой mila раньше по PATH — предупреждение с его путём, шаг — полный путь" "grep -q 'already means something else in your shell (~/other/mila)' $T/sh-path.out && grep -q '^      .*/.local/bin/mila\$' $T/sh-path.out"
 echo "итог $ok/$n"; rm -rf "$T"
