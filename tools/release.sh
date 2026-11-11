@@ -2,6 +2,7 @@
 # release.sh X.Y.Z [--no-tag] — выпуск версии ядра. НИЧЕГО не пушит: в конце печатает команду пуша.
 #   1. дерево чистое, ветка — main, версия новее последней; в CHANGELOG.md есть раздел "## vX.Y.Z" с блоком «Для хозяина»/«For the owner»
 #   2. тесты mila-update, frontmatter, comments — зелёные
+#   2а. после подъёма release.json — ещё раз test_plan.sh: план обновления читает раздел выпускаемой версии только с новым release.json
 #   3. release.json: version, tag, date → коммит «release vX.Y.Z»
 #   4. тег vX.Y.Z: подписанный (git tag -s), если задан user.signingkey; иначе аннотированный БЕЗ подписи (печатается отметка)
 #   5. dist/vX.Y.Z/: get.sh с вшитыми тегом и SHA его коммита (сдвинутый тег get.sh не поставит) и SHA256SUMS к нему —
@@ -35,6 +36,9 @@ v = sys.argv[1]; p = "release.json"; m = json.load(open(p, encoding="utf-8"))
 m.update({"version": v, "tag": "v" + v, "date": time.strftime("%Y-%m-%d"), "notes": "CHANGELOG.md - section v" + v})
 json.dump(m, open(p, "w", encoding="utf-8"), ensure_ascii=False, indent=2); open(p, "a").write("\n")
 PY
+# the update plan reads the «Для хозяина» lines of the version being released only once release.json names it: check the plan with the new
+# version before the commit and the tag, so a section the plan test cannot accept never becomes a release
+bash skills/mila-update/test_plan.sh | tail -1 | grep -Eq 'итог ([0-9]+)/\1$' || { git checkout -q -- release.json; echo "test_plan.sh не зелёный с release.json v$V: раздел «Для хозяина» этой версии не проходит проверку плана обновления (release.json возвращён)" >&2; exit 1; }
 git add release.json; git commit -qm "release v$V"
 if [ "$NOTAG" = "--no-tag" ]; then echo "коммит release v$V создан, тег не ставлю (--no-tag)"; exit 0; fi
 if [ -n "$(git config user.signingkey || true)" ]; then
