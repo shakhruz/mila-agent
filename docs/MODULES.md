@@ -29,8 +29,8 @@ Mila thinks with Claude through Claude Code on the owner's own subscription; wit
 ## 4. Telegram
 The owner's private chat, the groups he connected, topics, buttons. The bot itself is the plugin `mila-telegram` — a separate repository ([mila-telegram.md](mila-telegram.md)).
 - **in the core** — the private chat (`skills/owner-dm`), groups (`skills/mila-in-chat`), topics (`skills/topics`), cards with buttons (`skills/cards`), text for copying (`skills/copyblock`), escalation (`skills/escalate-to-owner`), the send guard (`templates/home/.claude/hooks/send-guard.py`).
-- **accepted, awaits release** — reading the owner's personal Telegram account and putting drafts (`skills/shturman`); widgets — the status of a pack or of a core module in one message (`skills/vidzhet`).
-- **in development** — the day board as a widget; sending from the personal account through the Lock.
+- **accepted, awaits release** — reading the owner's personal Telegram account and putting drafts (`skills/shturman`); widgets — the status of a pack or of a core module in one message, and the day board as a widget (`skills/vidzhet`, `skills/pult-dnya`).
+- **in development** — sending from the personal account through the Lock; requests from a widget back to Mila.
 
 ## 5. Memory and journals
 What was done, what went wrong, what is remembered between sessions.
