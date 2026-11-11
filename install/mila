@@ -266,7 +266,11 @@ HELP
                # page — the session and `mila doctor` speak about those.
                bi=""; born=0; cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
                [ -f "$cfg/mila-birth.json" ] && born=1
-               [ -f "$STATE/.env" ] && [ -f "$STATE/access.json" ] && grep -q '"OWNER_ID"' "$cfg/settings.json" 2>/dev/null && born=1
+               # The channel folder counts only when it lies inside this Mila's own home: TELEGRAM_STATE_DIR left in the
+               # shell by another Mila on the same machine must not make a newborn look born and open a session on
+               # someone else's channel.
+               own=0; [ -z "${TELEGRAM_STATE_DIR:-}" ] && own=1; case "$STATE" in "$cfg"/*) own=1 ;; esac
+               [ "$own" = 1 ] && [ -f "$STATE/.env" ] && [ -f "$STATE/access.json" ] && grep -q '"OWNER_ID"' "$cfg/settings.json" 2>/dev/null && born=1
                for c in "$HOME/.claude/hooks/birth.py" "$(dirname "$0")/birth.py"; do [ -f "$c" ] && { bi="$c"; break; }; done
                if [ "$born" = 0 ] && [ -n "$bi" ]; then
                  exec python3 "$bi"

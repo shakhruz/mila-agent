@@ -1,7 +1,7 @@
 #!/bin/bash
 # mila on a fresh install: no conversation for this folder yet → a new one, not --continue (Claude Code quits on --continue
 # with nothing to resume); once a conversation exists → --continue as before. bash install/test_mila_first_run.sh
-set -u; H="$(cd "$(dirname "$0")" && pwd)"; T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+set -u; unset TELEGRAM_STATE_DIR; H="$(cd "$(dirname "$0")" && pwd)"; T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 ok=0; n=0; chk(){ n=$((n+1)); if eval "$2" >/dev/null 2>&1; then ok=$((ok+1)); echo "✅ $1"; else echo "❌ $1"; fi; }
 mkdir -p "$T/bin" "$T/home" "$T/proj"
 printf '#!/bin/sh\necho "ARGS: $*"\n' > "$T/bin/claude"; printf '#!/bin/sh\nexit 0\n' > "$T/bin/pgrep"; chmod +x "$T/bin/claude" "$T/bin/pgrep"
@@ -27,6 +27,10 @@ chk "рождена (ключ бота и access.json на месте), пров
 echo '{}' > "$T/home/.claude/settings.json"
 O11="$(run)"
 chk "ключ бота и access.json есть, а хозяина в settings.json нет (чужой канал Telegram в Claude Code) — страница рождения" "printf '%s' \"\$O11\" | grep -q 'BIRTH PAGE STARTED' && ! printf '%s' \"\$O11\" | grep -q 'ARGS:'"
+echo '{"env":{"OWNER_ID":"1"}}' > "$T/home/.claude/settings.json"; mkdir -p "$T/other"; cp "$ST/.env" "$ST/access.json" "$T/other/"; mv "$ST/.env" "$ST/.env.off"
+O12="$(run TELEGRAM_STATE_DIR="$T/other")"
+chk "папка канала другой Милы в окружении (TELEGRAM_STATE_DIR вне своего дома) — страница рождения, не сессия" "printf '%s' \"\$O12\" | grep -q 'BIRTH PAGE STARTED' && ! printf '%s' \"\$O12\" | grep -q 'ARGS:'"
+mv "$ST/.env.off" "$ST/.env"; echo '{}' > "$T/home/.claude/settings.json"
 rm -f "$ST/.env" "$ST/access.json"; echo '{"born_at":"2026-01-01T00:00:00+00:00"}' > "$T/home/.claude/mila-birth.json"
 O9="$(run)"
 chk "рождена по записи о рождении — сессия, не страница" "printf '%s' \"\$O9\" | grep -q 'ARGS:' && ! printf '%s' \"\$O9\" | grep -q 'BIRTH'"
