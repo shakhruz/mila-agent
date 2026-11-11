@@ -35,7 +35,7 @@ chk("в разрешённую группу — уходит", {"tool_name": R, 
 chk("извинение хозяину — стоп (закон 7)", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "Извините, я не успела"}}, "deny")
 # apology filter and the problem journal: a number opens the way only if the journal holds it, open or closed today
 import datetime as _dt
-_w = os.path.join(home, "work"); os.makedirs(_w); _J = os.path.join(_w, "problemy.jsonl"); _now = _dt.datetime.now().astimezone()
+_w = os.path.join(home, "work"); os.makedirs(_w, exist_ok=True); _J = os.path.join(_w, "problemy.jsonl"); _now = _dt.datetime.now().astimezone()
 def _row(n, step, days_ago=0, **kw):
     r = {"n": n, "ts": (_now - _dt.timedelta(days=days_ago)).isoformat(timespec="seconds"), "шаг": step}
     if step == "найдено": r.update({"что": "отчёт ушёл без числа проверок", "улика": "msg:abc:15"})

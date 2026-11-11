@@ -300,7 +300,7 @@ def next_move(body, a, work):
     lines = [re.sub(r"\\(.)", r"\1", l).strip(" \t*_•·") for l in body.split("\n")]
     lines = [l for l in lines if l]
     if not lines: return []
-    if NM_CONT.match(lines[-1]): return []          # a part of a long answer: the two lines come in the last part
+    if NM_CONT.match(lines[-1]): return None        # a part of a long answer: the two lines come in the last part — the caller keeps count
     mark = next((mk for mk in NM_MARK if len(lines) >= 2 and lines[-2].startswith(mk[0]) and lines[-1].startswith(mk[1])), None)
     if not mark:
         return ["ответ кончается двумя строками — «Мой ход: …» и «Ваш ход: …» (что делаю я и что советую вам); если это часть длинного ответа — последней строкой «(продолжение следует)»"]
@@ -339,24 +339,63 @@ def next_move(body, a, work):
     return out
 
 
+def _nm_note(work, kind, chat, what):
+    """a line about the rule in work/state/next-move-fail.jsonl (no text of the answer) and, if the skill is there, a problem."""
+    try:
+        d = os.path.join(work, "state"); os.makedirs(d, exist_ok=True); f = os.path.join(d, "next-move-fail.jsonl")
+        with open(f, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"ts": __import__("time").strftime("%Y-%m-%dT%H:%M:%S%z"), "kind": kind, "chat_id": chat}, ensure_ascii=False) + "\n")
+        n = sum(1 for _ in open(f, encoding="utf-8"))
+        pr = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"), "skills", "problemy", "scripts", "problemy.py")
+        if os.path.isfile(pr):
+            import subprocess as _sp
+            _sp.run([sys.executable, pr, "add", "--chto", what, "--gde", "инструмент", "--kto-nashel", "проверка", "--ulika", "journal:state/next-move-fail.jsonl:%d" % n],
+                    capture_output=True, timeout=10, env=dict(os.environ, MILA_WORK=work))
+    except Exception:
+        pass
+
+
+def _nm_now():
+    import datetime as _d
+    v = os.environ.get("MILA_CRON_NOW")
+    return (_d.datetime.fromisoformat(v) if v else _d.datetime.now().astimezone()).timestamp()
+
+
+NM_WAIT = 600   # a part that says «(продолжение следует)» must be followed by the rest within ten minutes
+
+
+def _nm_parts(work, chat, is_part):
+    """«(продолжение следует)» is a promise of the next part, not a way round the rule: the chat is marked as waiting; the next
+    answer there must carry both lines (the rule itself sees to it); a second «continuation» in a row, or a continuation whose
+    next part did not come in ten minutes, is written down as a problem."""
+    f = os.path.join(work, "state", "next-move-wait.json"); now = _nm_now()
+    try: w = json.load(open(f, encoding="utf-8"))
+    except (OSError, ValueError): w = {}
+    if not isinstance(w, dict): w = {}
+    was = dict(w)
+    for c, t in list(w.items()):
+        if isinstance(t, (int, float)) and now - t > NM_WAIT and c != chat:
+            _nm_note(work, "continuation-stale", c, "после «(продолжение следует)» следующая часть ответа не пришла за 10 минут"); del w[c]
+    if is_part:
+        if chat in w:
+            _nm_note(work, "continuation-twice", chat, "два «(продолжение следует)» подряд без «Моего хода» и «Вашего хода»" if now - w[chat] <= NM_WAIT
+                     else "после «(продолжение следует)» следующая часть ответа не пришла за 10 минут")
+        w[chat] = now
+    else:
+        w.pop(chat, None)
+    if w != was:      # nothing waited and nothing waits — no file is touched
+        os.makedirs(os.path.dirname(f), exist_ok=True)
+        with open(f, "w", encoding="utf-8") as fh: json.dump(w, fh)
+
+
 if tool.endswith("__reply"):
     _nm_work = os.path.expanduser(os.environ.get("MILA_WORK") or "~/work")
     try:
-        why += next_move(_body, args, _nm_work)
+        _nm_res = next_move(_body, args, _nm_work)
+        _nm_parts(_nm_work, chat_id, _nm_res is None)
+        why += _nm_res or []
     except Exception as _nm_e:      # fail open: the answer goes, the failure is written down
-        try:
-            _nm_dir = os.path.join(_nm_work, "state"); os.makedirs(_nm_dir, exist_ok=True)
-            _nm_f = os.path.join(_nm_dir, "next-move-fail.jsonl")
-            with open(_nm_f, "a", encoding="utf-8") as _f:
-                _f.write(json.dumps({"ts": __import__("time").strftime("%Y-%m-%dT%H:%M:%S%z"), "error": type(_nm_e).__name__, "chat_id": chat_id}, ensure_ascii=False) + "\n")
-            _nm_n = sum(1 for _ in open(_nm_f, encoding="utf-8"))
-            _nm_p = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"), "skills", "problemy", "scripts", "problemy.py")
-            if os.path.isfile(_nm_p):
-                import subprocess as _sp
-                _sp.run([sys.executable, _nm_p, "add", "--chto", "проверка «Следующего хода» в стороже отправки сломалась: %s" % type(_nm_e).__name__, "--gde", "инструмент",
-                         "--kto-nashel", "проверка", "--ulika", "journal:state/next-move-fail.jsonl:%d" % _nm_n], capture_output=True, timeout=10, env=dict(os.environ, MILA_WORK=_nm_work))
-        except Exception:
-            pass
+        _nm_note(_nm_work, type(_nm_e).__name__, chat_id, "проверка «Следующего хода» в стороже отправки сломалась: %s" % type(_nm_e).__name__)
 
 if not why:
     if _card_hits:   # private chat / owner: sent, with the card masked

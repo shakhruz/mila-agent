@@ -95,18 +95,46 @@ chk("«Ваш ход: ничего не нужно» — отказ", guard(ans(
 chk("«ничего не запущено — иду дальше» — отказ", guard(ans("Мой ход: ничего не запущено — иду дальше.")), True, "рекомендация")
 chk("«продолжаю» в «Вашем ходе» — отказ", guard(ans(you="Ваш ход: продолжаю.")), True, "рекомендация")
 
+# 5a. «(продолжение следует)» is a promise of the next part, not a way round the rule
+F = os.path.join(work, "state", "next-move-fail.jsonl"); PJ = os.path.join(work, "problemy.jsonl"); WAIT = os.path.join(work, "state", "next-move-wait.json")
+def notes(): return [json.loads(l) for l in open(F, encoding="utf-8")] if os.path.exists(F) else []
+def problems(): return [json.loads(l) for l in open(PJ, encoding="utf-8")] if os.path.exists(PJ) else []
+def at(minutes): env["MILA_CRON_NOW"] = (NOW + dt.timedelta(minutes=minutes)).isoformat()
+for f in (F, PJ, WAIT):
+    if os.path.exists(f): os.remove(f)
+at(0); chk("первая часть с «(продолжение следует)» — уходит, чат помечен «жду продолжение»", guard("Часть первая.\n(продолжение следует)", None, chat="555"), False)
+n += 1; good = "555" in json.load(open(WAIT)); ok += good; print(("✅ " if good else "❌ ") + "метка ожидания записана по чату")
+at(1); chk("следующий ответ в этот чат без двух строк — отказ: продолжение не отменяет правило", guard("Часть вторая, и всё.", None, chat="555"), True, "Мой ход")
+chk("следующий ответ с двумя строками — уходит, метка снята, записей о проблемах нет", guard(ans(), chat="555"), False)
+n += 1; good = "555" not in json.load(open(WAIT)) and notes() == [] and problems() == []; ok += good; print(("✅ " if good else "❌ ") + "после полного ответа ожидания нет и журнал чист" + ("" if good else "  ← %s %s" % (notes(), open(WAIT).read())))
+at(2); guard("Снова часть.\n(продолжение следует)", None, chat="555")
+at(3); chk("второе «(продолжение следует)» подряд — уходит, но записано проблемой", guard("И ещё часть.\n(продолжение следует)", None, chat="555"), False)
+n += 1; good = [x["kind"] for x in notes()] == ["continuation-twice"] and len(problems()) == 1 and "подряд" in problems()[0]["что"]; ok += good
+print(("✅ " if good else "❌ ") + "два продолжения подряд: строка в журнале сторожа и проблема" + ("" if good else "  ← %s %s" % (notes(), problems())))
+at(4); guard(ans(), chat="555")                                   # the chat is closed properly
+at(10); guard("Длинный отчёт, начало.\n(продолжение следует)", None, chat="-1001")
+at(25); chk("через 15 минут ответ в ДРУГОЙ чат: брошенное продолжение записано проблемой", guard(ans(), chat="555"), False)
+n += 1; good = [x["kind"] for x in notes()] == ["continuation-twice", "continuation-stale"] and notes()[-1]["chat_id"] == "-1001" and len(problems()) == 2 and "не пришла" in problems()[-1]["что"]; ok += good
+print(("✅ " if good else "❌ ") + "продолжение без следующей части за 10 минут: строка и проблема, с чатом" + ("" if good else "  ← %s" % notes()))
+n += 1; good = json.load(open(WAIT)) == {}; ok += good; print(("✅ " if good else "❌ ") + "брошенная метка снята — одна запись на случай, не на каждый ответ")
+at(26); guard("Часть.\n(продолжение следует)", None, chat="555"); at(40)
+chk("продолжение в том же чате пришло позже 10 минут — уходит, но опоздание записано", guard("Вторая часть.\n(продолжение следует)", None, chat="555"), False)
+n += 1; good = notes()[-1]["kind"] == "continuation-twice" and "не пришла" in problems()[-1]["что"]; ok += good; print(("✅ " if good else "❌ ") + "опоздавшее продолжение названо своим именем" + ("" if good else "  ← %s" % problems()[-1]))
+at(0)
+for f in (F, PJ, WAIT):
+    if os.path.exists(f): os.remove(f)
+
 # 6. the check breaks → the answer goes out, the failure is written down
-F = os.path.join(work, "state", "next-move-fail.jsonl")
 open(J, "w").write("{не json")
 chk("расписание испорчено: форма 2 — отказ «не читается», сторож не падает", guard(ans(P("«отчёт за день», придёт завтра в 09:00."))), True, "не читается")
 chk("расписание испорчено, но ответ без формы 2 — уходит", guard(ans()), False)
 json.dump({"jobs": [{"id": "битая", "cron": "это не cron", "text": "x", "enabled": True}]}, open(J, "w"), ensure_ascii=False)
 got = guard(ans(P("«битая», придёт завтра в 09:00.")))
 chk("проверка хода сломалась внутри (cron не разбирается) — ответ УХОДИТ", got, False)
-rows = [json.loads(l) for l in open(F, encoding="utf-8")] if os.path.exists(F) else []
-n += 1; good = len(rows) == 1 and rows[0].get("error") and "text" not in rows[0]; ok += good
+rows = notes()
+n += 1; good = len(rows) == 1 and rows[0].get("kind") and "text" not in rows[0]; ok += good
 print(("✅ " if good else "❌ ") + "сбой записан строкой в work/state/next-move-fail.jsonl (без текста ответа)" + ("" if good else "  ← %s" % rows))
-PJ = os.path.join(work, "problemy.jsonl"); pr = [json.loads(l) for l in open(PJ, encoding="utf-8")] if os.path.exists(PJ) else []
+pr = problems()
 n += 1; good = len(pr) == 1 and pr[0].get("шаг") == "найдено" and "Следующего хода" in pr[0].get("что", "") and pr[0].get("улика", "").startswith("journal:state/next-move-fail.jsonl:"); ok += good
 print(("✅ " if good else "❌ ") + "и проблемой в журнале проблем — с уликой на эту строку" + ("" if good else "  ← %s" % pr))
 os.remove(J); os.makedirs(J)
