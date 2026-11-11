@@ -53,7 +53,8 @@ note() {
 say() { note "  $*"; }
 run() { if [[ $DRY -eq 1 ]]; then say "would: $*"; else "$@"; fi; }
 problem() { PROBLEMS+=("$*"); note "  ✗ $*"; return 0; }
-tilde() { printf '%s' "${1/#$HOME/~}"; }
+# No ${1/#$HOME/~} here: newer bash expands the tilde in the replacement back to $HOME, bash 3.2 on macOS does not.
+tilde() { case "$1" in "$HOME"/*) printf '~%s' "${1#"$HOME"}" ;; "$HOME") printf '~' ;; *) printf '%s' "$1" ;; esac; }
 row() { if [[ -n "${3:-}" ]]; then printf '  %s %-19s %s\n' "$1" "$2" "$3"; else printf '  %s %s\n' "$1" "$2"; fi; }   # ✓ / ✗ / · , what , why it matters
 cleanup() {
   local rc=$?
