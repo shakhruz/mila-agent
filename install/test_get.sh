@@ -1,6 +1,7 @@
 #!/bin/bash
 # get.sh: из локальной копии репо в пустой HOME — клонирует, ставит (install.sh), повторный запуск обновляет; без git — честная
 # подсказка и выход 1. Без сети. bash install/test_get.sh
+export MILA_SKIP_TIMERS=1   # the installer writes its timers and never loads them here: a test must not start a job on the machine that runs it
 set -u; H="$(cd "$(dirname "$0")/.." && pwd)"; T=$(mktemp -d); trap 'chmod -R u+w "$T" "${T3:-}" "${T4:-}" "${T5:-}" 2>/dev/null; rm -rf "$T" "${T3:-}" "${T4:-}" "${T5:-}"' EXIT
 ok=0; n=0; chk(){ n=$((n+1)); if eval "$2" >/dev/null 2>&1; then ok=$((ok+1)); echo "✅ $1"; else echo "❌ $1"; fi; }
 # Источник — копия репо с веткой на текущем коммите: так тест работает и в detached HEAD (CI, проверка Качества),

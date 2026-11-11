@@ -11,7 +11,11 @@ run() { n=$((n+1)); local out td; td="$(mktemp -d "$RUN_TMP/t.XXXXXX")"; out=$(T
     if [ -n "$CI" ]; then printf '❌ %-55s %s (skipped in CI)\n' "$*" "$last"; bad+=("$*"); else printf '⚠️  %-55s %s\n' "$*" "$last"; fi; return; fi
   if [ $rc -eq 0 ] && ! printf '%s' "$last" | grep -Eq '❌|FAIL|итог ([0-9]+)/([0-9]+)' || printf '%s' "$last" | grep -Eq 'итог ([0-9]+)/\1$|итого: ([0-9]+) из \2$'; then
     printf '✅ %-55s %s\n' "$*" "$last"
-  else printf '❌ %-55s %s\n' "$*" "$last"; bad+=("$*"); fi; }
+  else printf '❌ %-55s %s\n' "$*" "$last"; bad+=("$*")
+    # what exactly failed, right here: a red run on a machine nobody can log into (CI, macOS) must name the place by itself
+    local why; why=$(printf '%s\n' "$out" | grep -E '❌|FAIL|Traceback|Error' | head -20)
+    [ -n "$why" ] || why=$(printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | tail -15)
+    printf '%s\n' "$why" | cut -c1-400 | sed 's/^/      /'; fi; }
 # docker/ is the Linux container image (GNU stat and sha256sum, setpriv, /proc, a fork right after the network stack): its tests
 # are Linux-only and run in the Linux job and in the image build. On macOS they are listed as skipped, not run and not hidden.
 LINUX_ONLY='^docker/'
