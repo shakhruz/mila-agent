@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 # release.sh X.Y.Z [--no-tag] — выпуск версии ядра. НИЧЕГО не пушит: в конце печатает команду пуша.
-#   1. дерево чистое, версия новее последней; в CHANGELOG.md есть раздел "## vX.Y.Z" с блоком «Для хозяина»/«For the owner»
+#   1. дерево чистое, ветка — main, версия новее последней; в CHANGELOG.md есть раздел "## vX.Y.Z" с блоком «Для хозяина»/«For the owner»
 #   2. тесты mila-update, frontmatter, comments — зелёные
 #   3. release.json: version, tag, date → коммит «release vX.Y.Z»
 #   4. тег vX.Y.Z: подписанный (git tag -s), если задан user.signingkey; иначе аннотированный БЕЗ подписи (печатается отметка)
 #   5. dist/vX.Y.Z/: get.sh с вшитыми тегом и SHA его коммита (сдвинутый тег get.sh не поставит) и SHA256SUMS к нему —
-#      файлы выпуска; SHA коммита — и в заметках выпуска
+#      те же байты, что соберёт workflow release (один сборщик: tools/release_files.py); на GitHub выпуск с файлами
+#      создаёт workflow после пуша тега — руками gh release create больше не нужен
 # Канал canary = main; канал stable = теги vX.Y.Z (без -rc). Отзыв релиза: добавить тег в yanked.json на main.
 set -eu
 cd "$(cd "$(dirname "$0")/.." && pwd)"
 V="${1:-}"; NOTAG="${2:-}"
 [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "usage: tools/release.sh X.Y.Z [--no-tag]" >&2; exit 2; }
 [ -z "$(git status --porcelain)" ] || { echo "дерево не чистое: закоммитьте или уберите правки" >&2; exit 1; }
+[ "$(git rev-parse --abbrev-ref HEAD)" = main ] || { echo "выпуск режется только с ветки main (сейчас: $(git rev-parse --abbrev-ref HEAD)); тег на коммите вне main не станет выпуском" >&2; exit 1; }
 git rev-parse "v$V" >/dev/null 2>&1 && { echo "тег v$V уже есть" >&2; exit 1; }
 last="$(git tag -l 'v[0-9]*' | grep -Ev -- '-' | sort -V | tail -1 || true)"
 if [ -n "$last" ] && [ "$(printf '%s\nv%s\n' "$last" "$V" | sort -V | tail -1)" != "v$V" ]; then echo "v$V не новее $last" >&2; exit 1; fi
@@ -41,16 +43,9 @@ else
   git tag -a "v$V" -m "Mila v$V"; echo "ВНИМАНИЕ: тег v$V БЕЗ подписи (нет user.signingkey; gpg --gen-key + git config user.signingkey <id>)"
 fi
 SHA="$(git rev-parse "v$V^{commit}")"; D="dist/v$V"; mkdir -p "$D"
-python3 - "v$V" "$SHA" "$D" <<'PY'
-import hashlib, os, sys
-tag, sha, d = sys.argv[1:]; s = open("install/get.sh", encoding="utf-8").read()
-assert s.count('\nPIN_REF=""\n') == 1 and s.count('\nPIN_SHA=""\n') == 1, "в install/get.sh нет пустых PIN_REF/PIN_SHA"
-s = s.replace('\nPIN_REF=""\n', '\nPIN_REF="%s"\n' % tag).replace('\nPIN_SHA=""\n', '\nPIN_SHA="%s"\n' % sha)
-open(os.path.join(d, "get.sh"), "w", encoding="utf-8").write(s)
-h = hashlib.sha256(s.encode("utf-8")).hexdigest()
-open(os.path.join(d, "SHA256SUMS"), "w").write(h + "  get.sh\n")   # имя как у файла выпуска: sha256sum -c --ignore-missing
-PY
+python3 tools/release_files.py "v$V" "$SHA" "$D" >/dev/null
 echo "Файлы выпуска: $D/get.sh (тег v$V, коммит $SHA) и $D/SHA256SUMS"
 echo "Пуш не выполнен. Когда готовы:  git push origin <ветка> && git push origin v$V"
-echo "Затем выпуск с файлами (README ставит с releases/latest/download):  gh release create v$V --title \"Mila v$V\" --notes \"CHANGELOG.md — v$V. Tag v$V = commit $SHA\" $D/get.sh $D/SHA256SUMS"
+echo "Выпуск с файлами на GitHub соберёт workflow release — после пуша тега и зелёных тестов на этом коммите (сначала ветка, потом тег). Проверка:  gh release view v$V"
+echo "Локальная проверка тега до пуша:  python3 tools/release_gate.py v$V --main main"
 echo "И проверка, что команда установки из README жива:  python3 tools/check_install_link.py"

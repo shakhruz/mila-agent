@@ -1,0 +1,61 @@
+name: release
+# A release with files is made here, from a pushed tag vX.Y.Z, and only after the gate (tools/release_gate.py): the tag is
+# annotated, its commit is on main, release.json and CHANGELOG say this version, the tag is not withdrawn, and the «tests»
+# workflow has a green run for exactly this commit. Nothing from the tagged tree is executed: the gate and the builder are
+# taken from main, and the only thing built is install/get.sh with the tag and the commit id written in, plus its checksum.
+# A pre-release tag (vX.Y.Z-rcN) does not start this workflow.
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+permissions: {}   # nothing by default; each job names what it needs
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions: { contents: read, actions: read }   # read the repository and the list of test runs — nothing can be written here
+    outputs:
+      sha: ${{ steps.gate.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: main, fetch-depth: 0, persist-credentials: false }   # the gate's own code comes from main, with all tags and history
+      - id: gate
+        name: the tag is on main, says its own version, and its commit passed the tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 tools/release_gate.py "$TAG" --main origin/main --tests "$GITHUB_REPOSITORY" --wait 45
+          echo "sha=$(git rev-parse "refs/tags/$TAG^{commit}")" >> "$GITHUB_OUTPUT"
+  release:
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions: { contents: write }   # create the release and attach two files; the only job that can write
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: main, fetch-depth: 0, persist-credentials: false }
+      - name: the files of the release — get.sh pinned to the tag and its commit, and SHA256SUMS
+        env:
+          TAG: ${{ github.ref_name }}
+          SHA: ${{ needs.gate.outputs.sha }}
+        run: |
+          test "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$SHA"
+          git show "$SHA:install/get.sh" > "$RUNNER_TEMP/get.src"
+          python3 tools/release_files.py "$TAG" "$SHA" out --src "$RUNNER_TEMP/get.src"
+          (cd out && sha256sum -c SHA256SUMS)
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          SHA: ${{ needs.gate.outputs.sha }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "a release for $TAG already exists — nothing is changed or replaced"; gh release view "$TAG" --json assets --jq '.assets[].name'; exit 0
+          fi
+          gh release create "$TAG" --verify-tag --latest --title "Mila $TAG" --notes "CHANGELOG.md — $TAG. Tag $TAG = commit $SHA" out/get.sh out/SHA256SUMS
+      - name: the install command in the READMEs answers
+        run: python3 tools/check_install_link.py

@@ -8,6 +8,8 @@ Audit 21.10.2026: the core reached none of the running Milas — `mila-update` h
 - A release = a tag `vX.Y.Z` on `main`, `release.json` → same version and tag, CHANGELOG section `## vX.Y.Z`.
 - Before the tag: Quality accepts the bundle (history grep: secrets, our hosts, client and people names = 0; `tests/run_all.sh` ALL GREEN in a clean HOME; CI green).
 - Pre-releases: `vX.Y.Z-rcN` — never picked up by Milas or by `get.sh`.
+- The GitHub release with files is made by the workflow `release` (`.github/workflows/release.yml`) when the tag is pushed, and only through the gate `tools/release_gate.py`: the tag is annotated; its commit is on `main`; `release.json` and the CHANGELOG say this version; the tag is not in `yanked.json`; the workflow `tests` has a green run for exactly this commit (the gate waits up to 45 minutes for a run in progress); if `main` has `.github/allowed_signers`, the tag carries a valid signature of one of them. The gate and the file builder are taken from `main`, not from the tagged tree. Push order: the branch first, then the tag.
+- What the gate does not do: it guards against a mistake (a tag on the wrong or untested commit), not against a person who may push tags and workflows — that is what a tag rule in the repository settings is for («only maintainers create `v*` tags»).
 
 ## 2. Test stand
 - The stand Mila (test20) takes the tag first: `update.py apply --tag vX.Y.Z --yes "<who, when>"`, then `update.py health`.
@@ -36,7 +38,8 @@ Audit 21.10.2026: the core reached none of the running Milas — `mila-update` h
 ## Checks that exist today
 | Step | Check |
 |---|---|
-| the README install command works (releases/…/download links answer 200) — after `gh release create`, and before pushing a README that points at a release | `python3 tools/check_install_link.py` |
+| a tag may become a release: annotated, on `main`, version and CHANGELOG agree, not withdrawn, tests green for its commit | `python3 tools/release_gate.py vX.Y.Z` (`tools/test_release_gate.py`) |
+| the README install command works (releases/…/download links answer 200) — the last step of the `release` workflow, and before pushing a README that points at a release | `python3 tools/check_install_link.py` |
 | install on a clean home, rollback | `skills/mila-update/test_clean_home.sh` |
 | apply, diff, never-touch, journal | `skills/mila-update/test_update.sh` |
 | nightly | `skills/mila-update/test_nightly.sh` |
