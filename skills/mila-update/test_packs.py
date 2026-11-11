@@ -38,9 +38,13 @@ def U(*args):
     try: d = json.loads(r.stdout or r.stderr or "{}")
     except ValueError: d = {"raw": (r.stdout + r.stderr)[:300]}
     return r.returncode, d
-def iso(dt=0): return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(time.time() + dt))
+# update.py runs as a child and judges how fresh a card or a message is by ITS clock: the test stamps them by the machine's clock
+# as a child sees it, so the result does not depend on the clock of the test's own process
+SKEW = float(subprocess.run([sys.executable, "-I", "-c", "import time; print(time.time())"], capture_output=True, text=True, timeout=30).stdout) - time.time()
+def mnow(): return time.time() + SKEW
+def iso(dt=0): return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(mnow() + dt))
 def event(msg, chat, user, fid, chat_type="private"):
-    open(EV, "a").write(json.dumps({"ts": int(time.time() * 1000), "method": "notifications/claude/channel", "params": {"content": "поставь",
+    open(EV, "a").write(json.dumps({"ts": int(mnow() * 1000), "method": "notifications/claude/channel", "params": {"content": "поставь",
         "meta": {"chat_id": chat, "chat_type": chat_type, "message_id": msg, "user_id": user, "attachment_kind": "document", "attachment_file_id": fid}}}) + "\n")
 CID = [0]
 def card(text, chat=OWNER, age=0, tap_by=None, data="pack:yes", write_data=False):
@@ -83,7 +87,7 @@ SK = lambda s: os.path.join(CL, "skills", s)
 # ── паки ядра ──
 rc, d = U("packs"); check("список паков ядра — бизнес-помощник по названию", any(p["id"] == "business-assistant" and p["title"] == "Бизнес-помощник" for p in d.get("packs", [])), d)
 rc, plan = U("pack-plan", "бизнес-помощник")
-check("план по русскому названию: версия, кнопки, метка пака в тексте", plan.get("pack") == "business-assistant" and plan.get("mark") == "#pack-business-assistant-0.1.0"
+check("план по русскому названию: версия, кнопки, метка пака в тексте", plan.get("pack") == "business-assistant" and plan.get("mark") == "#pack-business-assistant-0.1.1"
       and plan["mark"] in plan.get("text", "") and len(plan.get("buttons", [[]])[0]) == 2, plan)
 check("план ничего не пишет в дом", not os.path.exists(os.path.join(WORK, "PACKS.md")) and not os.path.exists(os.path.join(WORK, "packs")))
 rc, d = U("install-pack", "business-assistant", "--from", "хозяин в личке", "--yes", "хозяин сказал да")
@@ -141,6 +145,13 @@ check("обновление: навык прежней версии снят, н
 U("rollback")
 check("откат: вернулась 0.1.0 — прежний навык на месте, нового нет", os.path.isfile(SK("demo-skill/SKILL.md")) and not os.path.exists(SK("demo-two")))
 check("после отката пак числится в версии 0.1.0", U("pack-plan", "--msg", m2)[1].get("was") == "0.1.0")
+# a skill the pack once brought has become a core skill (the day board moved into the core): the pack's update must not take it away
+VJ = os.path.join(CL, "mila-update", "version.json"); json.dump({"tag": "v9.9.9", "files": {SK("demo-skill"): "core"}}, open(VJ, "w"))
+p2b = U("pack-plan", "--msg", m2)[1]; c = card("Демо\n" + p2b["mark"], tap_by=OWNER); rc, d = U("install-pack", "--msg", m2, "--card", c)
+check("обновление пака: навык прежней версии, ставший навыком ядра, остаётся; новый навык пака стоит", rc == 0 and os.path.isfile(SK("demo-skill/SKILL.md")) and os.path.isfile(SK("demo-two/SKILL.md")), d)
+U("rollback"); os.remove(VJ)
+check("(возврат к прежнему состоянию для следующих проверок)", os.path.isfile(SK("demo-skill/SKILL.md")) and not os.path.exists(SK("demo-two")) and U("pack-plan", "--msg", m2)[1].get("was") == "0.1.0",
+      (os.path.isfile(SK("demo-skill/SKILL.md")), os.path.exists(SK("demo-two")), U("pack-plan", "--msg", m2)[1].get("was")))
 for extra, kind, name in (("nojson", "zip", "без pack.json"), ("dotdot", "zip", "путь с .."), ("link", "tgz", "ссылка"), ("secret", "zip", "файл-секрет (.env)")):
     rc, d = U("pack-plan", "--msg", send(archive("0.3.0", "demo-skill", extra, kind)))
     check("архив: %s — отказ" % name, rc != 0 and not os.path.exists(os.path.join(T, "evil.txt")) and not os.path.exists(os.path.join(HOME, "evil.txt")), d)
@@ -169,7 +180,7 @@ rc, d = U("pack-plan", "--msg", send(zb2.getvalue())); check("manifest.json бе
 # Mila Agent: the session runs with TELEGRAM_STATE_DIR = its empty bridge dir; MILA_TG_STATE points at the receiver's journals
 EMPTY = os.path.join(T, "bridge"); os.makedirs(EMPTY)
 ENV2 = dict(ENV, TELEGRAM_STATE_DIR=EMPTY, MILA_TG_STATE=TG)
-c = card("Пак «Бизнес-помощник»\n#pack-business-assistant-0.1.0", tap_by=OWNER)
+c = card("Пак «Бизнес-помощник»\n#pack-business-assistant-0.1.1", tap_by=OWNER)
 r = subprocess.run([sys.executable, os.path.join(HERE, "update.py"), "install-pack", "business-assistant", "--card", c], env=ENV2, capture_output=True, text=True, stdin=subprocess.DEVNULL)
 check("в контейнере (TELEGRAM_STATE_DIR — пустой мост сессии) нажатие ищется в журналах приёмника по MILA_TG_STATE", r.returncode == 0, (r.stdout + r.stderr)[-300:])
 # the receiver's taps.jsonl (newer plugin): a press counts only as Telegram delivered it — the session's registry cannot fake one
@@ -178,7 +189,7 @@ def tap(cid, text, by=OWNER, data="pack:yes", chat=OWNER):
     open(TAPS, "a").write(json.dumps({"card_id": cid, "used_ts": iso(), "used_by": by, "data": data, "chat_id": chat, "card_text": text}) + "\n")
 U("remove-pack", "business-assistant", "--card", card(U("remove-pack", "business-assistant")[1].get("text", "x"), tap_by=OWNER)) if os.path.isdir(os.path.join(WORK, "packs", "business-assistant")) else None
 open(TAPS, "w").write("")
-MK = "#pack-business-assistant-0.1.0"
+MK = "#pack-business-assistant-0.1.1"
 c = card("Пак\n" + MK, tap_by=OWNER, write_data=True)                              # an old-style «used» line in cards.jsonl
 rc, d = U("install-pack", "business-assistant", "--card", c); check("taps.jsonl есть: строка «нажато» в реестре сессии не считается", rc != 0 and "не нажал" in d.get("error", ""), d)
 c = card("Пак\n" + MK); tap(c, "Пак «Другое»\n#pack-other-1")                      # registry says this pack, Telegram showed another
@@ -204,5 +215,18 @@ acc = json.load(open(os.path.join(TG, "access.json"))); acc["owners"] = [OWNER, 
 check("в контейнере: владельцы — только из io/owners.json (чужой, дописанный сессией в access.json, — не владелец)", UP.owner_ids() == {OWNER})
 os.rename(os.path.join(JD, "owners.json"), os.path.join(JD, "o.real")); os.symlink(os.path.join(JD, "o.real"), os.path.join(JD, "owners.json"))
 check("в контейнере: owners.json-ссылка — отказ", "подменён" in (refused(UP.owner_ids) or ""))
+# two steps within one second: each keeps its own backup (the second used to overwrite the first, and a rollback then found nothing to undo)
+import importlib.util
+_keep = {k: os.environ.get(k) for k in ("HOME", "CLAUDE_CONFIG_DIR", "MILA_WORK")}; os.environ.update(HOME=HOME, CLAUDE_CONFIG_DIR=CL, MILA_WORK=WORK)
+_s = importlib.util.spec_from_file_location("upd_for_test", os.path.join(HERE, "update.py")); _u = importlib.util.module_from_spec(_s); _s.loader.exec_module(_u)
+_real = _u.time.strftime; _u.time.strftime = lambda f, *a: "20260504-090000" if f == "%Y%m%d-%H%M%S" else _real(f, *a)
+_f = os.path.join(T, "one.txt"); open(_f, "w").write("первое"); b1 = _u.backup([_f], "pack-demo"); open(_f, "w").write("второе"); b2 = _u.backup([_f], "pack-demo"); b3 = _u.backup([_f], "pack-demo")
+_u.time.strftime = _real
+import tarfile as _tar
+_read = lambda b: _tar.open(b).extractfile(_tar.open(b).getmembers()[0]).read().decode()
+check("два шага в одну секунду — у каждого своя копия: первая не затёрта второй", len({b1, b2, b3}) == 3 and all(os.path.isfile(x) for x in (b1, b2, b3)) and _read(b1) == "первое" and _read(b2) == "второе", (b1, b2, b3))
+for k, v in _keep.items():
+    if v is None: os.environ.pop(k, None)
+    else: os.environ[k] = v
 srv.shutdown(); shutil.rmtree(T, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

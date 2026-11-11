@@ -411,7 +411,10 @@ def cmd_diff(a):
 
 def backup(paths, tag):
     os.makedirs(BACKUPS, exist_ok=True)
-    b = os.path.join(BACKUPS, time.strftime("%Y%m%d-%H%M%S") + "-" + re.sub(r"\W", "_", tag or "x") + ".tgz")
+    base = os.path.join(BACKUPS, time.strftime("%Y%m%d-%H%M%S") + "-" + re.sub(r"\W", "_", tag or "x"))
+    b, k = base + ".tgz", 1
+    while os.path.exists(b):      # two steps within one second: the second must not overwrite the first one's backup —
+        k += 1; b = "%s-%d.tgz" % (base, k)      # a rollback finds its step by this name
     with tarfile.open(b, "w:gz") as t:
         for p in paths:
             if os.path.exists(p): t.add(p, arcname=p.lstrip("/"))
@@ -1866,8 +1869,10 @@ def cmd_install_pack(a):
     prev = f["prev"]; sk = os.path.join(CLAUDE, "skills")
     pdir = os.path.join(WORK, "packs", pid)
     dsts = [os.path.join(sk, n) for n, _ in skills]
+    core = load_version().get("files", {})
     gone = [os.path.join(sk, n) for n in prev.get("skills", []) if PACK_ID.match(n) and os.path.join(sk, n) not in dsts
-            and os.path.join(sk, n) in prev.get("added", [])]   # обновление: навыки прежней версии, которых в новой нет
+            and os.path.join(sk, n) in prev.get("added", [])   # обновление: навыки прежней версии, которых в новой нет
+            and os.path.join(sk, n) not in core]                # …кроме тех, что с тех пор стали навыками ядра: их несёт ядро, пак их не снимает
     b = backup(dsts + gone + [pdir, PACKS_FILE], "pack-" + pid)
     added = [x for x in dsts if not os.path.exists(x) or x in prev.get("added", [])]
     for x in gone: shutil.rmtree(x, ignore_errors=True)

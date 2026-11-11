@@ -1,6 +1,6 @@
 {
  "id": "business-assistant",
- "version": "0.1.0",
+ "version": "0.1.1",
  "title": {
   "ru": "Бизнес-помощник",
   "en": "Business assistant",
@@ -18,13 +18,13 @@
   "iniciativa",
   "plain-words",
   "cards",
-  "onboarding"
+  "onboarding",
+  "pult-dnya"
  ],
  "skills": [
   "bud-gotova",
   "mila-path",
   "plan-fakt",
-  "pult-dnya",
   "questions",
   "razbor-lichki",
   "zhonglyor"
