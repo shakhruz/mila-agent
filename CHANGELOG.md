@@ -1,10 +1,13 @@
 # CHANGELOG · Mila
 
-## Unreleased — connectors: Mila's senses, the first one is hearing; the words «skill, talent, connector»
+## Unreleased — Mila is born in the browser; a calm install screen; connectors: Mila's senses, the first one is hearing; the words «skill, talent, connector»
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
 **Для хозяина**
+- Рождение в браузере: после установки вы набираете одно слово `mila` — и открывается страница на вашем компьютере. Три шага: бот для Милы, вход в Claude, первое сообщение ей в Telegram. Страница работает один раз и закрывается; дальше мы говорим в Telegram.
+- Бот для Милы — одно поле: вставляете ключ из @BotFather или код рождения, кнопка «Open @BotFather» рядом.
+- Установка стала спокойнее: один экран, зелёные строки, в конце одно действие. Если слово `mila` у вас уже занято другой программой, я скажу об этом и покажу полный путь.
 - Слух: я предлагаю активировать его сразу после знакомства — карточкой «Активировать слух / Позже». Нужен один ключ Deepgram (при регистрации дают пробный кредит); ключ вы вводите по ссылке сейфа, не в чат. После активации — проба: пришлите голосовое, отвечу текстом. Выключить — «выключи слух».
 - Знакомство стало короче: имя, город, что вам важно — по одному вопросу.
 - Сейф: когда я проверяю, что пароль или ключ на месте, в чате от него видны только точки — ни одного знака.
@@ -12,11 +15,17 @@
 </details>
 
 **For the owner**
+- Birth in the browser: after the install you type one word, `mila`, and a page opens on your own computer. Three steps: a bot for Mila, the Claude sign-in, your first message to her in Telegram. The page works once and closes; from then on we talk in Telegram.
+- A bot for Mila is one field: paste a token from @BotFather or a birth code; the «Open @BotFather» button is next to it.
+- A calmer install: one screen, green lines, one action at the end. If the word `mila` already means another program on your machine, I say so and show the full path.
 - Hearing: I offer to activate it right after we get acquainted — a card «Activate hearing / Later». It needs one Deepgram key (a trial credit comes with sign-up); you enter the key by the safe link, not in the chat. After activation — a trial: send a voice message, I answer in text. To switch it off — «turn hearing off».
 - Getting acquainted is shorter: your name, your city, what matters to you — one question at a time.
 - The safe: when I check that a password or a key is in place, the chat shows dots only — not a single character of it.
 
 **For Milas**
+- The birth page (`install/birth.py`, `install/birth-assets/`, `install/birth_relay.py`): a local one-time page on `mila.localhost` behind a one-time path, Host and Origin checked; it saves the bot token, starts the Claude sign-in, pairs the owner by a start link and writes `mila-birth.json`. `mila` with no arguments opens it for a Mila that is not born yet; `mila birth` opens it on request. Tests: `install/test_birth.py`, `install/test_mila_first_run.sh`.
+- The launcher decides «born» from files on the machine, never from the network: a birth record, or a saved bot token with `access.json` and an owner in `settings.json`. A channel folder named by another Mila's `TELEGRAM_STATE_DIR` does not count.
+- `install/install.sh`: a single welcome screen with aligned notes and one final step; a notice when `mila` is shadowed by a function, an alias or another file on PATH (rc files are read, never edited); the home folder is shortened to `~` the same way in every bash.
 - New skill `konnektory` (`scripts/connectors.py list | next | offer | later | steps | check | trial | off | on`) — connectors: talents that give Mila a new sense through an outside service. Built-in connectors lie in the core and are activated, not downloaded; the register of the home is `work/connectors/registry.json` (offered, later, active, off). Which service a connector talks to and how its key is checked is a closed list in the code — a passport (`skills/<id>/connector.json`, data only, four languages) cannot name an address, and a folder with a passport that is not in the list of built-in connectors is not a connector.
 - The first connector — hearing: new skill `sluh` (`connector.json`: passport, offer, three steps, trial, removal). `install/transcribe-voice.sh` respects the off switch (`work/connectors/sluh.off`) and then sends nothing to any speech service.
 - A newborn's first conversation (`templates/work/CLAUDE.md`, `skills/onboarding`): three questions in this order — name, city, what matters — then the hearing card, then one concrete benefit; a voice message that could not be transcribed leads to the hearing card.
