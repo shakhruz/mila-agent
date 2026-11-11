@@ -156,5 +156,7 @@
  "doctor.flag.10": "此用户下可能还有另一个 Mila。请用 `mila` 启动这一个，并查看她自己的窗口",
  "doctor.state.1": "通道文件夹",
  "doctor.state.2": "取自 TELEGRAM_STATE_DIR，位于此家目录之外：%s",
- "doctor.state.3": "以下内容都是关于那个文件夹的，而不是这个家目录。要检查这个家目录，请在不带该变量的情况下运行（env -u TELEGRAM_STATE_DIR mila doctor）"
+ "doctor.state.3": "以下内容都是关于那个文件夹的，而不是这个家目录。要检查这个家目录，请在不带该变量的情况下运行（env -u TELEGRAM_STATE_DIR mila doctor）",
+ "doctor.perms.7": "%s — %o，通过访问列表（ACL）读取：%s",
+ "doctor.perms.8": "日志交给了具名的读取者，列表中没有人可以写入。请确认每个名字都是您的；列表里的陌生人能读到所有收到的消息"
 }

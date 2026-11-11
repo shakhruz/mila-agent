@@ -149,5 +149,7 @@
  "doctor.flag.10": "bu foydalanuvchi ostida boshqa Mila yashashi mumkin. Buni `mila` buyrug‘i bilan ishga tushiring va uning o‘z oynasiga qarang",
  "doctor.state.1": "kanal papkasi",
  "doctor.state.2": "TELEGRAM_STATE_DIR dan olingan va bu uydan tashqarida: %s",
- "doctor.state.3": "quyidagilarning hammasi o‘sha papka haqida, bu uy haqida emas. Bu uy uchun doktorni shu o‘zgaruvchisiz ishga tushiring (env -u TELEGRAM_STATE_DIR mila doctor)"
+ "doctor.state.3": "quyidagilarning hammasi o‘sha papka haqida, bu uy haqida emas. Bu uy uchun doktorni shu o‘zgaruvchisiz ishga tushiring (env -u TELEGRAM_STATE_DIR mila doctor)",
+ "doctor.perms.7": "%s — %o, kirish ro‘yxati (ACL) bo‘yicha o‘qiladi: %s",
+ "doctor.perms.8": "jurnal nomi ko‘rsatilgan o‘quvchilarga berilgan, ro‘yxatdagi hech kim yoza olmaydi. Har bir nom sizniki ekaniga ishonch hosil qiling; ro‘yxatdagi begona barcha kiruvchi xabarlarni o‘qiydi"
 }
