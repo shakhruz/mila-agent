@@ -7,7 +7,17 @@ home = tempfile.mkdtemp(); os.makedirs(os.path.join(home, ".claude/channels/tele
 json.dump({"groups": {"-1001": {}}, "allowFrom": ["555"]}, open(os.path.join(home, ".claude/channels/telegram/access.json"), "w"))
 env = dict(os.environ, HOME=home, OWNER_ID="111", MILA_DEV_CHAT="-1009")
 ok = n = 0
+NM_TAIL = "\nМой ход: ничего не запущено — жду вашего решения.\nВаш ход: советую посмотреть черновик."
+NM_BTN = [[{"label": "Показать черновик", "choice": "show", "style": "success"}, {"label": "Не сейчас", "choice": "later"}]]
+def well_formed(inp):
+    """every answer ends with «Мой ход / Ваш ход» (its own test — test_next_move.py); here each case checks its own rule."""
+    if isinstance(inp, dict) and str(inp.get("tool_name", "")).endswith("__reply") and isinstance(inp.get("tool_input"), dict):
+        ti = dict(inp["tool_input"])
+        if isinstance(ti.get("text"), str) and "Мой ход:" not in ti["text"]: ti["text"] += NM_TAIL; ti.setdefault("buttons", NM_BTN)
+        return dict(inp, tool_input=ti)
+    return inp
 def run(inp):
+    inp = well_formed(inp)
     r = subprocess.run([sys.executable, G], input=json.dumps(inp) if not isinstance(inp, str) else inp, capture_output=True, text=True, env=env, timeout=20)
     dec = ""
     if r.stdout.strip():
@@ -126,7 +136,7 @@ chk("карта в группу (с пробелами) — стоп", {"tool_na
 chk("карта в группу (с дефисами, 19 цифр) — стоп", {"tool_name": R, "tool_input": {"chat_id": "-1001", "text": "карта " + "-".join(P19[i:i + 4] for i in range(0, 19, 4))}}, "deny")
 n += 1; code, dec, out = run({"tool_name": R, "tool_input": {"chat_id": "111", "text": "Оплата с карты " + PD + " прошла", "reply_to": 7}})
 ti = (json.loads(out)["hookSpecificOutput"].get("updatedInput") or {}) if out.strip() else {}
-good = dec == "allow" and ti.get("text") == "Оплата с карты ****" + P[-4:] + " прошла" and ti.get("reply_to") == 7 and P not in out
+good = dec == "allow" and ti.get("text") == "Оплата с карты ****" + P[-4:] + " прошла" + NM_TAIL and ti.get("reply_to") == 7 and P not in out
 ok += good; print(("✅ " if good else "❌ ") + "карта хозяину — уходит с маской ****1234, остальные поля целы" + ("" if good else "  " + out[:200]))
 bad = P[:-1] + str((int(P[-1]) + 1) % 10)
 chk("16 цифр без Луны (номер заказа) — уходит как есть", {"tool_name": R, "tool_input": {"chat_id": "-1001", "text": "заказ " + bad}}, "pass")
@@ -137,13 +147,13 @@ json.dump({"groups": {"-1001": {}}, "allowFrom": ["555"], "cardAllow": [OUR]}, o
 chk("CARD-ALLOW: наши реквизиты (access.json cardAllow) в группу — уходят", {"tool_name": R, "tool_input": {"chat_id": "-1001", "text": "Перевод на карту " + " ".join(OUR[i:i + 4] for i in range(0, 16, 4))}}, "pass")
 chk("CARD-ALLOW: чужая карта при заданном cardAllow — всё равно стоп", {"tool_name": R, "tool_input": {"chat_id": "-1001", "text": "карта " + P}}, "deny")
 n += 1; code, dec, out = run({"tool_name": R, "tool_input": {"chat_id": "111", "text": "Карта " + PS + " 100 USD"}})
-good = dec == "allow" and (json.loads(out)["hookSpecificOutput"]["updatedInput"]["text"] == "Карта ****" + P[-4:] + " 100 USD")
+good = dec == "allow" and (json.loads(out)["hookSpecificOutput"]["updatedInput"]["text"] == "Карта ****" + P[-4:] + " 100 USD" + NM_TAIL)
 ok += good; print(("✅ " if good else "❌ ") + "сумма сразу после номера («… 100 USD») — номер всё равно маской" + ("" if good else "  " + out[:200]))
 # подпись к фото (caption) проверяется так же, как текст; маска — в своём поле, текст не смешивается
 chk("ключ провайдера в caption — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "Готово", "caption": "ключ " + "sk-" + "abcdefghijklmnopqrstuv"}}, "deny")
 chk("серверный путь в caption — стоп", {"tool_name": R, "tool_input": {"chat_id": "111", "text": "Альбом", "caption": "файлы в " + "/srv/" + "mila/x"}}, "deny")
 n += 1; code, dec, out = run({"tool_name": R, "tool_input": {"chat_id": "111", "text": "Альбом", "caption": "Карта " + PS + " к оплате", "files": ["/tmp/a.png", "/tmp/b.png"]}})
 u = json.loads(out)["hookSpecificOutput"].get("updatedInput", {}) if dec == "allow" else {}
-good = dec == "allow" and u.get("text") == "Альбом" and u.get("caption") == "Карта ****" + P[-4:] + " к оплате" and u.get("files") == ["/tmp/a.png", "/tmp/b.png"]
+good = dec == "allow" and u.get("text") == "Альбом" + NM_TAIL and u.get("caption") == "Карта ****" + P[-4:] + " к оплате" and u.get("files") == ["/tmp/a.png", "/tmp/b.png"]
 ok += good; print(("✅ " if good else "❌ ") + "карта в caption хозяину — маска в caption, текст и файлы как были")
 print(f"итог {ok}/{n}"); sys.exit(0 if ok == n else 1)

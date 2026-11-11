@@ -254,6 +254,110 @@ try:
 except Exception:
     pass  # this optional lock must not break sending (its inputs are optional files)
 
+# ── «Следующий ход»: every answer of Mila ends with two lines — «Мой ход» and «Ваш ход» ──────────────────────────────────────
+# The form of an answer is not security: if this check itself breaks, the message GOES OUT, and the failure is written down
+# (a line in work/state/next-move-fail.jsonl and, if the skill is there, a problem in the problem journal).
+NM_MARK = (("Мой ход:", "Ваш ход:"), ("My move:", "Your move:"), ("Mening yurishim:", "Sizning yurishingiz:"))
+NM_CONT = re.compile(r"^\(?(продолжение следует|continued|davomi bor)\)?\.?$", re.I)
+NM_FORMS = ((1, r"делаю сейчас|doing now|hozir qilyapman"), (2, r"стоит в Планировщике|in the Scheduler|Rejalashtiruvchida"),
+            (3, r"ничего не запущено|nothing is running|hech narsa ishga tushmagan"))
+# a promise with a time, in the first person and in the future: «пришлю завтра», «напомню в 18:00», «вернусь через час»
+NM_PROMISE = re.compile(r"(?i)(?<![а-яёa-z])(?:пришлю|напомню|вернусь|сделаю|отправлю|подготовлю|напишу|покажу|i(?:'ll| will) (?:send|remind|be back|do))(?![а-яё])"
+                        r"[^.\n!?]{0,60}?(?:завтра|послезавтра|сегодня в|вечером|утром|в \d{1,2}[:.]\d{2}|через \d+ ?(?:минут|час|дн|недел)|tomorrow|at \d{1,2}[:.]\d{2}|in \d+ ?(?:min|hour|day))")
+NM_EMPTY_BTN = re.compile(r"(?i)^\W*(?:принято|понятно|понял[аи]?|ок|ok|хорошо|спасибо|подробнее|ясно|got it|thanks|more|details)\W*$")
+NM_IDLE = re.compile(r"(?i)ничего не нужно|иду дальше|продолжаю(?![а-яё])|nothing (?:is )?needed|moving on")
+NM_DAYS = ("понедельник", "вторник", "сред", "четверг", "пятниц", "суббот", "воскресен")
+
+
+def _nm_job(name, work):
+    """the job with this name in the schedule → its next time (aware), or a reason why the promise does not stand."""
+    import datetime as _d
+    try: jobs = json.load(open(os.path.join(work, "schedule", "jobs.json"), encoding="utf-8")).get("jobs") or []
+    except (OSError, ValueError, AttributeError): return None, "расписание не читается"
+    job = next((j for j in jobs if isinstance(j, dict) and str(j.get("id")) == name), None)
+    if not job: return None, "задачи «%s» в расписании нет" % name[:40]
+    if job.get("enabled") is False: return None, "задача «%s» выключена" % name[:40]
+    tz = _d.datetime.now().astimezone().tzinfo
+    try:
+        import zoneinfo
+        m = re.search(r"Часовой пояс\s*[—-]\s*([A-Za-z_]+/[A-Za-z_]+)", open(os.path.join(work, "USER.md"), encoding="utf-8").read())
+        if m: tz = zoneinfo.ZoneInfo(m.group(1))
+    except Exception: pass
+    v = os.environ.get("MILA_CRON_NOW")
+    now = _d.datetime.fromisoformat(v).astimezone(tz) if v else _d.datetime.now(tz)
+    if job.get("expires") and str(job["expires"])[:10] < now.date().isoformat(): return None, "задача «%s» истекла" % name[:40]
+    for base in (os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"), "skills", "raspisanie"),
+                 os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", "skills", "raspisanie")):
+        if os.path.isfile(os.path.join(base, "cronspec.py")) and base not in sys.path: sys.path.insert(0, base)
+    import cronspec
+    nxt = cronspec.parse(str(job.get("cron") or "")).next_after(now)
+    if nxt is None: return None, "у задачи «%s» нет следующего срока" % name[:40]
+    return (nxt, now), None
+
+
+def next_move(body, a, work):
+    """reasons why this answer does not end with a proper «Мой ход / Ваш ход» — an empty list when it does."""
+    lines = [re.sub(r"\\(.)", r"\1", l).strip(" \t*_•·") for l in body.split("\n")]
+    lines = [l for l in lines if l]
+    if not lines: return []
+    if NM_CONT.match(lines[-1]): return []          # a part of a long answer: the two lines come in the last part
+    mark = next((mk for mk in NM_MARK if len(lines) >= 2 and lines[-2].startswith(mk[0]) and lines[-1].startswith(mk[1])), None)
+    if not mark:
+        return ["ответ кончается двумя строками — «Мой ход: …» и «Ваш ход: …» (что делаю я и что советую вам); если это часть длинного ответа — последней строкой «(продолжение следует)»"]
+    mine, yours, head = lines[-2][len(mark[0]):].strip(), lines[-1][len(mark[1]):].strip(), "\n".join(lines[:-2])
+    out = []
+    if len(mine) > 200 or len(yours) > 200: out.append("«Мой ход» и «Ваш ход» — по одной строке до 200 знаков")
+    form = next((k for k, rx in NM_FORMS if re.match(r"(?i)\W*(?:%s)" % rx, mine)), None)
+    if form is None:
+        out.append("«Мой ход» — одна из трёх форм: «делаю сейчас — …», «стоит в Планировщике — «имя задачи», придёт …» или «ничего не запущено — …»")
+    if form == 2:
+        m = re.search(r"[«\"“]([^»\"”]{1,60})[»\"”]", mine)
+        if not m: out.append("«стоит в Планировщике» — с именем задачи в кавычках: по нему сверяю расписание")
+        else:
+            got, err = _nm_job(m.group(1).strip(), work)
+            if err: out.append("обещанное «само придёт» не стоит в расписании (%s) — сначала поставьте задачу (mila_cron.py add)" % err)
+            else:
+                nxt, now = got; low = mine.lower()
+                hm = re.findall(r"\b(\d{1,2})[:.](\d{2})\b", mine)
+                if not hm: out.append("«стоит в Планировщике» — со временем из расписания: ближайший срок %s" % nxt.strftime("%d.%m %H:%M"))
+                elif not any((int(h), int(mi)) == (nxt.hour, nxt.minute) for h, mi in hm):
+                    out.append("время в «Моём ходе» не совпадает с расписанием: ближайший срок задачи — %s" % nxt.strftime("%d.%m %H:%M"))
+                day = next((i for i, w in enumerate(NM_DAYS) if w in low), None)
+                if day is not None and day != nxt.weekday(): out.append("день недели в «Моём ходе» не совпадает с расписанием: ближайший срок — %s" % nxt.strftime("%d.%m %H:%M"))
+                if "завтра" in low and (nxt.date() - now.date()).days != 1: out.append("«завтра» не совпадает с расписанием: ближайший срок — %s" % nxt.strftime("%d.%m %H:%M"))
+                if "сегодня" in low and nxt.date() != now.date(): out.append("«сегодня» не совпадает с расписанием: ближайший срок — %s" % nxt.strftime("%d.%m %H:%M"))
+    if form != 2 and NM_PROMISE.search(head + "\n" + mine):
+        out.append("в ответе обещание со временем, а в «Моём ходе» нет задачи Планировщика — поставьте задачу и назовите её, или уберите обещание")
+    if NM_IDLE.search(yours) or (form == 3 and NM_IDLE.search(mine)):
+        out.append("«ничего не нужно, иду дальше» при пустом ходе хозяину непонятно — в «Вашем ходе» нужна рекомендация следующего шага")
+    choices = [b for row in (a.get("buttons") or []) if isinstance(row, list) for b in row if isinstance(b, dict) and b.get("choice")]
+    if a.get("multi") is not True:
+        if not 2 <= len(choices) <= 3: out.append("под «Вашим ходом» — 2–3 кнопки-шага (сейчас %d); первая — рекомендуемая" % len(choices))
+        elif choices[0].get("style") != "success": out.append("первая кнопка — рекомендуемый шаг, зелёная (style: success)")
+    if any(NM_EMPTY_BTN.match(str(b.get("label") or "")) for b in choices):
+        out.append("кнопка — шаг, который я сделаю сразу; пустые «Принято», «Подробнее», «Ок» — не кнопки")
+    return out
+
+
+if tool.endswith("__reply"):
+    _nm_work = os.path.expanduser(os.environ.get("MILA_WORK") or "~/work")
+    try:
+        why += next_move(_body, args, _nm_work)
+    except Exception as _nm_e:      # fail open: the answer goes, the failure is written down
+        try:
+            _nm_dir = os.path.join(_nm_work, "state"); os.makedirs(_nm_dir, exist_ok=True)
+            _nm_f = os.path.join(_nm_dir, "next-move-fail.jsonl")
+            with open(_nm_f, "a", encoding="utf-8") as _f:
+                _f.write(json.dumps({"ts": __import__("time").strftime("%Y-%m-%dT%H:%M:%S%z"), "error": type(_nm_e).__name__, "chat_id": chat_id}, ensure_ascii=False) + "\n")
+            _nm_n = sum(1 for _ in open(_nm_f, encoding="utf-8"))
+            _nm_p = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"), "skills", "problemy", "scripts", "problemy.py")
+            if os.path.isfile(_nm_p):
+                import subprocess as _sp
+                _sp.run([sys.executable, _nm_p, "add", "--chto", "проверка «Следующего хода» в стороже отправки сломалась: %s" % type(_nm_e).__name__, "--gde", "инструмент",
+                         "--kto-nashel", "проверка", "--ulika", "journal:state/next-move-fail.jsonl:%d" % _nm_n], capture_output=True, timeout=10, env=dict(os.environ, MILA_WORK=_nm_work))
+        except Exception:
+            pass
+
 if not why:
     if _card_hits:   # private chat / owner: sent, with the card masked
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow",
