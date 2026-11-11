@@ -145,5 +145,16 @@
  "doctor.main.2": "频道诊断 · %s",
  "doctor.main.3": "故障：%d。修复之前频道无法工作。",
  "doctor.main.4": "提示：%d。频道能工作，但还不够好。",
- "doctor.main.5": "🟢 所有环节都正常。"
+ "doctor.main.5": "🟢 所有环节都正常。",
+ "doctor.unborn.1": "Mila",
+ "doctor.unborn.2": "尚未诞生 — 没有机器人令牌，也没有人配对",
+ "doctor.unborn.3": "这是安装后的正常状态。请运行：mila onboard",
+ "doctor.main.6": "⚪ 尚未诞生。下一步：mila onboard — 机器人令牌、登录 Claude、配对，每一步都会检查。",
+ "doctor.turns_timer.13": "同名服务已加载，但它收集的是另一个家目录（%s）",
+ "doctor.turns_timer.14": "同一用户下的两个 Mila 共用服务名，它指向最后安装的家目录。此家目录的表只能手动填写；为每个 Mila 使用单独的电脑用户，各自才有自己的定时器",
+ "doctor.flag.9": "会话或通道进程正在运行，但无法判断属于谁",
+ "doctor.flag.10": "此用户下可能还有另一个 Mila。请用 `mila` 启动这一个，并查看她自己的窗口",
+ "doctor.state.1": "通道文件夹",
+ "doctor.state.2": "取自 TELEGRAM_STATE_DIR，位于此家目录之外：%s",
+ "doctor.state.3": "以下内容都是关于那个文件夹的，而不是这个家目录。要检查这个家目录，请在不带该变量的情况下运行（env -u TELEGRAM_STATE_DIR mila doctor）"
 }

@@ -16,7 +16,10 @@ chk("без pid-файла: свой — по TELEGRAM_STATE_DIR в окруже
 open(os.path.join(ST, "receiver.pid"), "w").write("101\n")
 chk("pid-файл моего дома указывает на 101 — он и мой", D.own_receivers(L) == [L[0]], D.own_receivers(L))
 os.remove(os.path.join(ST, "receiver.pid")); D._proc_env = lambda pid: None
-chk("окружение не прочитать (macOS) — оба считаю своими, как раньше (дальше «две копии»)", D.own_receivers(L) == L)
+chk("окружение не прочитать и pid-файла нет — чужой демон своим НЕ считаю (раньше считала: «демон работает» про соседнюю Милу)", D.own_receivers(L) == [], D.own_receivers(L))
+open(os.path.join(ST, "receiver.pid"), "w").write("202\n")
+chk("окружение не прочитать, но pid-файл моего дома называет 202 — он мой, сосед отброшен", D.own_receivers(L) == [L[1]], D.own_receivers(L))
+os.remove(os.path.join(ST, "receiver.pid"))
 D._proc_env = lambda pid: envs.get(pid); envs["202"] = {}
 chk("у процесса нет TELEGRAM_STATE_DIR — состояние по умолчанию ~/.claude/channels/telegram ≠ моё → не мой", D.own_receivers(L) == [], D.own_receivers(L))
 class R:
@@ -35,4 +38,50 @@ chk("канал в сессии: только MCP соседнего HOME → н
 D.running = lambda pat: list(S) if pat == "server.ts" else []
 r = R(); D.check_flag(r)
 chk("канал в сессии: свой MCP есть → «MCP-сервер плагина запущен»", r.rows and r.rows[0][0] == D.OK, r.rows)
+# чьи процессы — неизвестно (macOS, окружение не читается): не зелёное и не красное, а «определить нельзя»
+D._proc_env = lambda pid: None
+D.running = lambda pat: [S[0]] if pat == "server.ts" else []
+r = R(); D.check_flag(r)
+chk("канал в сессии: процесс есть, чей — не узнать → 🟡 «определить нельзя», не 🟢 и не 🔴", len(r.rows) == 1 and r.rows[0][0] == D.WARN and "определить нельзя" in str(r.rows[0]), r.rows)
+D.running = lambda pat: [("401", "/usr/local/bin/claude --channels x")] if pat == "claude" else []
+r = R(); D.check_flag(r)
+chk("сессия claude есть, чья — не узнать → 🟡, а не 🔴 «сессия запущена, сервер канала — нет»", len(r.rows) == 1 and r.rows[0][0] == D.WARN and "определить нельзя" in str(r.rows[0]), r.rows)
+D._proc_env = lambda pid: {"HOME": me}
+r = R(); D.check_flag(r)
+chk("своя сессия без сервера канала — по-прежнему 🔴", r.rows and r.rows[0][0] == D.BAD, r.rows)
+D._proc_env = lambda pid: {"HOME": "/elsewhere/home"}
+r = R(); D.check_flag(r)
+chk("только чужая сессия — «сессия не найдена» (🟡), чужое не моё", r.rows and r.rows[0][0] == D.WARN and "не найдена" in str(r.rows[0]), r.rows)
+# таймер учёта: служба с этим именем может смотреть в другой дом
+import subprocess as _sp
+CL = os.path.join(T, "claude"); os.environ["CLAUDE_CONFIG_DIR"] = CL; MINE = os.path.join(CL, "hooks", "turns_collect.py")
+class P:
+    def __init__(s, rc, out): s.returncode, s.stdout, s.stderr = rc, out, ""
+def fake(out_by_cmd):
+    def run(cmd, **kw):
+        for key, val in out_by_cmd.items():
+            if key in " ".join(cmd): return P(*val)
+        return P(1, "")
+    return run
+real_run = D.subprocess.run; real_platform = D.sys.platform
+try:
+    D.sys.platform = "darwin"
+    D.subprocess.run = fake({"launchctl list": (0, '{\n\t"Label" = "com.milagpt.turns-collect";\n\t"ProgramArguments" = (\n\t\t"/usr/bin/python3";\n\t\t"%s";\n\t);\n};' % MINE)})
+    chk("Мак: служба загружена и смотрит в МОЙ дом → стоит, моя", D.timer_installed() == (True, "launchd com.milagpt.turns-collect", True), D.timer_installed())
+    D.subprocess.run = fake({"launchctl list": (0, '{\n\t"ProgramArguments" = (\n\t\t"/usr/bin/python3";\n\t\t"/Users/drugaya/.claude/hooks/turns_collect.py";\n\t);\n};')})
+    chk("Мак: служба загружена, но смотрит в ДРУГОЙ дом → не моя", D.timer_installed()[2] is False, D.timer_installed())
+    r = R(); D.check_turns_timer(r)
+    chk("…доктор говорит 🟡 «собирает другой дом», а не 🟢 «установлен»", r.rows and r.rows[0][0] == D.WARN and "другой дом" in str(r.rows[0]) and not any(x[0] == D.OK for x in r.rows), r.rows)
+    D.subprocess.run = fake({"launchctl list": (0, "{ }")})
+    chk("Мак: описание службы без пути — «стоит», чей — неизвестно (как раньше, зелёным)", D.timer_installed() == (True, "launchd com.milagpt.turns-collect", None), D.timer_installed())
+    D.subprocess.run = fake({})
+    chk("Мак: службы нет → не стоит", D.timer_installed()[0] is False, D.timer_installed())
+    D.sys.platform = "linux"
+    D.subprocess.run = fake({"is-enabled": (0, "enabled"), "systemctl --user cat": (0, "[Service]\nExecStart=/usr/bin/python3 /home/drugaya/.claude/hooks/turns_collect.py --days 1 --quiet\n")})
+    chk("Linux: таймер включён, ExecStart смотрит в другой дом → не мой", D.timer_installed()[2] is False, D.timer_installed())
+    D.subprocess.run = fake({"is-enabled": (0, "enabled"), "systemctl --user cat": (0, "[Service]\nExecStart=/usr/bin/python3 %s --days 1 --quiet\n" % MINE)})
+    chk("Linux: ExecStart смотрит в мой дом → мой", D.timer_installed()[2] is True, D.timer_installed())
+finally:
+    D.subprocess.run = real_run; D.sys.platform = real_platform
+import shutil; shutil.rmtree(T, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

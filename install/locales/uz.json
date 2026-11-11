@@ -138,5 +138,16 @@
  "doctor.main.2": "Kanal diagnostikasi · %s",
  "doctor.main.3": "Buzilgan: %d. Bu tuzatilmaguncha kanal ishlamaydi.",
  "doctor.main.4": "Eslatmalar: %d. Kanal ishlayapti, lekin imkonidagidek emas.",
- "doctor.main.5": "🟢 Barcha boʻgʻinlar joyida."
+ "doctor.main.5": "🟢 Barcha boʻgʻinlar joyida.",
+ "doctor.unborn.1": "Mila",
+ "doctor.unborn.2": "hali tug‘ilmagan — bot kaliti yo‘q va hech kim ulanmagan",
+ "doctor.unborn.3": "o‘rnatishdan keyin bu odatiy holat. Ishga tushiring: mila onboard",
+ "doctor.main.6": "⚪ Hali tug‘ilmagan. Keyingi qadam: mila onboard — bot kaliti, Claude’ga kirish va ulanish, har bir qadam tekshiriladi.",
+ "doctor.turns_timer.13": "shu nomdagi xizmat yuklangan, lekin u boshqa uyni yig‘adi (%s)",
+ "doctor.turns_timer.14": "bitta foydalanuvchi ostidagi ikki Milada xizmat nomi umumiy va u oxirgi o‘rnatilgan uyga qaraydi. Bu uy uchun jadval faqat qo‘lda to‘ladi; har bir Mila uchun kompyuterning alohida foydalanuvchisi har biriga o‘z taymerini beradi",
+ "doctor.flag.9": "sessiya yoki kanal jarayoni ishlayapti, lekin kimniki ekanini aniqlab bo‘lmaydi",
+ "doctor.flag.10": "bu foydalanuvchi ostida boshqa Mila yashashi mumkin. Buni `mila` buyrug‘i bilan ishga tushiring va uning o‘z oynasiga qarang",
+ "doctor.state.1": "kanal papkasi",
+ "doctor.state.2": "TELEGRAM_STATE_DIR dan olingan va bu uydan tashqarida: %s",
+ "doctor.state.3": "quyidagilarning hammasi o‘sha papka haqida, bu uy haqida emas. Bu uy uchun doktorni shu o‘zgaruvchisiz ishga tushiring (env -u TELEGRAM_STATE_DIR mila doctor)"
 }

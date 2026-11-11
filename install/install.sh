@@ -388,7 +388,9 @@ POLICY="$STATE_DIR/permissions.json"
 if [[ -f "$POLICY" ]]; then
   say "permissions.json — exists, left alone"
 elif [[ -f "$HERE/permissions.example.json" ]]; then
-  run mkdir -p "$STATE_DIR"
+  # the channel's state folder holds the bot token and the access list: when the installer is the one who creates it, it is
+  # closed to everyone else from the first second — a newborn must not start with a red line of the doctor
+  if [[ ! -d "$STATE_DIR" ]]; then run mkdir -p "$STATE_DIR"; run chmod 700 "$STATE_DIR"; fi
   run cp "$HERE/permissions.example.json" "$POLICY"
   run chmod 600 "$POLICY"
   say "permissions.json installed from the example — READ IT before trusting it"

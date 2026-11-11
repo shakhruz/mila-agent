@@ -67,6 +67,7 @@ CURSOR = os.path.join(INBOUND, "cursor")
 CHATS_DIR = os.path.join(STATE, "chats")
 
 OK, WARN, BAD = "ok", "warn", "bad"
+INFO = "info"   # neither good nor bad: a state to be said plainly (not born yet)
 
 
 class Report:
@@ -238,8 +239,10 @@ def own_receivers(lines):
     st = os.path.realpath(STATE); out = []
     for pid, cmd in lines:
         env = _proc_env(pid)
-        if env is None or os.path.realpath(env.get("TELEGRAM_STATE_DIR") or os.path.expanduser("~/.claude/channels/telegram")) == st:
-            out.append((pid, cmd))   # окружение не прочитать (macOS) — считаю своим, как раньше
+        if env is None:
+            continue   # whose daemon this is cannot be told, and a daemon of this home always leaves receiver.pid: without it — not mine
+        if os.path.realpath(env.get("TELEGRAM_STATE_DIR") or os.path.join(env.get("HOME") or os.path.expanduser("~"), ".claude/channels/telegram")) == st:
+            out.append((pid, cmd))
     return out
 
 
@@ -247,7 +250,9 @@ def own_home(pid):
     """Процесс этого дома: HOME в его окружении — мой (соседняя Мила под тем же пользователем живёт в своём HOME).
     Окружение не прочитать (macOS) — считаю своим, как раньше."""
     env = _proc_env(pid)
-    return env is None or os.path.realpath(env.get("HOME") or "") == os.path.realpath(os.path.expanduser("~"))
+    if env is None:
+        return None   # unknown: the caller says so instead of a green or a red line
+    return os.path.realpath(env.get("HOME") or "") == os.path.realpath(os.path.expanduser("~"))
 
 
 def check_daemon(rep):
@@ -288,6 +293,17 @@ def check_journal(rep):
         rep.add(OK, T("doctor.journal.6"), T("doctor.journal.10"))
 
 
+def check_state_place(rep):
+    """The channel folder comes from TELEGRAM_STATE_DIR. When that variable points outside this home's Claude folder, every line
+    below is about ANOTHER home's channel (a trial install started from a living Mila's shell inherits her variable)."""
+    if not os.environ.get("TELEGRAM_STATE_DIR"):
+        return
+    claude = os.path.realpath(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"))
+    st = os.path.realpath(STATE)
+    if st != claude and not st.startswith(claude + os.sep):
+        rep.add(WARN, T("doctor.state.1"), T("doctor.state.2") % STATE, T("doctor.state.3"))
+
+
 def check_perms(rep):
     """Кто может писать в журнал — говорит голосом Telegram."""
     targets = (
@@ -323,17 +339,29 @@ TURNS_UNIT = "mila-turns-collect.timer"
 
 
 def timer_installed():
-    """(стоит ли, чем именно). Спрашиваем ту службу, что есть на машине."""
+    """(стоит ли, чем именно, мой ли). Спрашиваем ту службу, что есть на машине. Имя службы одно на пользователя: у двух Мил под
+    одним пользователем служба одна, и смотрит она в дом той, что ставилась последней. «Мой» — когда в описании службы стоит путь
+    к turns_collect.py ЭТОГО дома; описание не прочитать — None (не знаю)."""
+    mine = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"), "hooks", "turns_collect.py")
     try:
         if sys.platform == "darwin":
             r = subprocess.run(["launchctl", "list", TURNS_LABEL],
                                capture_output=True, text=True, timeout=8)
-            return r.returncode == 0, "launchd " + TURNS_LABEL
-        r = subprocess.run(["systemctl", "--user", "is-enabled", TURNS_UNIT],
-                           capture_output=True, text=True, timeout=8)
-        return r.returncode == 0, "systemd " + TURNS_UNIT
+            text, how = r.stdout, "launchd " + TURNS_LABEL
+        else:
+            r = subprocess.run(["systemctl", "--user", "is-enabled", TURNS_UNIT],
+                               capture_output=True, text=True, timeout=8)
+            how = "systemd " + TURNS_UNIT
+            text = subprocess.run(["systemctl", "--user", "cat", TURNS_UNIT.replace(".timer", ".service")],
+                                  capture_output=True, text=True, timeout=8).stdout if r.returncode == 0 else ""
+        if r.returncode != 0:
+            return False, how, None
+        paths = re.findall(r"(/[^\s\"';]*turns_collect\.py)", text)
+        if not paths:
+            return True, how, None
+        return True, how, any(os.path.realpath(x) == os.path.realpath(mine) for x in paths)
     except Exception:
-        return False, ""
+        return False, "", None
 
 
 def check_turns_timer(rep):
@@ -343,8 +371,12 @@ def check_turns_timer(rep):
     выглядит здоровым в любом списке служб, а отметка о сборе без таймера
     означает, что кто-то собрал руками один раз и на этом успокоился.
     """
-    on, how = timer_installed()
-    if on:
+    on, how, mine = timer_installed()
+    if on and mine is False:
+        # a service with this name is loaded, but it collects ANOTHER home (two Milas under one user): for this home there is no timer
+        rep.add(WARN, T("doctor.turns_timer.1"), T("doctor.turns_timer.13") % how, T("doctor.turns_timer.14"))
+        on = False
+    elif on:
         rep.add(OK, T("doctor.turns_timer.1"), T("doctor.turns_timer.2") % how)
     else:
         rep.add(WARN, T("doctor.turns_timer.1"), T("doctor.turns_timer.4"),
@@ -496,7 +528,18 @@ def _proc_env(pid):
         raw = open("/proc/%s/environ" % pid, "rb").read().split(b"\0")
         return dict(x.decode("utf-8", "replace").split("=", 1) for x in raw if b"=" in x)
     except OSError:
+        pass
+    # macOS: no /proc. `ps -E` prints the environment of the user's own processes after the command; only the two names the
+    # doctor needs are taken out of it. Nothing found — None: «whose process this is» stays unknown, and unknown is never «mine».
+    try:
+        out = subprocess.run(["ps", "-p", str(pid), "-wwE", "-o", "command="], capture_output=True, text=True, timeout=8).stdout
+    except Exception:
         return None
+    env = {}
+    for k in ("TELEGRAM_STATE_DIR", "HOME"):
+        m = re.search(r"(?:^|\s)%s=(\S+)" % k, out)
+        if m: env[k] = m.group(1)
+    return env if "HOME" in env else None
 
 
 def check_switches(rep, daemon_env="auto", home=None):
@@ -560,14 +603,18 @@ def check_flag(rep):
     # канала: рабочий каталог задан отдельно, в команде его не видно.
     # Поэтому смотрим на две улики: сам server.ts и запускающую его строку
     # «bun run --cwd <плагин> ... start», где имя канала как раз есть.
-    servers = [cmd for pid, cmd in running("server.ts") if own_home(pid)]   # MCP соседнего дома — не канал этой сессии
-    servers += [cmd for pid, cmd in running("--cwd")
-                if "telegram" in cmd and "start" in cmd and own_home(pid)]
-    if servers:
+    cand = running("server.ts") + [(pid, cmd) for pid, cmd in running("--cwd") if "telegram" in cmd and "start" in cmd]
+    whose = [own_home(pid) for pid, _ in cand]   # MCP соседнего дома — не канал этой сессии
+    if any(w is True for w in whose):
         rep.add(OK, T("doctor.flag.1"), T("doctor.flag.2"))
         return
-    sessions = [cmd for pid, cmd in running("claude")
-                if re.search(r"/(claude)(\s|$)", cmd) and own_home(pid)]
+    sess = [(pid, cmd) for pid, cmd in running("claude") if re.search(r"/(claude)(\s|$)", cmd)]
+    swhose = [own_home(pid) for pid, _ in sess]
+    if any(w is None for w in whose + swhose) and not any(w is True for w in swhose):
+        # processes are there, but whose they are cannot be told (another Mila may live under this user): say exactly that
+        rep.add(WARN, T("doctor.flag.1"), T("doctor.flag.9"), T("doctor.flag.10"))
+        return
+    sessions = [cmd for (pid, cmd), w in zip(sess, swhose) if w is True]
     if sessions:
         rep.add(BAD, T("doctor.flag.1"), T("doctor.flag.4"),
                 T("doctor.flag.5"))
@@ -582,25 +629,33 @@ def main():
     args = ap.parse_args()
 
     rep = Report()
-    token = check_token(rep)
-    if token:
-        check_privacy(rep, token)
-    check_access(rep)
-    check_daemon(rep)
-    check_journal(rep)
+    # Not born yet: no token anywhere and nobody paired. That is the ordinary state between the install and `mila onboard`,
+    # not a breakage: one plain line says what to do, and the checks that only make sense for a living channel are not run.
+    unborn = not read_token()[0] and not os.path.exists(ACCESS)
+    check_state_place(rep)
+    if unborn:
+        rep.add(INFO, T("doctor.unborn.1"), T("doctor.unborn.2"), T("doctor.unborn.3"))
+    else:
+        token = check_token(rep)
+        if token:
+            check_privacy(rep, token)
+        check_access(rep)
+        check_daemon(rep)
+        check_journal(rep)
     check_perms(rep)
     check_records(rep)
     check_scheduler(rep)
     check_switches(rep)
-    check_flag(rep)
+    if not unborn:
+        check_flag(rep)
 
     if args.as_json:
-        json.dump({"rows": rep.rows, "bad": len(rep.bad), "warn": len(rep.warn)},
+        json.dump({"rows": rep.rows, "bad": len(rep.bad), "warn": len(rep.warn), "unborn": unborn},
                   sys.stdout, ensure_ascii=False, indent=1)
         print()
         return 1 if rep.bad else 0
 
-    mark = {OK: "🟢", WARN: "🟡", BAD: "🔴"}
+    mark = {OK: "🟢", WARN: "🟡", BAD: "🔴", INFO: "⚪"}
     print(T("doctor.main.2") % STATE)
     print()
     for r in rep.rows:
@@ -609,7 +664,9 @@ def main():
             for i, chunk in enumerate(wrap(r["fix"], 66)):
                 print("   %s %s" % ("→" if i == 0 else " ", chunk))
     print()
-    if rep.bad:
+    if unborn and not rep.bad:
+        print(T("doctor.main.6"))
+    elif rep.bad:
         print(T("doctor.main.3") % len(rep.bad))
     elif rep.warn:
         print(T("doctor.main.4") % len(rep.warn))

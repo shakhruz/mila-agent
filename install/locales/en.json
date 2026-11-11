@@ -138,5 +138,16 @@
  "doctor.main.2": "Channel diagnostics · %s",
  "doctor.main.3": "Broken: %d. The channel does not work until this is fixed.",
  "doctor.main.4": "Notes: %d. The channel works, but not as well as it could.",
- "doctor.main.5": "🟢 All links are in place."
+ "doctor.main.5": "🟢 All links are in place.",
+ "doctor.unborn.1": "Mila",
+ "doctor.unborn.2": "not born yet — no bot token and nobody paired",
+ "doctor.unborn.3": "this is the ordinary state right after the install. Run: mila onboard",
+ "doctor.main.6": "⚪ Not born yet. Next step: mila onboard — the bot token, the Claude sign-in and the pairing, each checked.",
+ "doctor.turns_timer.13": "a service with this name is loaded, but it collects another home (%s)",
+ "doctor.turns_timer.14": "two Milas under one user share the service name, and it looks into the home installed last. For this home the table fills only by hand; a separate user of the computer for each Mila gives each her own timer",
+ "doctor.flag.9": "a session or a channel process is running, but whose it is cannot be told",
+ "doctor.flag.10": "another Mila may live under this user. Start this one with `mila` and look at her own window",
+ "doctor.state.1": "channel folder",
+ "doctor.state.2": "taken from TELEGRAM_STATE_DIR and lies outside this home: %s",
+ "doctor.state.3": "everything below is about that folder, not about this home. For this home run the doctor without that variable (env -u TELEGRAM_STATE_DIR mila doctor)"
 }
