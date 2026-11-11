@@ -197,6 +197,12 @@ case "${1:-continue}" in
                  [ -f "$c" ] && exec python3 "$c" "$@"
                done
                echo "onboard.py not found — reinstall the kit" >&2; exit 1 ;;
+  birth)       shift
+               for c in "$HOME/.claude/hooks/birth.py" \
+                        "$(dirname "$0")/birth.py"; do
+                 [ -f "$c" ] && exec python3 "$c" "$@"
+               done
+               echo "birth.py not found — reinstall the kit" >&2; exit 1 ;;
   doctor|doc)  shift
                for c in "$HOME/.claude/hooks/doctor.py" \
                         "$(dirname "$0")/doctor.py"; do
@@ -232,7 +238,8 @@ mila            resume the last session with the plugin (--continue); none in th
 mila new        start a fresh session
 mila pick       choose a session from the list (--resume)
 mila status     channel health: receiver, bridge, journal
-mila onboard    first setup in three checked steps: bot token, Claude sign-in, pair with your bot (--check)
+mila birth      first setup on a local web page: bot token, Claude sign-in, pair with your bot (plain `mila` opens it until you are set up)
+mila onboard    the same three checked steps in the terminal (--check)
 mila doctor     full diagnosis: token, privacy mode, access, daemon, permissions
 mila inbox      show unread inbound messages and mark them seen
 mila fix        restart the receiver (leaves the session alone)
@@ -251,7 +258,14 @@ mila note <id>  write to a chat card (--purpose --member --promise --done --note
 Anything after the command is passed to claude as-is:  mila new --model opus
 HELP
                ;;
-  *)           ensure_daemon
+  *)           # Not born yet (the same check as `mila onboard --check`): the birth page instead of a session.
+               ob=""; bi=""
+               for c in "$HOME/.claude/hooks/onboard.py" "$(dirname "$0")/onboard.py"; do [ -f "$c" ] && { ob="$c"; break; }; done
+               for c in "$HOME/.claude/hooks/birth.py" "$(dirname "$0")/birth.py"; do [ -f "$c" ] && { bi="$c"; break; }; done
+               if [ -n "$ob" ] && [ -n "$bi" ] && ! python3 "$ob" --check >/dev/null 2>&1; then
+                 exec python3 "$bi"
+               fi
+               ensure_daemon
                if has_session; then exec claude $FLAG "$PLUGIN" --continue "$@"; fi
                echo "${c_dim}first start in this folder — a new conversation (same as: mila new)${c_off}"
                exec claude $FLAG "$PLUGIN" "$@" ;;

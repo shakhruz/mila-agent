@@ -149,7 +149,7 @@ echo
 # like "nothing is due".
 echo "Tools"
 for f in usage_collect.py turns_collect.py records.py tasks.py chats_index.py \
-         chat_note.py chat_locale.py doctor.py onboard.py backup.py design_check.py mila_i18n.py tg_delivery.py; do
+         chat_note.py chat_locale.py doctor.py onboard.py birth.py backup.py design_check.py mila_i18n.py tg_delivery.py; do
   if [[ -f "$HERE/$f" ]]; then
     install_file "$HERE/$f" "$HOOK_DIR/$f" "$f"
     run chmod 755 "$HOOK_DIR/$f"
@@ -157,6 +157,11 @@ for f in usage_collect.py turns_collect.py records.py tasks.py chats_index.py \
   else
     say "🔴 missing from the kit: $f"
   fi
+done
+# the birth page: HTML and portrait next to birth.py
+run mkdir -p "$HOOK_DIR/birth-assets"
+for f in "$HERE"/birth-assets/*; do
+  [[ -f "$f" ]] && install_file "$f" "$HOOK_DIR/birth-assets/$(basename "$f")" "birth-assets/$(basename "$f")"
 done
 # doctor speaks the owner's language: one strings file per language, next to the tools
 run mkdir -p "$HOOK_DIR/locales"

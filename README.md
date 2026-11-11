@@ -160,7 +160,7 @@ It checks Claude Code, Bun and git, clones the kit to `~/mila`, runs `install/in
   `com.milagpt.scheduler` on macOS, a systemd user timer `mila-scheduler` on Linux; its state is in `~/.local/state/mila/baraban/`;
 - the Telegram plugin `mila-telegram`, installed through `claude plugin install`.
 
-Then three steps, each checked before the next:
+Then run `mila`: until Mila is born it opens a birth page on your own computer (`mila birth` opens the same page) — paste the bot token, sign in to Claude, send the pairing word to your bot, and the page shows her certificate. The page listens on `127.0.0.1` only, under a one-time address, and closes itself when it is done. `mila onboard` stays as the terminal way to do the same. The three steps, each checked before the next:
 
 ```sh
 mila onboard

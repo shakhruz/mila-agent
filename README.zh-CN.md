@@ -35,7 +35,7 @@ curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.s
 
 该命令会检查 Claude Code、Bun 和 git，把套件克隆到 `~/mila`，并安装 Telegram 插件 `mila-telegram`。
 
-然后完成三步，每一步都会检查：
+然后运行 `mila`：在 Mila 诞生之前，它会在你自己的电脑上打开诞生页面（`mila birth` 打开的是同一个页面）——粘贴机器人 token，登录 Claude，把配对词发给你的机器人，页面就会显示她的证书。页面只监听 `127.0.0.1`，使用一次性地址，完成后自行关闭。`mila onboard` 仍可在终端里完成同样的事。三步，每一步都会检查：
 
 ```sh
 mila onboard

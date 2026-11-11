@@ -153,7 +153,7 @@ Existing files it would overwrite — skills, the `mila` launcher, hooks, and
 content is left alone with no copy made, and the installer prints the list of
 backups it made at the end.
 
-`install/get.sh` also installs the plugin. Then run `mila onboard`: bot token (checked with Telegram, saved 600),
+`install/get.sh` also installs the plugin. Then run `mila`: until Mila is born it opens the birth page (`install/birth.py`, also `mila birth`) on `127.0.0.1` under a one-time address, with the same three steps; `mila onboard` is the terminal way. The steps are — `mila onboard`: bot token (checked with Telegram, saved 600),
 Claude sign-in (Anthropic's own page), pairing by a 6-character code you send to your bot — it writes `allowFrom`,
 `dmPolicy: allowlist` and `OWNER_ID` itself. `mila onboard --check` only reports.
 
