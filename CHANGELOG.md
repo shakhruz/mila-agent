@@ -1,6 +1,6 @@
 # CHANGELOG · Mila
 
-## Unreleased — the problem journal
+## Unreleased — the problem journal, Shturman, the next move, forks, the Scheduler's name, widgets under the send guard
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
