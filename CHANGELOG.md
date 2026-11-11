@@ -1,28 +1,34 @@
 # CHANGELOG · Mila
 
-## Unreleased — the problem journal, Shturman, the next move, forks, the Scheduler's name, widgets under the send guard, the pack widget
+## v1.7.8 · 12.11 — widgets and the day board, the next move, four words of the core, Shturman, the problem journal, a Scheduler that is confirmed, an honest doctor for a newborn
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
 **Для хозяина**
-- Штурман: по вашему слову читаю ваш личный Telegram — каналы, группы и те личные чаты, которые вы открыли сами, — и кладу черновики; отправляете вы. Подключаете сами, в терминале; отключить — одной командой.
+- Штурман (пробная версия): по вашему слову читаю ваш личный Telegram — каналы и открытые группы; личные чаты и закрытые группы — только те, что вы открыли сами, — и кладу черновики; отправляете вы. Подключаете сами, в терминале; отключить — одной командой. Живой вход ещё проверяется на тестовом аккаунте — подключайте, если готовы быть первыми.
 - Развилки: когда вы молчите, я иду по своему рекомендуемому варианту только в собственной обратимой работе и записываю точку; выберете другое позже — вернусь к ней и переделаю. Деньги, отправка и публикация от вашего имени — по-прежнему только по вашей кнопке.
 - Следующий ход: каждый мой ответ кончается двумя строками — что делаю я («Мой ход») и что советую вам («Ваш ход») с двумя-тремя кнопками; первая — рекомендуемая, нажали — делаю сразу. Обещаю «пришлю завтра» только тогда, когда это стоит в расписании.
 - Планировщик на ноутбуке: установщик ставит проход раз в минуту — «напоминай по понедельникам» теперь срабатывает и там. Если служба у вас не работает, я не обещаю «придёт в 09:00», а говорю об этом прямо.
 - Виджет пака: после установки пака с виджетом вы получаете одно сообщение — статус словом, две-три цифры и до трёх кнопок; цифры меняются на месте, без новых сообщений. Только в нашей личке. Код пака при этом не запускается.
 - Пульт дня теперь у каждой Милы с рождения: одно закреплённое сообщение — что в работе, что ждёт вас, что сделано. Раньше он шёл только с паком «Бизнес-помощник».
-- Журнал проблем: каждый мой сбой записан — что случилось, что исправлено, чем проверено. Третий повтор одной причины я закрываю не обещанием, а проверкой или настройкой. Спросите «что пошло не так» — отвечу из журнала.
+- Журнал проблем: каждый сбой, который замечаю я или вы, записываю — что случилось, что исправлено, чем проверено. Третий повтор одной причины я закрываю не обещанием, а проверкой или настройкой. Спросите «что пошло не так» — отвечу из журнала.
+- Сразу после установки доктор больше не пугает красным: пока Мила не родилась, он говорит одной строкой «ещё не родилась — запустите mila onboard».
+- Обновление одной командой: если скачать новую версию не удалось, я говорю об этом и останавливаюсь — раньше в таком случае заново ставилась прежняя версия с надписью «готово».
+- Установка говорит прямо: мои сторожа записываются в ваш общий Claude Code и работают во всех его сессиях на этом пользователе; чтобы держать меня отдельно — заведите мне отдельного пользователя компьютера.
 
 </details>
 
 **For the owner**
-- Shturman: on your word I read your personal Telegram — channels, groups and the personal chats you opened yourself — and put drafts; you send. You connect it yourself, in a terminal; one command disconnects it.
+- Shturman (a trial version): on your word I read your personal Telegram — channels and public groups; personal chats and private groups — only those you opened yourself — and put drafts; you send. You connect it yourself, in a terminal; one command disconnects it. The live sign-in is still being checked on a test account — connect it if you are ready to be among the first.
 - Forks: while you are silent I go ahead by my recommended option only on my own reversible work and log the point; pick another option later — I return to it and redo. Money, sending and publishing in your name — still only by your button.
 - The next move: every answer of mine ends with two lines — what I am doing («My move») and what I suggest you do («Your move») with two or three buttons; the first is the recommended one, a tap and I do it at once. I promise «I'll send it tomorrow» only when it stands in the schedule.
 - The Scheduler on a laptop: the installer sets a pass every minute — «remind me on Mondays» now fires there too. If the service is not running on your machine, I do not promise «it comes at 09:00»; I say so plainly.
 - The pack widget: after a pack with a widget is installed you get one message — status in a word, two or three numbers and up to three buttons; the numbers change in place, no new messages. In our private chat only. The pack's code is not run for it.
 - The day board is now inborn: one pinned message — what is in progress, what waits for you, what is done. It used to come only with the «Business assistant» pack.
-- The problem journal: every slip of mine is written down — what happened, what was fixed, how it was verified. A third repeat of one cause is closed with a check or a setting, not a promise. Ask «what went wrong» — I answer from the journal.
+- The problem journal: every slip that I notice or you point out is written down — what happened, what was fixed, how it was verified. A third repeat of one cause is closed with a check or a setting, not a promise. Ask «what went wrong» — I answer from the journal.
+- Right after the install the doctor no longer frightens with red: until Mila is born it says one line — «not born yet, run mila onboard».
+- The one-command update: if the new version cannot be downloaded I say so and stop — before, the old version was installed again and reported as done.
+- The install says it plainly: my guards are written into your own Claude Code and work in every session of this user; to keep me apart, give me a separate user of the computer.
 
 **For Milas**
 - New skill `problemy` (`work/problemy.jsonl`, 600, append-only, number and line under one lock): found → cause → fix → verified → closed, each stage with evidence (the rules of `dela`); places and classes are closed lists; the verification is another pointer and later than the fix; the third case of one class in one place (a reopen and a new problem — one count) refuses a promise and writes the refusal; `itog`, `list --open`, `povtory`. The evening `self-check` asks whether the owner corrected Mila today.
@@ -44,6 +50,14 @@
 - Docs: an index of the pages (`docs/README.md`, `.ru.md`, linked from the four READMEs) and the first design page — Mila's passport (`docs/design/PASSPORT.md`, `.ru.md`), marked «in development» in its first lines: the key and the number, a quiet birth and the certificate, the twelve words, the recovery envelope, the archive, the fingerprint of state, rebirth, what is decided and what is open. The test: every page is in the index; a design page says it is not in the core and the map of modules agrees.
 - Docs: the map of modules (`docs/MODULES.md`, `.ru.md`) — fifteen modules, each with what it gives, what it consists of and a state mark (in the core / accepted, awaits release / in development / as a pack); and Mind (`docs/MIND.md`, `.ru.md`) — three kinds of knowing, the constitution, the qualities, the habits. The test checks that every named path exists and the numbers equal the texts they point at.
 - Docs: two new pages in two languages — the Scheduler (`docs/SCHEDULER.md`, `.ru.md`: setting a job, limits, missed slots, quiet hours, where the service runs — and that the laptop installer does not start it) and Concepts (`docs/CONCEPTS.md`, `.ru.md`: Lock, Consent, Choice, Fork, the next move). `tests/test_docs_pairs.py` keeps the two languages in step and the numbers equal to the code.
+- `install.sh` runs under bash 3.2 (the system shell of macOS): the settings step is no longer a here-document inside `$( … )` — one unpaired apostrophe in a comment there ended the installer. `tests/test_bash32_heredoc.py` keeps such blocks out of the installer and paired in every other script.
+- `MILA_SKIP_TIMERS=1` covers both timers of the installer — the hourly turns-collect job and the Scheduler: a trial install with a temporary HOME loads nothing and no longer takes down the machine's own job of the same name. `install/test_get.sh` sets it.
+- `get.sh`: a failed fetch on update stops with a clear line (the shell used to go on and install the old version again); git's harmless «… is not a commit!» line on a clone by a release tag is dropped, every real git error and its exit code are kept; run by `get.sh`, `install.sh` does not print the «No Telegram plugin yet?» hint before the plugin is installed.
+- `doctor`: a home with no token and nobody paired is «not born yet» (`"unborn": true` in `--json`, exit code 0) — the channel checks are not run; the installer creates the channel folder closed (700); a process whose home cannot be told is no longer taken for this home's (the daemon — by `receiver.pid` or its environment, on macOS read with `ps -E`), the hourly timer is «installed» only when the service points at this home, and a channel folder taken from `TELEGRAM_STATE_DIR` and lying outside the home is said so. New strings in the four dictionaries (uz and zh await a native reader).
+- The Scheduler's widget says «down» when there are jobs and the service has left no fresh pass mark for this home.
+- Docs: the Widgets page (`docs/WIDGETS.md`, `.ru.md`); the pairs test checks that the limits on the page are the limits in the code.
+- `tests/run_all.sh` prints a failed test's own failure lines under it — a red run on a machine nobody can log into names the place by itself. `tools/kitchen_lint.py` also reports a reference to someone's say-so about an edit, in files and in commit messages.
+- CI: the tests workflow runs on branch pushes and pull requests, not on tag pushes; the apt step no longer fails on a hung `apt-get update`.
 
 ## v1.7.7 · 10.11 — the pack library: free packs from Mila Library
 
