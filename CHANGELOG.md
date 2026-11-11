@@ -7,12 +7,14 @@
 **Для хозяина**
 - Слух: я предлагаю активировать его сразу после знакомства — карточкой «Активировать слух / Позже». Нужен один ключ Deepgram (при регистрации дают пробный кредит); ключ вы вводите по ссылке сейфа, не в чат. После активации — проба: пришлите голосовое, отвечу текстом. Выключить — «выключи слух».
 - Знакомство стало короче: имя, город, что вам важно — по одному вопросу.
+- Сейф: когда я проверяю, что пароль или ключ на месте, в чате от него видны только точки — ни одного знака.
 
 </details>
 
 **For the owner**
 - Hearing: I offer to activate it right after we get acquainted — a card «Activate hearing / Later». It needs one Deepgram key (a trial credit comes with sign-up); you enter the key by the safe link, not in the chat. After activation — a trial: send a voice message, I answer in text. To switch it off — «turn hearing off».
 - Getting acquainted is shorter: your name, your city, what matters to you — one question at a time.
+- The safe: when I check that a password or a key is in place, the chat shows dots only — not a single character of it.
 
 **For Milas**
 - New skill `konnektory` (`scripts/connectors.py list | next | offer | later | steps | check | trial | off | on`) — connectors: talents that give Mila a new sense through an outside service. Built-in connectors lie in the core and are activated, not downloaded; the register of the home is `work/connectors/registry.json` (offered, later, active, off). Which service a connector talks to and how its key is checked is a closed list in the code — a passport (`skills/<id>/connector.json`, data only, four languages) cannot name an address, and a folder with a passport that is not in the list of built-in connectors is not a connector.
@@ -20,6 +22,7 @@
 - A newborn's first conversation (`templates/work/CLAUDE.md`, `skills/onboarding`): three questions in this order — name, city, what matters — then the hearing card, then one concrete benefit; a voice message that could not be transcribed leads to the hearing card.
 - Three words about what Mila can do, in her canon (`canon/TALANT.md`, linked from `canon/BAZA-MILY.md`) and on the Concepts page (`docs/CONCEPTS.md`, `.ru.md`): a skill is how Mila does it; a talent is a skill in a package that can be installed, tried, checked and removed — five obligatory parts in one folder (passport, install, introduction with a trial, check, removal); a connector is a talent that gives Mila a new sense through an outside service. A skill without the five parts is not called a talent and does not go into the library.
 - `doctor`: a journal (`inbound/events.jsonl`) that a server gives to named readers through an access list (ACL) is a yellow line with the readers' names, not a red one — with an ACL the group bits of the mode are the list's mask, not the group's rights. Only when every named entry is read-only and neither the owning group nor anyone else has rights; a list that lets somebody write, any «other» bit or a missing `getfacl` is red as before. The token file and the access list get no such allowance. New strings in the four dictionaries (uz and zh await a native reader).
+- `safe-link` (`scripts/safe_read.py --check`): the mask goes by whole segments of the field name. A field that is a secret by its name (password, key, token, secret, PIN, CVV) shows dots only — before, a name that also had USER, EMAIL or PAN in it showed the first three characters or the last four digits of the secret. A short value is never shown in part; a safe file that is a symlink, a file that is not UTF-8 and an empty `--check` are refused with a JSON answer.
 
 ## v1.7.9 · 12.11 — the v1.7.8 release with its release page
 
