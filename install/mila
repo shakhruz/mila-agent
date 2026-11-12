@@ -73,7 +73,7 @@ bg_start() {
              systemctl --user enable --now "$BG_UNIT" 2>/dev/null || { echo "could not start $BG_UNIT — see: systemctl --user status $BG_UNIT" >&2; return 1; } ;;
     plain)   mkdir -p "$RUN_STATE"; chmod 700 "$RUN_STATE"
              # every descriptor is pointed away from this terminal (and from a caller's pipe) before she is left behind
-             ( cd "$HOME" || exit 1; exec nohup $(command -v setsid || true) python3 -B "$RUNPY" run >> "$RUN_STATE/service.log" 2>&1 < /dev/null ) > /dev/null 2>&1 &
+             ( cd "$HOME" || exit 1; umask 077; exec nohup $(command -v setsid || true) python3 -B "$RUNPY" run >> "$RUN_STATE/service.log" 2>&1 < /dev/null ) > /dev/null 2>&1 &
              echo "${c_dim}no launchd or systemd --user here: started as a plain background process — it will not come back after a reboot (run  mila start  again)${c_off}" ;;
   esac
   local i; for i in 1 2 3 4 5 6 7 8 9 10; do bg_running && break; sleep 1; done

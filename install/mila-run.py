@@ -71,6 +71,7 @@ def log_to(name, text):
     except OSError:
         pass
     fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    os.fchmod(fd, 0o600)   # a log made by an older kit or another umask is closed again
     with os.fdopen(fd, "a", encoding="utf-8", errors="replace") as f: f.write(mask(text))
 
 
@@ -387,6 +388,7 @@ def stop_all(*_):
 
 
 def run():
+    os.umask(0o077)   # her logs, pid files and the children's files are hers alone, whatever umask the service manager gives
     os.makedirs(ST, mode=0o700, exist_ok=True); os.chmod(ST, 0o700)
     lock = os.open(os.path.join(ST, "lock"), os.O_WRONLY | os.O_CREAT, 0o600)
     try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

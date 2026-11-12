@@ -54,7 +54,7 @@ born() {   # what birth leaves on the machine: a token file, an owner, the recor
 home lin
 chk "установка прошла, служба фона установлена: mila-run.py, feeder с модулями, помощник входа" '[ "$(cat "$T/lin.install.rc")" = 0 ] && for f in mila-run.py companion-feeder.py envelope.py limit_watch.py claude_login.py; do [ -f "$T/lin/.claude/hooks/$f" ] || exit 1; done' 'tail -n 5 "$T/lin.install.log"'
 chk "установка службу НЕ запускает: Мила ещё не рождена" '! in_home lin python3 -B "$T/lin/.claude/hooks/mila-run.py" status --json | grep -q "\"running\": true"'
-chk "Linux: файл службы systemd --user написан — путь к claude и bun, перезапуск, рабочая папка дома" 'U="$T/lin/.config/systemd/user/mila-session.service"; grep -q "mila-run.py run" "$U" && grep -q "Restart=always" "$U" && grep -q "Environment=PATH=.*$T/lin-bin" "$U" && grep -q "MILA_RUN_SERVICE=1" "$U"' 'cat "$T/lin/.config/systemd/user/mila-session.service"'
+chk "Linux: файл службы systemd --user написан — путь к claude и bun, перезапуск, рабочая папка дома" 'U="$T/lin/.config/systemd/user/mila-session.service"; grep -q "mila-run.py run" "$U" && grep -q "Restart=always" "$U" && grep -q "Environment=PATH=.*$T/lin-bin" "$U" && grep -q "MILA_RUN_SERVICE=1" "$U" && grep -q "^UMask=0077$" "$U"' 'cat "$T/lin/.config/systemd/user/mila-session.service"'
 o="$(in_home lin "$T/lin/.local/bin/mila" start 2>&1)"
 chk "mila start до рождения — отказ со словами «mila birth», ничего не запущено" 'echo "$o" | grep -q "mila birth" && [ ! -e "$T/lin/state/run.pid" ]' 'echo "$o"'
 born lin
@@ -89,7 +89,7 @@ home mac Darwin
 P="$T/mac/Library/LaunchAgents/com.milagpt.session.plist"
 chk "Мак: plist службы написан — RunAtLoad, KeepAlive, PATH установки, не загружен при установке" 'grep -q "<key>RunAtLoad</key><true/>" "$P" && grep -q "<key>KeepAlive</key><true/>" "$P" && grep -q "$T/mac-bin" "$P" && grep -q "mila-run.py" "$P" && ! grep -q "com.milagpt.session" "$T/mac.fake.launchctl" 2>/dev/null' 'cat "$P"; cat "$T/mac.fake.launchctl"'
 chk "Мак: службе записаны точные пути к claude и bun, найденные при установке (PATH другого терминала может их не знать)" 'python3 -c "import plistlib,sys;e=plistlib.load(open(sys.argv[1],\"rb\"))[\"EnvironmentVariables\"];assert e[\"MILA_CLAUDE\"]==sys.argv[2]+\"/claude\" and e[\"MILA_BUN\"]==sys.argv[2]+\"/bun\"" "$P" "$T/mac-bin"' 'grep -A1 MILA_ "$P"'
-chk "…plist разбирается как XML" 'python3 -c "import plistlib,sys;d=plistlib.load(open(sys.argv[1],\"rb\"));assert d[\"ProgramArguments\"][-1]==\"run\" and d[\"EnvironmentVariables\"][\"MILA_RUN_SERVICE\"]==\"1\"" "$P"'
+chk "…plist разбирается как XML; Umask 077 — её журналы только её" 'python3 -c "import plistlib,sys;d=plistlib.load(open(sys.argv[1],\"rb\"));assert d[\"ProgramArguments\"][-1]==\"run\" and d[\"EnvironmentVariables\"][\"MILA_RUN_SERVICE\"]==\"1\" and d[\"Umask\"]==0o077" "$P"'
 born mac
 o="$(in_home mac "$T/mac/.local/bin/mila" start 2>&1)"
 chk "Мак: mila start загружает службу через launchctl bootstrap, она поднимает сеанс" 'grep -q "^bootstrap gui/.* $P" "$T/mac.fake.launchctl" && echo "$o" | grep -q "running in the background" && up mac' 'echo "$o"; cat "$T/mac.fake.launchctl"'

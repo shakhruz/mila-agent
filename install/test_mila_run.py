@@ -3,6 +3,7 @@
 permissions switched off, logs carry no keys, two services over one home do not start, a home that is not born says so.
 Claude Code and bun are replaced by small scripts; nothing leaves the temp folder. Run: python3 install/test_mila_run.py"""
 import http.server, json, os, shutil, signal, subprocess, sys, tempfile, threading, time, urllib.parse
+os.umask(0o022)   # a CI runner's umask: her files must come out 600 by themselves, not by the caller's 077
 
 H = os.path.dirname(os.path.abspath(__file__)); RUN = os.path.join(H, "mila-run.py")
 T = os.path.realpath(tempfile.mkdtemp(prefix="milarun-")); ok = n = 0
@@ -144,7 +145,8 @@ try:
     chk("строка на вход → законченный ход посчитан (ходов стало 2)", wait(lambda: status()[1]["turns"] == 2), status()[1])
     logs = "".join(read(os.path.join(ST, f)) for f in os.listdir(ST) if f.endswith((".jsonl", ".err", ".log")))
     chk("в журналах ключа бота нет — стоит маска", KEY not in logs and "<bot-token>" in logs and "saw" in logs, logs[-300:])
-    chk("журналы 600", all(oct(os.stat(os.path.join(ST, f)).st_mode & 0o777) == "0o600" for f in os.listdir(ST) if f.endswith((".jsonl", ".err", ".log"))))
+    chk("журналы, pid и очередь 600 — даже при umask 022", all(oct(os.stat(os.path.join(ST, f)).st_mode & 0o777) == "0o600" for f in os.listdir(ST) if os.path.isfile(os.path.join(ST, f))),
+        [(f, oct(os.stat(os.path.join(ST, f)).st_mode & 0o777)) for f in os.listdir(ST)])
 
     p2 = start(); out2, err2 = p2.communicate(timeout=20)
     chk("вторая служба над тем же домом не стартует (код 3)", p2.returncode == 3 and "already running" in err2, (p2.returncode, err2))

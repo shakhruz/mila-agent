@@ -534,6 +534,7 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   <key>KeepAlive</key><true/>
   <key>ThrottleInterval</key><integer>10</integer>
   <key>ProcessType</key><string>Background</string>
+  <key>Umask</key><integer>63</integer>
   <key>StandardOutPath</key><string>$BG_STATE/service.log</string>
   <key>StandardErrorPath</key><string>$BG_STATE/service.log</string>
 </dict>
@@ -558,6 +559,7 @@ ExecStart=$PY_BIN -B $BG_RUN run
 WorkingDirectory=$HOME
 Environment=PATH=$BG_PATH
 Environment=MILA_RUN_SERVICE=1
+UMask=0077
 Environment=MILA_CLAUDE=${BG_CLAUDE:-claude}
 Environment=MILA_BUN=${BG_BUN:-bun}
 Restart=always
