@@ -30,7 +30,7 @@ details{margin-top:16px;text-align:left}summary{cursor:pointer;color:var(--teal)
 <img id="av" class="av" src="__PORTRAIT__" alt="Mila">
 <div class="step on" id="s0"><h1 data-i="t0"></h1><p data-i="p0"></p><button class="pri" id="b0" data-i="b0"></button><div class="msg" id="m0"></div></div>
 <div class="step" id="s1"><div class="dots"><i class="a"></i><i></i><i></i></div><h1 data-i="t1"></h1><p data-i="p1"></p>
-<div class="two"><a class="btn pri" id="bone" href="https://t.me/__PARENT__?start=birth" target="_blank" rel="noopener" data-i="bone"></a>
+<div class="two"><a class="btn pri" id="bone" href="https://t.me/__PARENT__?start=birth_en" target="_blank" rel="noopener" data-i="bone"></a>
 <a class="btn sec" id="bbot" href="https://t.me/BotFather" target="_blank" rel="noopener" data-i="bbot"></a></div>
 <p class="fine" data-i="bothint"></p>
 <input id="pasted" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="MILA-XXXX-XXXX-XXXX / 1234567890:AA…"><button class="pri" id="bgo" data-i="bcode"></button>
@@ -56,7 +56,7 @@ function say(id,key,cls,v){msgKey[id]=[key,cls,v];paintMsg(id)}
 function paintMsg(id){const m=msgKey[id],e=$(id);if(!m||!m[0]){e.textContent="";e.className="msg";return}e.textContent=tr(m[0],m[2]);e.className="msg "+(m[1]||"")}
 function paintCert(){if(!born)return;let d="";try{d=new Date(born.born_at).toLocaleString(lang==="zh"?"zh-CN":lang==="uz"?"uz-UZ":lang,{dateStyle:"long",timeStyle:"short"})}catch(e){d=born.born_at}
  let h=tr("cert").replace("%d",esc(d)).replace("%u",esc(born.bot_username||""));if(born.owner_first_name)h+=tr("certn").replace("%n",esc(born.owner_first_name));$("cert").innerHTML=h}
-function L(l){lang=l;document.documentElement.lang=l;document.querySelectorAll("[data-i]").forEach(e=>e.textContent=T[l][e.dataset.i]);document.querySelectorAll(".lang button").forEach(b=>b.classList.toggle("a",b.dataset.l==l));
+function L(l){lang=l;document.documentElement.lang=l;$("bone").href="https://t.me/__PARENT__?start=birth_"+l;document.querySelectorAll("[data-i]").forEach(e=>e.textContent=T[l][e.dataset.i]);document.querySelectorAll(".lang button").forEach(b=>b.classList.toggle("a",b.dataset.l==l));
  Object.keys(msgKey).forEach(paintMsg);if(botName)$("sendto").textContent=tr("sendto",botName);paintCert();try{localStorage.setItem("mila-l",l)}catch(e){}}
 document.querySelectorAll(".lang button").forEach(b=>b.onclick=()=>L(b.dataset.l));
 function go(n){document.querySelectorAll(".step").forEach(s=>s.classList.remove("on"));$("s"+n).classList.add("on");$("av").classList.toggle("born",n===4)}

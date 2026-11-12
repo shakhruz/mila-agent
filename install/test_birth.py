@@ -286,8 +286,11 @@ def serve(env):
 reset_state()
 p4, first4, rest4 = serve(dict(ENV, MILA_BIRTH_PARENT="my_parent_bot"))
 page4 = req("GET", BASE)[1]
-chk("кнопка «одним нажатием» ведёт на t.me/<MILA_BIRTH_PARENT>?start=birth; по умолчанию — mila_gpt_bot",
-    'href="https://t.me/my_parent_bot?start=birth"' in page4 and 'href="https://t.me/mila_gpt_bot?start=birth"' in page and "__PARENT__" not in page4)
+chk("кнопка «одним нажатием» ведёт на t.me/<MILA_BIRTH_PARENT>?start=birth_<язык>; по умолчанию — mila_gpt_bot и английский",
+    'href="https://t.me/my_parent_bot?start=birth_en"' in page4 and 'href="https://t.me/mila_gpt_bot?start=birth_en"' in page and "__PARENT__" not in page4)
+chk("…язык страницы идёт в ссылку: при смене языка ссылка получает метку birth_<язык> (бот ответит на языке страницы)",
+    '$("bone").href="https://t.me/my_parent_bot?start=birth_"+l' in page4 and page4.index('function L(l){') < page4.index('$("bone").href=')
+    and all('data-l="%s"' % l in page4 for l in ("en", "ru", "uz", "zh")) and 'start=birth"' not in page4)
 chk("новые тексты на четырёх языках: кнопки, строка про родительского бота, ошибки, «Открыть моего бота»",
     len(re.findall(r'"(?:en|ru|uz|zh)":\{"t0"', page4)) == 4 and all(len(re.findall(r'"%s":' % k, page4)) == 4 for k in ("bone", "bbot", "bothint", "honest", "e_input", "e_code_refused", "e_relay", "e_relay_no_token", "bopen", "orsend", "sub4")))
 chk("шаг «адрес»: одно поле (код или ключ), одна кнопка «Дальше»; кнопки «одним нажатием» и «Открыть @BotFather» над ним; второго поля и <details> нет",
