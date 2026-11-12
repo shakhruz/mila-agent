@@ -6,12 +6,14 @@ any file on PATH, and an installer running in a plain bash never sees it).
                                                  one plain report and code 1 when something else answers to `mila`
 
 It asks the owner's interactive shell itself — `zsh -ic 'whence -v mila'` or `bash -ic 'type -t mila; declare -F mila'` — with a
-time limit (5 s), stdin closed, nothing written. Found a function or an alias → it names the shell, the kind, the file and the
+time limit (5 s), stdin closed. It writes nothing itself; the shell's rc files do run, as when a terminal opens (they may
+write their own history or start their agents). Found a function or an alias → it names the shell, the kind, the file and the
 line(s), and prints the lines as they are, so the owner can see what to remove. It edits no file: a change of an rc file is the
 owner's own step (Mila shows the lines and waits for his «yes»). Only stdlib."""
 import json, os, re, shutil, subprocess, sys
 
 TIMEOUT = 5
+MARK = "__MILA_PROBE__"   # printed right before the query: a banner the rc file prints at start (fortune, neofetch) stays above it
 DEF = re.compile(r"^\s*(?:function\s+mila(?:\s|\(|\{|$)|mila\s*\(\s*\)|alias\s+mila=)")
 
 
@@ -19,7 +21,7 @@ def ask(shell, query):
     exe = shutil.which(shell)
     if not exe: return None
     try:
-        p = subprocess.Popen([exe, "-ic", query], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+        p = subprocess.Popen([exe, "-ic", "printf '%s\\n' " + MARK + "; " + query], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
                              env=dict(os.environ, MILA_SHELL_PROBE="1"), start_new_session=True)
     except OSError:
         return None
@@ -29,7 +31,9 @@ def ask(shell, query):
         try: os.killpg(p.pid, 9)
         except OSError: pass
         p.communicate(); return None
-    return out
+    out = out or ""
+    i = out.rfind(MARK + "\n")
+    return out[i + len(MARK) + 1:] if i >= 0 else None   # no mark — the shell never reached the query: nothing to say
 
 
 def lines_of(path):

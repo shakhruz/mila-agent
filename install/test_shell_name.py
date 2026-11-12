@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """shell_name.py — the owner's own shell is asked whether `mila` is ours: a function or an alias from an rc file or a file it
 sources is named with its file and lines; an rc file is never edited; a shell that hangs gives no false alarm. bash — real;
-zsh — a stand-in that answers as zsh's `whence -v` does (no zsh on this machine: the zsh path is checked on a Mac by CI).
+zsh — a stand-in that answers as zsh's `whence -v` does, after the probe's mark (no zsh on this machine: the zsh path is checked on a Mac by CI).
 python3 test_shell_name.py"""
 import json, os, shutil, subprocess, sys, tempfile, time
 H = os.path.dirname(os.path.abspath(__file__)); S = os.path.join(H, "shell_name.py"); ok = n = 0
@@ -29,16 +29,20 @@ try:
     os.makedirs(os.path.join(T, ".claw")); open(os.path.join(T, ".claw", "sh.sh"), "w").write("alias mila='claw'\n")
     open(os.path.join(T, ".bashrc"), "w").write("source ~/.claw/sh.sh\n")
     rc, out, _ = run(T, m); chk("алиас из подключаемого файла — назван", rc == 1 and "is an alias" in out and "alias mila='claw'" in out, out)
+    open(os.path.join(T, ".bashrc"), "w").write('echo "Welcome back!"\nfortune_line() { :; }\nmila() { claw; }\n')
+    rc, out, _ = run(T, m); chk("rc печатает приветствие при старте — перехват всё равно назван", rc == 1 and "bash is a shell function (~/.bashrc)" in out, out)
     open(os.path.join(T, ".bashrc"), "w").write("sleep 30\n")
     rc, out, dt = run(T, m); chk("оболочка зависла на rc — через ~5 с без ложной тревоги", rc == 0 and out == "" and dt < 15, (rc, out, dt))
     # zsh: a stand-in that answers like zsh's whence -v
     os.remove(os.path.join(T, ".bashrc")); z = os.path.join(T, "bin", "zsh")
     open(os.path.join(T, ".zshrc"), "w").write("export A=1\nfunction mila {\n  claw\n}\n")
-    open(z, "w").write('#!/bin/sh\necho "mila is a shell function from %s/.zshrc"\n' % T); os.chmod(z, 0o755)
+    open(z, "w").write('#!/bin/sh\necho "Welcome back!"\necho "mila is a shell function from %s/.zshrc"\necho __MILA_PROBE__\necho "mila is a shell function from %s/.zshrc"\n' % (T, T)); os.chmod(z, 0o755)
     rc, out, _ = run(T, m, shell="/bin/zsh")
     chk("zsh (подставной whence -v): функция из ~/.zshrc, строка 2 «function mila {»", rc == 1 and "zsh is a shell function (~/.zshrc)" in out and "2: function mila {" in out, out)
-    open(z, "w").write('#!/bin/sh\necho "mila is %s"\n' % m); os.chmod(z, 0o755)
-    rc, out, _ = run(T, m, shell="/bin/zsh"); chk("zsh: mila — наш файл → тихо", rc == 0 and out == "", out)
+    open(z, "w").write('#!/bin/sh\necho "mila is a shell function from %s/.zshrc"\necho __MILA_PROBE__\necho "mila is %s"\n' % (T, m)); os.chmod(z, 0o755)
+    rc, out, _ = run(T, m, shell="/bin/zsh"); chk("zsh: mila — наш файл → тихо (строка до метки — не ответ)", rc == 0 and out == "", out)
+    open(z, "w").write('#!/bin/sh\necho "mila is a shell function from %s/.zshrc"\n' % T); os.chmod(z, 0o755)
+    rc, out, _ = run(T, m, shell="/bin/zsh"); chk("zsh не дошёл до запроса (нет метки) — ничего не утверждаю", rc == 0 and out == "", out)
     shutil.rmtree(T)
 finally:
     for d in os.listdir(tempfile.gettempdir()):
