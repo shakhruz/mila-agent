@@ -1,6 +1,6 @@
 # CHANGELOG · Mila
 
-## Unreleased — Mila works in the background, no terminal after birth; the birth page tells the bot its language; voice messages when a speech service cannot be reached; the work progress stream; one look for every page of the first minutes
+## v1.7.11 · 12.11 — Mila works in the background, no terminal after birth; the birth page tells the bot its language; voice messages when a speech service cannot be reached; the work progress stream; one look for every page of the first minutes
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
@@ -14,7 +14,7 @@
 - Если на компьютере ещё нет входа в Claude, я попрошу его кнопкой прямо в нашем чате.
 - Рождение — праздник: я пишу вам первой — «Я родилась! ✨» — и прошу подключить мне ум одной кнопкой; страница рождения делает только одно — моё место для разговора.
 - Ничего не нужно копировать: вы создали бота — и страница рождения сама получает его ключ. Код остаётся запасным путём.
-- Я могу родиться и на сервере, где нет браузера: `mila birth --no-page` показывает две ссылки — откройте их на телефоне, остальное я сделаю сама.
+- Я могу родиться и на сервере, где нет браузера (первая версия): `mila birth --no-page` показывает две ссылки — откройте их на телефоне, остальное я сделаю сама.
 
 </details>
 
@@ -28,7 +28,7 @@
 - If this computer has no Claude sign-in yet, I ask for it with a button right in our chat.
 - Birth is a celebration: I write to you first — «I'm born! ✨» — and ask you to connect my mind with one button; the birth page does one thing only — the place where we talk.
 - Nothing to copy: you create the bot — and the birth page gets its key by itself. The code stays as a spare way.
-- I can be born on a server with no browser too: `mila birth --no-page` shows two links — open them on your phone, and I do the rest myself.
+- I can be born on a server with no browser too (first version): `mila birth --no-page` shows two links — open them on your phone, and I do the rest myself.
 
 **For Milas**
 - `install/mila_style.py`: one small stdlib module with the birth-page look (cream paper, white card, round portrait, serif heading, one teal button, language pills, 16 px inputs, no outside requests, works without the portrait file). `tools/seif/seif.py`, `docker/key_page.py` and `docker/token_page.py` use it through identical copies kept next to each page (same way as `mila_i18n.py`); `docker/Dockerfile` copies it into the image; the CSP of these pages now allows images from `data:` only. Texts, locales, addresses, field names and checks are unchanged. Tests: `install/test_mila_style.py` (copies identical, no outside addresses, no portrait still works) and one look check per page.
