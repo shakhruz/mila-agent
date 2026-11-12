@@ -1,6 +1,6 @@
 # CHANGELOG · Mila
 
-## Unreleased — talents after birth; the word «talent»; a shelf for courses; `mila` taken by another program
+## v1.7.13 · 12.11 — talents after birth; the word «talent»; a shelf for courses; `mila` taken by another program
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
