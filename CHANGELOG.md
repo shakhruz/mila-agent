@@ -8,6 +8,7 @@
 - После знакомства и чувств я сама предлагаю свои таланты — по одному, не чаще раза в день и никогда ночью: Штурман Telegram, потом таланты из библиотеки. «Позже» — полный ответ, сама больше не предлагаю. Штурмана подключаете вы сами, после трёх честных строк о риске.
 - Я говорю «талант» и «библиотека талантов», а не «пак»: в карточке «Поставить?», в карточке «Убрать?», в виджете библиотеки, в документации.
 - В библиотеке новая полка — «Обучение»: курсы, которые ведут вас несколько дней. Первый — курс по книге «ИИ. Руководство»: семь дней, одно задание каждое утро.
+- Если слово `mila` в вашем терминале уже занято другой программой (функцией или алиасом), установщик скажет, чем именно и в каком файле, покажет эти строки и даст полный путь — и для запуска, и для удаления: ~/.local/bin/mila.
 
 </details>
 
@@ -15,11 +16,13 @@
 - After getting acquainted and my senses, I offer my talents myself — one at a time, at most one a day and never at night: the Telegram Navigator, then talents of the library. «Later» is a full answer; I do not offer it again. You connect the Navigator yourself, after three honest lines about the risk.
 - I say «talent» and «talent library» instead of «pack»: on the «Install?» and «Remove?» cards, in the library widget and in the docs.
 - The library has a new shelf, «Learning»: courses that lead you for several days. The first is the course on the book «AI: A Guide» — seven days, one task each morning.
+- If the word `mila` in your terminal is already taken by another program (a function or an alias), the installer says by what and in which file, shows those lines and gives the full path — to start her and to remove her: ~/.local/bin/mila.
 
 **For Milas**
 - New skill `talanty` (`scripts/talents.py list | next | answer | done`): the core's queue (`talents.json`: shturman, then packs); a pack is offered only if this core's checked library holds it — its card is `library.py offer`'s own; one that is not there is named «not in the library» in `list`. A card only after an answer to the previous one and a day after it, none 22:00–08:00 in the owner's zone. Shturman «connect» only opens the Shturman skill's card with its risks (state `asked`). `skills/shturman/talent.json` — its passport in four languages; the home template offers talents after the connectors.
 - Owner-facing words: `update.py` install and remove cards (ru «Талант «…»» / «убери талант», en «Talent», uz «iqtidor» — the Uzbek word is not yet read by a native speaker), consent lines, `vidzhet/status.py` labels, README.ru and docs/*.ru; `library` and `packs` skills say the word to use. Internal names stay: packs/, pack.json, install-pack, pack:yes.
 - `skills/library`: a fifth category, `obrazovanie` (`library.py` CATS; `tools/build_library.py` takes it); not an entry pack — offered by its own order. `library.lock` → mila-library tag `core-v1.7.13` (five: the four of core-v1.7.7 unchanged and `kurs-kniga-ii`, requires core 1.7.12).
+- `install/shell_name.py` asks the owner's own interactive shell (`zsh -ic 'whence -v mila'` / `bash -ic 'type -t; declare -F'`) after its own mark, 5 s at most, killing the whole process group on time-out; it writes nothing itself (the rc files run as when a terminal opens). The install screen names the shell, the kind and the file, shows the lines and gives the full path for start and uninstall.
 
 ## v1.7.12 · 12.11 — the key page on this computer; imagination, the second sense of birth
 
