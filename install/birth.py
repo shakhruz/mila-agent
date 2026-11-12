@@ -194,7 +194,7 @@ def api_code(body):
     onboard.save_token(tok)
     paired = False
     if r["owner_id"]:
-        onboard.finish_pair(tok, r["owner_id"])
+        onboard.finish_pair(tok, r["owner_id"], greet=False)   # the page's path: her first words come from Mila herself
         paired = True
     res = me["result"]
     return 200, {"ok": True, "username": res.get("username", ""), "name": res.get("first_name", ""), "paired": paired}

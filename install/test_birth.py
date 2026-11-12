@@ -370,5 +370,7 @@ import birth_relay as br
 chk("normalize_code: регистр, дефисы, пробелы, без MILA; мусор и чужой алфавит — нет",
     all(br.normalize_code(x) == GOODCODE for x in ("milaabcdefghjklm", "MILA ABCD EFGH JKLM", "abcd-efgh-jklm", " abcdefghjklm ")) and br.normalize_code("MILA-ABC0-EFGH-JKLM") is None and br.normalize_code("hello") is None and br.normalize_code("") is None)
 chk("claim: relay недоступен (порт закрыт) → unreachable", br.claim(GOODCODE, "http://127.0.0.1:1/x")["error"] == "unreachable")
+chk("за весь проход страница не отправила хозяину ни одного сообщения — ни при коде пары, ни при коде рождения с хозяином: первые слова говорит Мила",
+    not S["sent"] and not S["photos"])
 print("итог %d/%d" % (ok, n))
 sys.exit(0 if ok == n else 1)
