@@ -22,9 +22,11 @@ SKILLS = os.path.normpath(os.path.join(HERE, "..", ".."))
 WORK = os.environ.get("MILA_WORK") or os.path.expanduser("~/work")
 DIR = os.path.join(WORK, "connectors")
 REG = os.path.join(DIR, "registry.json")
-ORDER = ("sluh",)                                   # the order of birth; a connector not named here is not built-in
+ORDER = ("sluh", "fantaziya")                                 # the order of birth; a connector not named here is not built-in
 SERVICES = {                                        # the closed list: where a key is checked and how it is sent
     "deepgram": {"url": "https://api.deepgram.com/v1/projects", "header": "Authorization", "prefix": "Token "},
+    # the key's own page: data.limit empty = a key with no spending limit — said in one line, not a refusal
+    "openrouter": {"url": "https://openrouter.ai/api/v1/key", "header": "Authorization", "prefix": "Bearer ", "limit": True},
 }
 STATES = ("offered", "later", "active", "off")
 LANGS = ("ru", "en", "uz", "zh")
@@ -132,16 +134,39 @@ def http_status(url, headers, timeout=20):
         return 0
 
 
-def check_key(d):
-    """→ (ok, reason). The key goes only to the address of the closed list."""
+def http_json(url, headers, timeout=20):
+    """The second door to the network (replaced in the test): → (HTTP status, the JSON body or {}). 0 when there is no answer."""
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=timeout) as r:
+            try: return r.status, json.loads(r.read(65536).decode("utf-8", "replace"))
+            except ValueError: return r.status, {}
+    except urllib.error.HTTPError as e:
+        return e.code, {}
+    except (urllib.error.URLError, OSError, ValueError):
+        return 0, {}
+
+
+NO_LIMIT = {"ru": "У ключа нет лимита трат — поставьте лимит на ключ в OpenRouter (Keys → ключ → Credit limit), чтобы расход не вышел за ваш край.",
+            "en": "The key has no spending limit — set one on the key in OpenRouter (Keys → the key → Credit limit), so spending cannot go past your edge.",
+            "uz": "Kalitda xarajat chegarasi yo‘q — OpenRouter’da kalitga chegara qo‘ying (Keys → kalit → Credit limit), xarajat chegaradan chiqmasin.",
+            "zh": "该密钥没有消费上限——请在 OpenRouter 为密钥设置上限（Keys → 密钥 → Credit limit），以免花费超出您的预期。"}
+
+
+def check_key(d, lang="ru"):
+    """→ (ok, reason, note). The key goes only to the address of the closed list. note: one line for the owner (a key with no limit)."""
     key, why = read_key(d)
-    if not key: return False, why
+    if not key: return False, why, ""
     s = SERVICES[d["service"]]
-    code = http_status(s["url"], {s["header"]: s["prefix"] + key})
-    if code == 200: return True, ""
-    if code in (401, 403): return False, "сервис не принял ключ (HTTP %d) — нужен новый ключ" % code
-    if code == 0: return False, "сервис не ответил — проверю ещё раз позже, ключ в сейфе"
-    return False, "сервис ответил HTTP %d — проверю ещё раз позже" % code
+    if s.get("limit"):
+        code, body = http_json(s["url"], {s["header"]: s["prefix"] + key})
+        data = body.get("data") if isinstance(body, dict) else None
+        note = tr(NO_LIMIT, lang) if code == 200 and isinstance(data, dict) and data.get("limit") in (None, "", 0) else ""
+    else:
+        code, note = http_status(s["url"], {s["header"]: s["prefix"] + key}), ""
+    if code == 200: return True, "", note
+    if code in (401, 403): return False, "сервис не принял ключ (HTTP %d) — нужен новый ключ" % code, ""
+    if code == 0: return False, "сервис не ответил — проверю ещё раз позже, ключ в сейфе", ""
+    return False, "сервис ответил HTTP %d — проверю ещё раз позже" % code, ""
 
 
 def card(d, lang):
@@ -158,7 +183,7 @@ def main(argv=None):
     for name in ("offer", "steps", "trial", "off"):
         p = sub.add_parser(name); p.add_argument("id"); p.add_argument("--lang", default="ru")
     for name in ("later", "check", "on"):
-        p = sub.add_parser(name); p.add_argument("id")
+        p = sub.add_parser(name); p.add_argument("id"); p.add_argument("--lang", default="ru")
     a = ap.parse_args(argv)
     lang = getattr(a, "lang", "ru"); lang = lang if lang in LANGS else "en"
     try:
@@ -186,9 +211,9 @@ def main(argv=None):
                         "страницу открывает safe-link/scripts/own_safe.py %s (ссылка работает только на этом компьютере); во флоте — ссылка сейфа заявкой. "
                         "Когда сейф скажет «сохранено» — connectors.py check %s" % (a.id, a.id)})
         if a.cmd in ("check", "on"):
-            ok, why = check_key(d)
+            ok, why, note = check_key(d, a.lang if a.lang in LANGS else "ru")
             if not ok: out({"id": a.id, "ok": False, "state": state_of(a.id), "why": why}, 1)
-            out({"id": a.id, "ok": True, "state": set_state(a.id, "active")["state"]})
+            out(dict({"id": a.id, "ok": True, "state": set_state(a.id, "active")["state"]}, **({"note": note} if note else {})))
         if a.cmd == "trial":
             if state_of(a.id) != "active": out({"id": a.id, "ok": False, "why": "коннектор не активирован — пробы нет"}, 1)
             res = {"id": a.id, "ok": True, "text": clean(tr(d["trial"], lang)), "paid": bool(d.get("paid_trial"))}

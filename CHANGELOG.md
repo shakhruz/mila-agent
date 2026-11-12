@@ -6,14 +6,17 @@
 
 **Для хозяина**
 - Ключ для слуха и других умений вы вводите на странице, которую я сама открываю на этом компьютере, — не в чате. Ссылка работает только на этом компьютере, с телефона она не откроется.
+- Фантазия: я рисую картинки по вашим словам — обложки, иллюстрации, открытки. Нужен ваш ключ OpenRouter; каждую картинку оплачиваете вы по их прайсу, цену я называю заранее и рисую после вашего «да». Описание картинки уходит в OpenRouter и Google.
 
 </details>
 
 **For the owner**
 - The key for my hearing and other skills goes into a page I open on this computer myself — not into the chat. The link works only on this computer; it does not open on a phone.
+- Imagination: I draw pictures from your words — covers, illustrations, cards. It needs your own OpenRouter key; you pay for each picture by their price, I name it first and draw after your «yes». The description of a picture goes to OpenRouter and Google.
 
 **For Milas**
 - `skills/safe-link/scripts/own_safe.py <connector>` opens the own Safe (`tools/seif/seif.py own`) of the kit from the background session: seif.py only from the kit root (not a link, inside the root, this user's, nobody else can write it), the record and field only from the connector's passport, no shell, returns at once and opens the browser (`"open": false` with no screen). The own page answers only to its own loopback name and port, takes a POST only with its own Origin, and closes the link after five wrong entries.
+- The second built-in connector — imagination: `skills/fantaziya` (`connector.json`: passport with the price and its date, a day cap of 10 pictures or $1; `scripts/draw.py`). The model and the address are in the code; only base64 PNG or JPEG from the answer is kept, at most 20 MB, no link is fetched; every picture goes into the records (`openrouter`/`image`), and the day cap counted from them refuses without the network. `connectors.py`: order sluh → fantaziya, service `openrouter` checked at `/api/v1/key`; a key with no spending limit gets a `note` for the owner.
 
 ## v1.7.11 · 12.11 — Mila works in the background, no terminal after birth; the birth page tells the bot its language; voice messages when a speech service cannot be reached; the work progress stream; one look for every page of the first minutes
 

@@ -37,7 +37,7 @@ def R(*argv):
 try:
     # ── реестр и карточка
     code, d, raw = R("list")
-    chk("реестр: один встроенный коннектор — слух, состояние «предложен», строка «что даёт»", [x["id"] for x in d["connectors"]] == ["sluh"] and d["connectors"][0]["state"] == "offered" and d["connectors"][0]["sense"] == "слух" and "голосовые" in d["connectors"][0]["gives"], d)
+    chk("реестр: встроенные коннекторы по порядку рождения — слух, фантазия; слух «предложен», строка «что даёт»", [x["id"] for x in d["connectors"]] == ["sluh", "fantaziya"] and d["connectors"][0]["state"] == "offered" and d["connectors"][0]["sense"] == "слух" and "голосовые" in d["connectors"][0]["gives"], d)
     code, d, raw = R("next")
     b = d.get("buttons", [[{}]])[0]
     chk("при рождении первым предлагается слух: реплика, что нужно, сколько стоит и две кнопки — «Активировать слух» / «Позже»", d.get("id") == "sluh" and d["text"].startswith("Давайте активируем мне слух") and "Deepgram" in d["text"] and "пробный кредит" in d["text"]
@@ -65,14 +65,14 @@ try:
     chk("реестр дома: слух — active, с отметкой времени; файл 600; ключа в нём нет", reg["sluh"]["state"] == "active" and reg["sluh"].get("ts") and (os.stat(os.path.join(WORK, "connectors", "registry.json")).st_mode & 0o777) == 0o600 and KEY not in json.dumps(reg), reg)
     # ── проба и состояние после активации
     code, d, raw = R("trial", "sluh"); chk("проба: «пришлите голосовое — отвечу текстом», бесплатная", code == 0 and "голосовое" in d["text"] and d["paid"] is False, d)
-    code, d, raw = R("next"); chk("после активации предлагать нечего", d.get("id") is None, d)
+    code, d, raw = R("next"); chk("после активации слуха следующей предлагается фантазия", d.get("id") == "fantaziya", d)
     code, d, raw = R("offer", "sluh"); chk("карточка уже активированного — «уже активирован», кнопок нет", d.get("state") == "active" and "buttons" not in d, d)
     code, d, raw = R("later", "sluh"); chk("«позже» по активированному не пишется", d.get("state") == "active" and json.load(open(os.path.join(WORK, "connectors", "registry.json")))["sluh"]["state"] == "active", d)
     # ── снятие и возврат
     flag = os.path.join(WORK, "connectors", "sluh.off")
     code, d, raw = R("off", "sluh")
     chk("выключить: состояние off, флаг для расшифровщика лежит, строка о ключе в сейфе; ключ не тронут", d["state"] == "off" and os.path.exists(flag) and "Ключ остаётся в сейфе" in d["text"] and open(SAFE_FILE).read().strip() == "%s=%s" % (FIELD, KEY), d)
-    code, d, raw = R("next"); chk("выключенный сам не предлагается", d.get("id") is None, d)
+    code, d, raw = R("next"); chk("выключенный сам не предлагается (дальше — фантазия)", d.get("id") == "fantaziya", d)
     C.http_status = service(401); code, d, raw = R("on", "sluh"); chk("включить обратно с негодным ключом — отказ, остаётся выключенным", code == 1 and os.path.exists(flag) and d["state"] == "off", d)
     C.http_status = service(200); code, d, raw = R("on", "sluh"); chk("включить обратно — ключ проверен заново, флаг убран", code == 0 and d["state"] == "active" and not os.path.exists(flag), d)
     # ── расшифровщик уважает выключатель: при флаге не идёт ни к одному сервису
@@ -89,7 +89,7 @@ try:
     # ── «позже»
     shutil.rmtree(os.path.join(WORK, "connectors"))
     code, d, raw = R("later", "sluh"); chk("«позже»: состояние later", d["state"] == "later", d)
-    code, d, raw = R("next"); chk("отложенный сам больше не предлагается", d.get("id") is None, d)
+    code, d, raw = R("next"); chk("отложенный сам больше не предлагается (дальше — фантазия)", d.get("id") == "fantaziya", d)
     code, d, raw = R("offer", "sluh"); chk("хозяин попросил сам — карточка отложенного показывается", bool(d.get("buttons")), d)
     # ── чего быть не должно
     code, d, raw = R("offer", "zrenie"); chk("коннектора, которого нет в ядре, нет: отказ", code == 1 and d["ok"] is False, d)
@@ -108,6 +108,27 @@ try:
         code, d, raw = R("steps", "sluh"); chk("паспорт называет запись сейфа с путём — отказ", code == 1, d)
     finally:
         C.SKILLS = SK
+    # ── фантазия: ключ OpenRouter, лимит ключа — строкой хозяину
+    OKEY = "sk" + "-or-v1-" + "f" * 40                       # выдуманный ключ, склейкой
+    OFILE = os.path.join(SAFE, "openrouter" + ".env"); open(OFILE, "w").write("%s=%s\n" % ("OPENROUTER_" + "API_KEY", OKEY)); os.chmod(OFILE, 0o600)
+    jcalls = []
+    def jservice(code, body):
+        def http_json(url, headers, timeout=20):
+            jcalls.append((url, dict(headers))); return code, body
+        return http_json
+    code, d, raw = R("steps", "fantaziya"); chk("фантазия: три шага, запись сейфа openrouter", len(d["steps"]) == 3 and d["safe"]["name"] == "openrouter" and "own_safe.py fantaziya" in d["how"], d)
+    code, d, raw = R("offer", "fantaziya"); chk("карточка фантазии говорит до ключа, что описание уходит в OpenRouter и Google", "OpenRouter и Google" in d.get("text", ""), d)
+    C.http_json = jservice(200, {"data": {"limit": None, "usage": 0}}); calls.clear(); jcalls.clear()
+    code, d, raw = R("check", "fantaziya")
+    chk("ключ без лимита: активирована, но строка «поставьте лимит на ключ»", code == 0 and d.get("state") == "active" and "поставьте лимит" in d.get("note", ""), d)
+    chk("ключ фантазии ушёл только на openrouter.ai/api/v1/key, заголовком Bearer; дверь слуха не тронута", len(jcalls) == 1 and jcalls[0][0] == "https://openrouter.ai/api/v1/key"
+        and jcalls[0][1] == {"Authorization": "Bearer " + OKEY} and not calls, (jcalls, calls))
+    C.http_json = jservice(200, {"data": {"limit": 5, "usage": 0}}); code, d, raw = R("check", "fantaziya", "--lang", "en")
+    chk("ключ с лимитом — без строки о лимите", code == 0 and "note" not in d, d)
+    C.http_json = jservice(401, {}); code, d, raw = R("on", "fantaziya"); chk("ключ OpenRouter не принят — «нужен новый ключ»", code == 1 and "новый ключ" in d["why"], d)
+    code, d, raw = R("trial", "fantaziya"); C.http_json = jservice(200, {"data": {"limit": 5}}); R("check", "fantaziya")
+    code, d, raw = R("trial", "fantaziya"); chk("проба фантазии платная: «сначала цена и «да» хозяина»", code == 0 and d["paid"] is True and "цена" in d.get("note", ""), d)
+    everything.append(raw); chk("ни в одном выводе ключа OpenRouter нет", not any(OKEY in x for x in everything))
     chk("ни в одном выводе за весь прогон ключа нет", not any(KEY in x for x in everything))
     src = open(os.path.join(H, "connectors.py"), encoding="utf-8").read()
     chk("адрес сервиса не берётся ни из паспорта, ни из окружения", "check_url" not in src and src.count("environ") == 1 and 'd["service"]' in src)
