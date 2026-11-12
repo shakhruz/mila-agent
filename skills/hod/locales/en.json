@@ -22,5 +22,8 @@
  "hod.tool.plan": "planning the steps",
  "hod.tool.browser": "working in the browser",
  "hod.tool.service": "using a connected service",
- "hod.tool.other": "working"
+ "hod.tool.other": "working",
+ "hod.res.ok": "ok · {n} lines",
+ "hod.res.exit": "exit {n}",
+ "hod.res.fail": "failed"
 }

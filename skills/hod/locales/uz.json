@@ -22,5 +22,8 @@
  "hod.tool.plan": "qadamlarni rejalayapman",
  "hod.tool.browser": "brauzerda ishlayapman",
  "hod.tool.service": "ulangan xizmat bilan ishlayapman",
- "hod.tool.other": "ishlayapman"
+ "hod.tool.other": "ishlayapman",
+ "hod.res.ok": "ok · {n} qator",
+ "hod.res.exit": "chiqish kodi {n}",
+ "hod.res.fail": "bo'lmadi"
 }

@@ -22,5 +22,8 @@
  "hod.tool.plan": "расписываю шаги",
  "hod.tool.browser": "работаю в браузере",
  "hod.tool.service": "работаю с подключённым сервисом",
- "hod.tool.other": "работаю"
+ "hod.tool.other": "работаю",
+ "hod.res.ok": "ок · строк: {n}",
+ "hod.res.exit": "код выхода {n}",
+ "hod.res.fail": "не вышло"
 }

@@ -24,13 +24,27 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CLAUDE = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+
+
+def _inside(path, base):
+    try:
+        a, b = os.path.realpath(path), os.path.realpath(base)
+        return os.path.commonpath([a, b]) == b
+    except ValueError:
+        return False
+
+
+# The channel folder counts only when it lies inside this Mila's own config dir (the rule install/mila applies to the birth page):
+# a TELEGRAM_STATE_DIR left in the shell by another Mila must not point the hook at someone else's token. Otherwise: silence.
 STATE_DIR = os.environ.get("TELEGRAM_STATE_DIR") or os.path.join(CLAUDE, "channels", "telegram")
+STATE_OK = _inside(STATE_DIR, CLAUDE)
 API = os.environ.get("MILA_TG_API", "https://api.telegram.org")
 TIMEOUT = 4          # seconds for one request
 MIN_EDIT_GAP = float(os.environ.get("MILA_HOD_GAP", "1.5"))   # seconds between two edits of the same message (Telegram flood limits)
 BACKOFF = 60         # seconds without trying after a failed request
 MAX_STEPS = 60
 SHOWN_STEPS = 22
+WINDOW = int(os.environ.get("MILA_HOD_WINDOW", "3000000"))   # bytes of transcript read the first time
 LIMIT = 3900         # characters of the final MarkdownV2 text (Telegram allows 4096)
 
 OFF_NAME = "hod.off"
@@ -49,6 +63,7 @@ DEFAULTS = {
     "hod.tool.files": "searching files", "hod.tool.search": "searching the web", "hod.tool.fetch": "reading a page",
     "hod.tool.plan": "planning the steps", "hod.tool.browser": "working in the browser", "hod.tool.service": "using a connected service",
     "hod.tool.other": "working",
+    "hod.res.ok": "ok · {n} lines", "hod.res.exit": "exit {n}", "hod.res.fail": "failed",
 }
 
 _I18N = None
@@ -99,25 +114,61 @@ def L(key, **kw):
 
 
 # ── masking ─────────────────────────────────────────────────────────────────
+# Same coverage as the send guard (keys, tokens) and the personal-data vault (card, phone, e-mail, PINFL): the patterns are copied
+# from templates/home/.claude/hooks/send-guard.py (SECRETS, card by Luhn) and skills/pd-vault/pd_vault.py (PAT), because a hook is a
+# single installed file and cannot import a skill. Plus what those two do not see in a step text: a password in a URL, a JWT, a PEM block.
 DOTS = "•••"
-_MASKS = [
-    re.compile(r"\b\d{5,}:[A-Za-z0-9_-]{30,}"),                                   # bot tokens
-    re.compile(r"\b(?:sk|pk)[-_][A-Za-z0-9_-]{8,}"),                              # provider keys
-    re.compile(r"\b(?:gh[pous]_|xox[baprs]-|AK" + r"IA)[A-Za-z0-9-]{10,}"),             # GitHub, Slack, AWS
-    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{12,}"),
-    re.compile(r"\b[0-9a-fA-F]{32,}\b"),                                          # long hex
-    re.compile(r"[A-Za-z0-9+/]{40,}={0,2}"),                                      # long base64
-    re.compile(r"\b[A-Za-z0-9_-]{36,}\b"),                                        # any long opaque string
+_LUHN_RX = re.compile(r"(?<!\d)(?:\d{4}[ -]?){3}\d{4}(?!\d)|(?<![\d+])(?:\d[ -]?){12,}\d(?!\d)")
+_PHONE_RX = [
+    re.compile(r"(?<![\w+])(?:\+?998[ -]?\(?\d{2}\)?|\+\d{1,3}[ -]?\(?\d{2,4}\)?|\b8[ -]?\(?\d{3}\)?)[ -]?\d{2,3}[ -]?\d{2}[ -]?\d{2,3}(?!\d)"),
+    re.compile(r"(?<![\w+])\(?(?:20|33|50|55|6[1-9]|7[0-9]|88|9[0-9])\)?[ -]\d{3}[ -]?\d{2}[ -]?\d{2}(?!\d)"),
 ]
-_ASSIGN = re.compile(r"(?i)(\b[\w.-]*(?:KEY|TOKEN|PASSWORD|PASSWD|SECRET)[\w.-]*\s*[=:]\s*)(?:\"[^\"]*\"|'[^']*'|\S+)")
+_PHONE_CTX = re.compile(r"(?i)(?:тел|номер|phone|tel|nomer|raqam|звон|позвон|whats\s?app|ватсап|вотсап|aloqa\s+uchun|qo['ʻ’]ng['ʻ’]iroq)\w*"
+                        r"(?:[ \t]+[^\W\d]+){0,3}?[:.]?[ \t]*(?P<v>\d{9})(?!\d)")
+_MASKS = [
+    re.compile(r"-----BEGIN [A-Z0-9 ]+-----[\s\S]*?(?:-----END [A-Z0-9 ]+-----|$)"),     # PEM blocks (keys, certificates)
+    re.compile(r"\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]*"),            # JWT
+    re.compile(r"\b\d{5,}:[A-Za-z0-9_-]{30,}"),                                        # bot tokens
+    re.compile(r"\b(?:sk|pk)[-_][A-Za-z0-9_-]{8,}"),                                   # provider keys
+    re.compile(r"\b(?:gh[pous]_|xox[baprs]-|AK" + r"IA|cmp_)[A-Za-z0-9-]{10,}"),             # GitHub, Slack, AWS, API
+    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{12,}"),
+    re.compile(r"(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+"),                           # e-mail
+    re.compile(r"(?<!\d)[3-6]\d{13}(?!\d)"),                                           # PINFL
+] + _PHONE_RX + [
+    re.compile(r"\b[0-9a-fA-F]{32,}\b"),                                               # long hex
+    re.compile(r"[A-Za-z0-9+/]{40,}={0,2}"),                                           # long base64
+    re.compile(r"\b[A-Za-z0-9_-]{36,}\b"),                                             # any long opaque string
+]
+_URLCRED = re.compile(r"(\b[A-Za-z][A-Za-z0-9+.-]*://[^\s:/@]*:)[^\s@/]+(@)")        # scheme://user:password@host
+_ASSIGN = re.compile(r"(?i)(\b[\w.-]*(?:KEY|TOKEN|PASS|PWD|SECRET|CRED|AUTH|PRIVATE|DSN)[\w.-]*\s*[=:]\s*)(?:\"[^\"]*\"|'[^']*'|\S+)")
 _PATH = re.compile(r"(?:~|/)[\w.\-@+]*(?:/[\w.\-@+]+){2,}")
+
+
+def _luhn(d):
+    t = 0
+    for i, ch in enumerate(reversed(d)):
+        x = int(ch)
+        if i % 2:
+            x = x * 2 - 9 if x > 4 else x * 2
+        t += x
+    return t % 10 == 0
+
+
+def _card(m):
+    d = re.sub(r"\D", "", m.group(0))
+    return DOTS if 13 <= len(d) <= 19 and len(set(d)) > 1 and _luhn(d) else m.group(0)
 
 
 def mask(s):
     s = str(s)
+    s = _URLCRED.sub(lambda m: m.group(1) + DOTS + m.group(2), s)
     s = _ASSIGN.sub(lambda m: m.group(1) + DOTS, s)
-    for rx in _MASKS:
+    for rx in _MASKS[:7]:
         s = rx.sub(DOTS, s)
+    s = _LUHN_RX.sub(_card, s)
+    for rx in _MASKS[7:]:
+        s = rx.sub(DOTS, s)
+    s = _PHONE_CTX.sub(lambda m: m.group(0)[:m.start("v") - m.start(0)] + DOTS, s)
     return s
 
 
@@ -201,21 +252,40 @@ def api(method, **p):
 
 
 # ── transcript: whose turn is this ──────────────────────────────────────────
-def _tail(path, n=3000000):
+def _read_new(path, off):
+    """→ (complete lines after byte offset `off`, new offset, fresh). The first read (off None) takes the last WINDOW bytes and drops
+    the cut first line; `fresh` is True then. A half-written last line is left for the next call. A file that shrank starts over."""
     try:
         with open(path, "rb") as f:
             f.seek(0, 2)
             size = f.tell()
-            f.seek(max(0, size - n))
-            return f.read().decode("utf-8", "replace").splitlines()[1 if size > n else 0:]
+            fresh = off is None or off > size or size - off > WINDOW
+            start = max(0, size - WINDOW) if fresh else off
+            f.seek(start)
+            data = f.read()
     except Exception:
-        return []
+        return [], off, False
+    if fresh and start > 0:
+        k = data.find(b"\n")
+        data, start = (data[k + 1:], start + k + 1) if k >= 0 else (b"", start + len(data))
+    k = data.rfind(b"\n")
+    if k < 0:
+        return [], start, fresh
+    return data[:k].decode("utf-8", "replace").splitlines(), start + k + 1, fresh
 
 
-def turn_info(path):
-    """→ (uuid of the latest real user message, set of chat ids in it, last assistant text of that turn)."""
-    turn, chats, last = None, set(), ""
-    for ln in _tail(path):
+def turn_info(st, path, owner=""):
+    """Follow the transcript with a byte offset kept in the state (st["tp"]), so a call reads only what is new.
+    → (uuid of the latest real user message, set of chat ids in it, last assistant text of that turn).
+    Fail closed: a turn whose start is not in what was read gives turn None, and nothing is sent."""
+    tp = st.get("tp")
+    if not isinstance(tp, dict) or tp.get("path") != path:
+        tp = {"path": path, "off": None, "turn": None, "chats": [], "last": ""}
+    lines, off, fresh = _read_new(path, tp.get("off"))
+    if fresh:
+        tp["turn"], tp["chats"], tp["last"] = None, [], ""
+    tp["off"] = off
+    for ln in lines:
         try:
             d = json.loads(ln)
         except Exception:
@@ -232,13 +302,14 @@ def turn_info(path):
                 if parts:
                     text = "\n".join(parts)
             if text is not None:
-                turn, last = d.get("uuid"), ""
-                chats = set(re.findall(r'<channel\b[^>]*\bchat_id="(-?\d+)"', text))
+                tp["turn"], tp["last"] = d.get("uuid"), ""
+                tp["chats"] = sorted(set(re.findall(r'<channel\b[^>]*\bchat_id="(-?\d+)"', text)))
         elif d.get("type") == "assistant" and isinstance(c, list):
             for b in c:
-                if isinstance(b, dict) and b.get("type") == "text" and str(b.get("text", "")).strip():
-                    last = b["text"].strip()
-    return turn, chats, last
+                if isinstance(b, dict) and b.get("type") == "text" and str(b.get("text", "")).strip() and tp["chats"] == [owner]:
+                    tp["last"] = mask(b["text"].strip())[:4000]
+    st["tp"] = tp
+    return tp["turn"], set(tp["chats"]), tp["last"]
 
 
 # ── step text ───────────────────────────────────────────────────────────────
@@ -270,15 +341,24 @@ def step_label(name, ti):
 
 
 def result_line(resp):
+    """A neutral outcome of a Bash step: exit status and the number of output lines. Never a word of the output itself:
+    a grep or a cat over data would land in the chat."""
+    code = None
     if isinstance(resp, dict):
-        resp = resp.get("stdout") or resp.get("output") or ""
-    if isinstance(resp, list):
-        resp = " ".join(str(x.get("text", "")) if isinstance(x, dict) else str(x) for x in resp)
-    for ln in str(resp).splitlines():
-        ln = ln.strip()
-        if ln and not ln.startswith(("{", "[", "<")):
-            return one(ln, 90)
-    return ""
+        for k in ("exit_code", "exitCode", "returncode", "code"):
+            if isinstance(resp.get(k), int) and not isinstance(resp.get(k), bool):
+                code = resp[k]
+                break
+        text = resp.get("stdout") or resp.get("output") or ""
+        if resp.get("interrupted") or resp.get("is_error"):
+            return L("hod.res.fail") if code in (None, 0) else L("hod.res.exit", n=code)
+    elif isinstance(resp, list):
+        text = " ".join(str(x.get("text", "")) if isinstance(x, dict) else str(x) for x in resp)
+    else:
+        text = resp or ""
+    if code:
+        return L("hod.res.exit", n=code)
+    return L("hod.res.ok", n=len([x for x in str(text).splitlines() if x.strip()]))
 
 
 # ── rendering ───────────────────────────────────────────────────────────────
@@ -300,7 +380,7 @@ def render(st, done, summary=""):
             old = steps[:-1]
         body = head
         if not done and steps:
-            body += "\n_" + esc(steps[-1]["t"]) + "_"
+            body += "\n_" + esc(steps[-1]["t"]) + "_" + ((" → " + esc(steps[-1]["r"])) if steps[-1].get("r") else "")
         if old:
             body += "\n" + quote(["· " + line(s) for s in old[-shown:]])
         if done and summary:
@@ -397,11 +477,18 @@ def push(st, body, owner, force=False):
 # ── command from the owner ──────────────────────────────────────────────────
 def command(ev):
     """/hod on|off|status in the owner's private chat → executes it and tells Mila to confirm in one line. Anything else: silence."""
-    s = str(ev.get("prompt") or "")
-    m = re.findall(r'<channel\b([^>]*)>(.*?)</channel>', s, re.S)
+    s = str(ev.get("prompt") or "").lstrip()
+    # Only the FIRST (outermost) envelope counts, and its body must be plain text: a body that itself contains something shaped like
+    # an envelope is somebody's text pretending to be one, never a command.
+    m = re.match(r'<channel\b([^>]*)>', s)
     if not m:
         return          # a terminal prompt is not a chat command
-    attrs, body = m[-1]
+    attrs = m.group(1)
+    rest = s[m.end():]
+    k = rest.find("</channel>")
+    body = rest[:k] if k >= 0 else rest
+    if "<channel" in body or "</channel" in body:
+        return
     chat = re.search(r'\bchat_id="(-?\d+)"', attrs)
     own = owner_id()
     if not chat or not own or chat.group(1) != own:
@@ -430,6 +517,8 @@ def main():
     if not isinstance(ev, dict):
         return
     kind = ev.get("hook_event_name")
+    if not STATE_OK:
+        return
     if kind == "UserPromptSubmit":
         command(ev)
         return
@@ -443,16 +532,17 @@ def main():
     owner = owner_id()
     if not owner:
         return
-    turn, chats, last = turn_info(ev.get("transcript_path", ""))
-    if not turn or chats != {owner}:   # only a turn that came from the owner's private chat, and from nowhere else
-        return
     os.makedirs(STATE_DIR, exist_ok=True)
     with Locked():
         st = load_state()
+        turn, chats, last = turn_info(st, str(ev.get("transcript_path") or ""), owner)
+        if not turn or chats != {owner}:   # only a turn that came from the owner's private chat, and from nowhere else
+            save_state(st)
+            return
         sess = ev.get("session_id")
         if kind == "PreToolUse":
             if st.get("session") != sess or st.get("turn") != turn:
-                st = {"session": sess, "turn": turn, "msg": None, "steps": [], "n": 0, "t0": time.time()}
+                st = {"session": sess, "turn": turn, "msg": None, "steps": [], "n": 0, "t0": time.time(), "tp": st.get("tp")}
             lab = step_label(name, ev.get("tool_input") or {})
             if not lab:
                 return

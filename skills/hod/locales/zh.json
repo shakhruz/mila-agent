@@ -22,5 +22,8 @@
  "hod.tool.plan": "正在规划步骤",
  "hod.tool.browser": "正在浏览器中操作",
  "hod.tool.service": "正在使用已连接的服务",
- "hod.tool.other": "工作中"
+ "hod.tool.other": "工作中",
+ "hod.res.ok": "完成 · {n} 行",
+ "hod.res.exit": "退出码 {n}",
+ "hod.res.fail": "失败"
 }
