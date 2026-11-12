@@ -1,5 +1,20 @@
 # CHANGELOG · Mila
 
+## Unreleased — the key page on this computer, imagination, the library's courses
+
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
+**Для хозяина**
+- Ключ для слуха и других умений вы вводите на странице, которую я сама открываю на этом компьютере, — не в чате. Ссылка работает только на этом компьютере, с телефона она не откроется.
+
+</details>
+
+**For the owner**
+- The key for my hearing and other skills goes into a page I open on this computer myself — not into the chat. The link works only on this computer; it does not open on a phone.
+
+**For Milas**
+- `skills/safe-link/scripts/own_safe.py <connector>` opens the own Safe (`tools/seif/seif.py own`) of the kit from the background session: seif.py only from the kit root (not a link, inside the root, this user's, nobody else can write it), the record and field only from the connector's passport, no shell, returns at once and opens the browser (`"open": false` with no screen). The own page answers only to its own loopback name and port, takes a POST only with its own Origin, and closes the link after five wrong entries.
+
 ## v1.7.11 · 12.11 — Mila works in the background, no terminal after birth; the birth page tells the bot its language; voice messages when a speech service cannot be reached; the work progress stream; one look for every page of the first minutes
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>

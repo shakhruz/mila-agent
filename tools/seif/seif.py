@@ -184,6 +184,7 @@ def cmd_own(a, ready=None):
     opt = lambda k, d=None: a[a.index(k) + 1] if k in a else d
     ttl = min(float(opt("--ttl", "10")), 30)
     srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    H.own_port = srv.server_address[1]
     BASE = "http://127.0.0.1:%d/v/" % srv.server_address[1]
     args = ["self", a[0], "--name", opt("--name", "keys"), "--ttl", str(ttl)] + (["--lang", opt("--lang")] if opt("--lang") else [])
     out, tok = cmd_link(args)
@@ -198,7 +199,8 @@ def cmd_own(a, ready=None):
         try: os.remove(tok_path(tok))
         except OSError: pass
     journal({"ev": "own-closed", "saved": saved})
-    print(json.dumps({"ok": saved, "closed": True, "why": "" if saved else "срок вышел — ничего не сохранено"}, ensure_ascii=False))
+    try: print(json.dumps({"ok": saved, "closed": True, "why": "" if saved else "срок вышел — ничего не сохранено"}, ensure_ascii=False), flush=True)
+    except (BrokenPipeError, OSError): pass   # own_safe.py reads only the first line and lets go of the pipe
     return saved
 
 
@@ -264,8 +266,14 @@ def form(rec, lang, errs=None):
                 % (T(lang, "seif.h1"), T(lang, "seif.intro"), lang, "".join(rows), T(lang, "seif.save"), T(lang, "seif.once", min=int(rec.get("ttl", 30)))), lang)
 
 
+OWN_NAMES = ("127.0.0.1", "localhost", "mila.localhost")
+OWN_TRIES = 5
+
+
 class H(BaseHTTPRequestHandler):
     server_version = "seif"
+    own_port = None   # «свой Сейф» (own): the page answers only to its own loopback name and port (no DNS rebinding)
+    tries = {}        # own: wrong entries per link; the sixth closes the link
 
     def log_message(self, *a):   # без логов запросов (в пути — токен)
         pass
@@ -290,11 +298,26 @@ class H(BaseHTTPRequestHandler):
         lang = lang or self.lang()
         self.send(410, page("<h1>%s</h1><p>%s</p>" % (T(lang, "seif.gone.h1"), T(lang, "seif.gone.p")), lang))
 
+    def foreign(self, post=False):
+        """own only: a Host that is not exactly this server's loopback name and port → 403; a POST whose Origin is not
+        http://<that Host> → 403, and a POST with no Origin at all is refused too (a page of another site in the owner's browser)."""
+        if H.own_port is None:
+            return False
+        host = self.headers.get("Host", "")
+        bad = host not in ["%s:%d" % (x, H.own_port) for x in OWN_NAMES] or (post and self.headers.get("Origin", "") != "http://" + host)
+        if bad:
+            self.send(403, page("", self.lang()))
+        return bad
+
     def do_GET(self):
+        if self.foreign():
+            return
         t = self.tok(); rec = load_tok(t) if t else None
         return self.send(200, form(rec, self.lang(rec))) if rec else self.gone()
 
     def do_POST(self):
+        if self.foreign(post=True):
+            return
         t = self.tok(); rec = load_tok(t) if t else None
         if not rec:
             return self.gone()
@@ -311,6 +334,13 @@ class H(BaseHTTPRequestHandler):
             else:
                 vals[f] = v
         if errs:
+            if H.own_port is not None:
+                H.tries[t] = H.tries.get(t, 0) + 1
+                if H.tries[t] >= OWN_TRIES:   # five wrong entries: the link closes, the page says so in words
+                    try: os.remove(tok_path(t))
+                    except OSError: pass
+                    journal({"ev": "own-tries", "tries": H.tries[t]})
+                    return self.gone(lang)
             return self.send(200, form(rec, lang, errs))   # ссылка не тратится, введённое назад не выводится
         home = home_of(rec["slug"])
         try:   # путь проверяем до траты ссылки: подлог в доме — ничего не пишем, ссылка цела

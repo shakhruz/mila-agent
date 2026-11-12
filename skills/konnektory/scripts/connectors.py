@@ -182,7 +182,9 @@ def main(argv=None):
             out({"id": a.id, "state": set_state(a.id, "later")["state"], "note": "больше не предлагаю сама; хозяин попросит — offer"})
         if a.cmd == "steps":
             out({"id": a.id, "steps": [clean(x) for x in tr(d["steps"], lang)], "safe": {"name": d["safe"]["name"], "fields": [d["safe"]["field"]]},
-                 "how": "ключ — только ссылкой сейфа (навык safe-link), с этими именем и полем; в чат ключ не прошу и не принимаю. Когда сейф скажет «сохранено» — connectors.py check %s" % a.id})
+                 "how": "ключ — только ссылкой сейфа (навык safe-link), с этими именем и полем; в чат ключ не прошу и не принимаю. Я на компьютере хозяина — "
+                        "страницу открывает safe-link/scripts/own_safe.py %s (ссылка работает только на этом компьютере); во флоте — ссылка сейфа заявкой. "
+                        "Когда сейф скажет «сохранено» — connectors.py check %s" % (a.id, a.id)})
         if a.cmd in ("check", "on"):
             ok, why = check_key(d)
             if not ok: out({"id": a.id, "ok": False, "state": state_of(a.id), "why": why}, 1)

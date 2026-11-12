@@ -12,7 +12,8 @@ first = json.loads(p.stdout.readline()); url = first["url"]
 check("ссылка только на 127.0.0.1, случайный порт, срок 10 мин", url.startswith("http://127.0.0.1:") and first["expires_min"] == 10, first)
 with urllib.request.urlopen(url) as r: b = r.read().decode()
 check("страница открывается, поле ключа скрыто", "name=OPENROUTER_API_KEY type=password" in b)
-with urllib.request.urlopen(urllib.request.Request(url, data=urllib.parse.urlencode({"OPENROUTER_API_KEY": KEY}).encode(), method="POST")) as r: b2 = r.read().decode()
+ORIGIN = "http://" + urllib.parse.urlsplit(url).netloc
+with urllib.request.urlopen(urllib.request.Request(url, data=urllib.parse.urlencode({"OPENROUTER_API_KEY": KEY}).encode(), method="POST", headers={"Origin": ORIGIN})) as r: b2 = r.read().decode()
 out, err = p.communicate(timeout=20); last = json.loads(out.strip().splitlines()[-1])
 envp = os.path.join(T, "work", "secrets", "openrouter.env")
 check("сохранили — страница закрылась сама, процесс вышел с «ok»", p.returncode == 0 and last.get("ok") is True and "Сохранено" in b2, (last, err[-200:]))
