@@ -10,8 +10,10 @@ def load(path):
 src = open(os.path.join(H, "mila_style.py"), "rb").read()
 for rel in ("docker/mila_style.py", "tools/seif/mila_style.py"):
     check("копия %s совпадает с install/mila_style.py" % rel, open(os.path.join(ROOT, rel), "rb").read() == src)
-check("рядом с каждой копией есть портрет (контейнер и сейф)", all(os.path.exists(os.path.join(ROOT, d, "mila-face.webp")) for d in ("docker", "tools/seif")))
-check("Dockerfile кладёт mila_style.py в образ", "docker/mila_style.py" in open(os.path.join(ROOT, "docker", "Dockerfile")).read())
+check("рядом с каждой копией есть портрет (контейнер и сейф)", all(os.path.exists(os.path.join(ROOT, d, "mila-portrait.jpg")) for d in ("docker", "tools/seif")))
+check("копии портрета совпадают с install/mila-portrait.jpg (тот же, что на странице рождения), до 25 КБ", all(open(os.path.join(ROOT, d, "mila-portrait.jpg"), "rb").read() == open(os.path.join(H, "mila-portrait.jpg"), "rb").read() for d in ("docker", "tools/seif")) and os.path.getsize(os.path.join(H, "mila-portrait.jpg")) < 25000)
+df = open(os.path.join(ROOT, "docker", "Dockerfile")).read()
+check("Dockerfile кладёт в образ mila_style.py и mila-portrait.jpg", "docker/mila_style.py" in df and "docker/mila-portrait.jpg" in df)
 m = load(os.path.join(H, "mila_style.py"))
 h = m.shell("T <x>", "en", "<h1>Hi</h1><p>text</p>", lang_bar="<div class=lang><b>EN</b></div>")
 check("страница: карточка, портрет data:, заголовок с засечками, viewport, без скриптов и внешних адресов",

@@ -33,7 +33,7 @@ RUN mkdir -p /var/lib/mila/home && chmod 755 /var/lib/mila && ln -s /var/lib/mil
  && groupadd -g 1004 mila-guest && useradd -M -u 1004 -g mila-guest -d /nonexistent -s /usr/sbin/nologin mila-guest \
  && usermod -aG mila-guest mila-io
 COPY . /opt/mila/kit
-COPY docker/entrypoint.sh docker/healthcheck.sh docker/claude_login.py docker/birth_claim.py docker/token_page.py docker/key_page.py docker/mila_keyd.py docker/mila_lane.py docker/io_perms.py docker/mila_state.py docker/mila-face.webp docker/mila_style.py /usr/local/bin/
+COPY docker/entrypoint.sh docker/healthcheck.sh docker/claude_login.py docker/birth_claim.py docker/token_page.py docker/key_page.py docker/mila_keyd.py docker/mila_lane.py docker/io_perms.py docker/mila_state.py docker/mila-face.webp docker/mila_style.py docker/mila-portrait.jpg /usr/local/bin/
 RUN chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh /usr/local/bin/claude_login.py /usr/local/bin/birth_claim.py /usr/local/bin/token_page.py /usr/local/bin/key_page.py /usr/local/bin/mila_keyd.py /usr/local/bin/mila_lane.py /usr/local/bin/io_perms.py /usr/local/bin/mila_state.py /opt/mila/kit/install/transcribe-voice.sh \
  && chown -R agent:agent /opt/mila/plugin /opt/mila/marketplace
 

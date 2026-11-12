@@ -29,7 +29,7 @@
 - Keeping a card or passport longer than the job needs.
 
 ## Running the safe service
-- `seif.py serve --port 7693` listens on 127.0.0.1 only. Put it behind your web server for `/v/<token>/` (`tools/seif/Caddyfile.snippet`, `tools/seif/seif.service`). Copy `seif.py`, `mila_i18n.py`, `mila_style.py`, `mila-face.webp` and `locales/` together into the service folder: the page takes its look from `mila_style.py` (without the portrait file it simply has no portrait).
+- `seif.py serve --port 7693` listens on 127.0.0.1 only. Put it behind your web server for `/v/<token>/` (`tools/seif/Caddyfile.snippet`, `tools/seif/seif.service`). Copy `seif.py`, `mila_i18n.py`, `mila_style.py`, `mila-portrait.jpg` and `locales/` together into the service folder: the page takes its look from `mila_style.py` (without the portrait file it simply has no portrait).
 - Settings come only from the environment: `SEIF_BASE` (link address), `SEIF_HOMES` (folder of Mila homes), `SEIF_DIR`, `SEIF_UID`.
 
 ## Own safe — a Mila on your own computer

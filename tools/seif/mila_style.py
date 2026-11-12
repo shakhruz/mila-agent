@@ -22,7 +22,7 @@ CSS = """:root{color-scheme:light;--paper:#fbfbf8;--sand1:#f3e9db;--sand2:#e9d8b
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;background:radial-gradient(900px 520px at 50% -8%,var(--sand1),var(--paper) 70%);color:var(--ink);font:17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex;flex-direction:column;align-items:center;padding:24px 16px 40px;overflow-x:hidden}
 .card{width:100%;max-width:520px;background:#fff;border:1px solid var(--sand2);border-radius:26px;padding:28px 22px;text-align:center;box-shadow:0 10px 40px rgba(19,78,74,.08)}
-.av{width:132px;height:132px;border-radius:50%;object-fit:cover;border:3px solid #fff;margin:2px auto 18px;display:block;box-shadow:0 0 0 8px rgba(233,216,191,.55),0 0 36px rgba(212,165,116,.35)}
+.av{width:150px;height:150px;border-radius:50%;object-fit:cover;border:3px solid #fff;margin:2px auto 18px;display:block;box-shadow:0 0 0 8px rgba(233,216,191,.55),0 0 36px rgba(212,165,116,.35)}
 h1,h2{font:600 28px/1.2 Georgia,serif;margin:0 0 10px;color:var(--ink);overflow-wrap:anywhere}h2{font-size:24px}
 p{margin:0 0 16px;color:var(--mut);overflow-wrap:anywhere}
 form{margin:0;text-align:left}label{display:block;margin:14px 0 6px;font-weight:600;font-size:15px;color:var(--ink)}
@@ -40,9 +40,9 @@ button:hover,a.btn:hover,a.b:hover{background:#115e59}
 
 
 def face_uri():
-    """The portrait as a data: URI. Looked up next to this file (the container and the safe ship the small one), then in the
+    """The portrait as a data: URI. Looked up next to this file (the container and the safe ship the small 300 px copy of the birth-page portrait), then in the
     kit (install/birth-assets); nothing found - an empty string and the page simply has no portrait."""
-    for name, mime in (("mila-face.webp", "image/webp"), ("birth-assets/portrait.jpg", "image/jpeg"),
+    for name, mime in (("mila-portrait.jpg", "image/jpeg"), ("birth-assets/portrait.jpg", "image/jpeg"),
                        (os.path.join("..", "install", "birth-assets", "portrait.jpg"), "image/jpeg"),
                        (os.path.join("..", "..", "install", "birth-assets", "portrait.jpg"), "image/jpeg")):
         try:

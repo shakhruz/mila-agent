@@ -31,11 +31,11 @@ import mila_style   # the one look of Mila's pages (a copy of install/mila_style
 HELLOS = ["hello", "hola", "здравствуйте", "salom", "你好", "bonjour", "merhaba", "hallo", "مرحبا", "こんにちは"]
 STEP = 2.4   # seconds per word
 _n = len(HELLOS); _in, _out = 100 / _n * 0.25, 100 / _n * 0.85
-HERO_CSS = (".w{position:relative;height:4rem;margin:0 0 .6rem;text-align:center}"
+HERO_CSS = (".w{position:relative;height:3.6rem;margin:.7rem 0 .5rem;text-align:center}"
             ".w span{position:absolute;left:0;right:0;font:600 clamp(1.8rem,9vw,2.8rem) Georgia,serif;white-space:nowrap;letter-spacing:-.02em;opacity:0;"
             "background:linear-gradient(90deg,#0f766e,#8a5a1f);-webkit-background-clip:text;background-clip:text;color:transparent;"
             "animation:hi %.1fs ease-in-out infinite}" % (_n * STEP)
-            + "".join(".w span:nth-child(%d){animation-delay:%.1fs}" % (i + 1, i * STEP) for i in range(_n))
+            + "".join(".w span:nth-child(%d){animation-delay:%.1fs}" % (i + 1, i * STEP - (STEP * 0.25 if i == 0 else 0)) for i in range(_n))   # the first word is already visible at the start: no empty strip under the portrait
             + "@keyframes hi{0%%{opacity:0;transform:translateY(.6rem) scale(.98);filter:blur(4px)}%.1f%%{opacity:1;transform:none;filter:none}"
               "%.1f%%{opacity:1;transform:none;filter:none}%.1f%%{opacity:0;transform:translateY(-.6rem);filter:blur(4px)}100%%{opacity:0}}"
               % (_in, _out, 100 / _n)
