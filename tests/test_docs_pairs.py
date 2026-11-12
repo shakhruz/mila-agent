@@ -71,7 +71,7 @@ chk("страница говорит о таймере на ноутбуке т�
 chk("срок свежести отметки прохода на странице — как в коде (пять минут), папки отметок названы те же", "BEAT_FRESH = 300" in spec and "five minutes" in read("SCHEDULER.md") and "пяти минут" in read("SCHEDULER.ru.md")
     and all(x in spec and x in read("SCHEDULER.md") for x in ("/run/mila/scheduler", "MILA_SCHEDULER_BEAT")))
 # the map of modules: fifteen, every named path exists, the state marks are the four of the legend and nothing else
-MARKS = {"MODULES.md": ("in the core", "accepted, awaits release", "in development", "as a pack"), "MODULES.ru.md": ("в ядре", "принято, ждёт выпуска", "в разработке", "паком")}
+MARKS = {"MODULES.md": ("in the core", "accepted, awaits release", "in development", "as a pack"), "MODULES.ru.md": ("в ядре", "принято, ждёт выпуска", "в разработке", "талантом")}
 for name, marks in MARKS.items():
     t = read(name)
     heads = re.findall(r"^## (\d+)\. ", t, re.M)

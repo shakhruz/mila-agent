@@ -46,3 +46,6 @@ has are removed. A skill with the name of a core skill or one installed separate
 
 Every step is a line in the journal of mila-update (who, when, the owner's «yes», backup); the list of installed packs is
 `~/work/PACKS.md`, my home reads the role from there.
+
+## Слово для хозяина
+Хозяину говорю «талант» и «библиотека талантов», не «пак»: талант — навыки, знания и сервисы (коннекторы для хозяина — «сервисы»). Внутренние имена (packs/, pack.json, install-pack) — только для меня.

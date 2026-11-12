@@ -1649,7 +1649,7 @@ def proxy_consent(mark, what="", kind="pack"):
         import consent_client as _cc, consent_proxy as _cp
     except ImportError:
         _refuse("посредник согласий не найден в наборе (%s)" % kit)
-    payload = {"text": ("%s\n%s" % (what, mark)) if what else "Пак: %s" % mark}   # the owner reads what; the mark ties it to the archive
+    payload = {"text": ("%s\n%s" % (what, mark)) if what else "Талант: %s" % mark}   # the owner reads what; the mark ties it to the archive
     t0 = time.time()
     r = _cc.ask(kind, payload, sock)
     st = r.get("status")
@@ -1794,15 +1794,15 @@ def cmd_pack_plan(a):
     d, m, mark = resolve_pack(a); lang = a.lang if a.lang in ("ru", "en", "uz") else "ru"
     f = pack_facts(d, m); title = _clip(pack_title(m, lang), 60)
     first = [_clip(x, 160) for x in ((m.get("first_tasks") or {}).get(lang) or (m.get("first_tasks") or {}).get("en") or [])[:3]]
-    T = {"ru": ("Пак «%s», версия %s.", "Обновление: %s → %s.", "Что даст:", "Новые навыки: %s.", "Новых навыков нет — роль и тексты.",
+    T = {"ru": ("Талант «%s», версия %s.", "Обновление: %s → %s.", "Что даст:", "Новые навыки: %s.", "Новых навыков нет — роль и тексты.",
                 "Нужны ключи: %s — попрошу отдельно.", "Файлы с кодом (запущу только по делу, не сейчас): %s.",
-                "Что не тронет: ваши файлы, память, ключи. Убрать — «убери пак», вернуть как было — «откати».", "Поставить?", "✅ Поставить", "Не сейчас"),
-         "en": ("Pack «%s», version %s.", "Update: %s → %s.", "What it gives:", "New skills: %s.", "No new skills — a role and texts.",
+                "Что не тронет: ваши файлы, память, ключи. Убрать — «убери талант», вернуть как было — «откати».", "Поставить?", "✅ Поставить", "Не сейчас"),
+         "en": ("Talent «%s», version %s.", "Update: %s → %s.", "What it gives:", "New skills: %s.", "No new skills — a role and texts.",
                 "Keys needed: %s — I'll ask separately.", "Code files (run only when the work needs it, not now): %s.",
-                "What it won't touch: your files, memory, keys. «Remove the pack» takes it off, «roll back» returns the previous state.", "Install?", "✅ Install", "Not now"),
-         "uz": ("«%s» paketi, versiya %s.", "Yangilash: %s → %s.", "Nima beradi:", "Yangi ko‘nikmalar: %s.", "Yangi ko‘nikma yo‘q — rol va matnlar.",
+                "What it won't touch: your files, memory, keys. «Remove the talent» takes it off, «roll back» returns the previous state.", "Install?", "✅ Install", "Not now"),
+         "uz": ("«%s» iqtidori, versiya %s.", "Yangilash: %s → %s.", "Nima beradi:", "Yangi ko‘nikmalar: %s.", "Yangi ko‘nikma yo‘q — rol va matnlar.",
                 "Kalitlar kerak: %s — alohida so‘rayman.", "Kodli fayllar (faqat ish uchun ishga tushiraman, hozir emas): %s.",
-                "Nimaga tegmaydi: fayllaringiz, xotira, kalitlar. «Paketni olib tashla» — olib tashlaydi, «orqaga qaytar» — avvalgi holat.", "O‘rnataymi?", "✅ O‘rnatish", "Hozir emas")}[lang]
+                "Nimaga tegmaydi: fayllaringiz, xotira, kalitlar. «Iqtidorni olib tashla» — olib tashlaydi, «orqaga qaytar» — avvalgi holat.", "O‘rnataymi?", "✅ O‘rnatish", "Hozir emas")}[lang]
     lines = [T[0] % (title, f["version"] or "—")]
     if f["was"]: lines.append(T[1] % (f["was"], f["version"] or "—"))
     lines += ([T[2]] + ["· " + x for x in first] if first else []) + [T[3] % ", ".join(f["skills"]) if f["skills"] else T[4]]
@@ -1856,7 +1856,7 @@ def drop_empty_widget_dir(pid):
 
 def cmd_install_pack(a):
     d, m, mark = resolve_pack(a); pid = os.path.basename(d)
-    ok = consent(a, mark, "Поставить пак «%s»" % _clip(pack_title(m, a.lang or "ru"), 60))
+    ok = consent(a, mark, "Поставить талант «%s»" % _clip(pack_title(m, a.lang or "ru"), 60))
     for root, _, files in os.walk(d):
         for f in files:
             if SECRET.search(os.path.join(root, f)): sys.exit(json.dumps({"error": "в паке файл с секретом: " + f}, ensure_ascii=False))
@@ -1905,13 +1905,13 @@ def cmd_remove_pack(a):
     if not pid or pid not in have: sys.exit(json.dumps({"error": "такой пак не стоит: " + q[:60], "stoyat": sorted(have)}, ensure_ascii=False))
     mark = "#unpack-" + pid
     if not a.card and not manual_yes(a) and not consent_sock():   # без нажатия — карточка для хозяина, ничего не снято
-        t = {"ru": ("Убрать пак «%s»? Его навыки уйдут, бэкап останется; вернуть — поставить заново.", "🗑 Убрать", "Оставить"),
-             "en": ("Remove the «%s» pack? Its skills go, a backup stays; to return it — install it again.", "🗑 Remove", "Keep"),
-             "uz": ("«%s» paketini olib tashlaymi? Ko‘nikmalari ketadi, zaxira qoladi.", "🗑 Olib tashlash", "Qoldirish")}[a.lang if a.lang in ("ru", "en", "uz") else "ru"]
+        t = {"ru": ("Убрать талант «%s»? Его навыки уйдут, бэкап останется; вернуть — поставить заново.", "🗑 Убрать", "Оставить"),
+             "en": ("Remove the «%s» talent? Its skills go, a backup stays; to return it — install it again.", "🗑 Remove", "Keep"),
+             "uz": ("«%s» iqtidorini olib tashlaymi? Ko‘nikmalari ketadi, zaxira qoladi.", "🗑 Olib tashlash", "Qoldirish")}[a.lang if a.lang in ("ru", "en", "uz") else "ru"]
         print(json.dumps({"pack": pid, "mark": mark, "text": (t[0] % have[pid].get("title", pid)) + "\n" + mark,
                           "buttons": [[{"label": t[1], "data": "pack:yes"}, {"label": t[2], "data": "pack:later"}]],
                           "next": "после нажатия: remove-pack %s --card <card_id>" % pid}, ensure_ascii=False, indent=1)); return
-    ok = consent(a, mark, "Убрать пак «%s» (бэкап останется)" % _clip(have[pid].get("title", pid), 60))
+    ok = consent(a, mark, "Убрать талант «%s» (бэкап останется)" % _clip(have[pid].get("title", pid), 60))
     core = load_version().get("files", {})
     dsts = [os.path.join(CLAUDE, "skills", n) for n in have[pid].get("skills", []) if PACK_ID.match(n)]
     dsts = [x for x in dsts if x in have[pid].get("added", []) and x not in core]   # снимаю только то, чего до пака не было

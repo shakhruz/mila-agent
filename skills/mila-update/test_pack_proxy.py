@@ -37,7 +37,7 @@ def U(*args):
     except ValueError: return r.returncode, {"raw": (r.stdout + r.stderr)[:300]}
 rc, d = U("install-pack", "jev")
 check("без «да»: карточка владельцу через посредника, пак не поставлен", rc != 0 and d.get("waiting") == "asked" and CARDS and not os.path.isdir(os.path.join(CL, "skills", "jev")), (rc, d))
-check("в карточке — название пака по-человечески и метка архива", "Поставить пак «" in CARDS[-1]["text"] and "#pack-" in CARDS[-1]["text"], CARDS[-1]["text"])
+check("в карточке — название пака по-человечески и метка архива", "Поставить талант «" in CARDS[-1]["text"] and "#pack-" in CARDS[-1]["text"], CARDS[-1]["text"])
 btn = json.loads(CARDS[-1]["reply_markup"])["inline_keyboard"][0]
 check("нажатие чужого — посредник не принимает", io({"op": "callback", "data": btn[0]["callback_data"], "from_id": "42", "chat_id": "42"})["status"] == "ignored")
 check("нажатие владельца в личке — granted", io({"op": "callback", "data": btn[0]["callback_data"], "from_id": OWNER, "chat_id": OWNER})["status"] == "granted")
@@ -56,7 +56,7 @@ io({"op": "callback", "data": json.loads(CARDS[-1]["reply_markup"])["inline_keyb
 open(dj, "w").write("\n".join(L) + "\n")   # the journal back as it was — but the press was on the line written after: start clean below
 shutil.rmtree(os.path.join(TG, "io", "consent")); os.makedirs(os.path.join(TG, "io", "consent"))
 rc, d = U("remove-pack", "jev")
-check("убрать пак — тоже через посредника: карточка «Убрать пак», ничего не снято", rc != 0 and d.get("waiting") == "asked" and "Убрать пак «" in CARDS[-1]["text"] and os.path.isdir(os.path.join(CL, "skills", "jev")), (rc, d, CARDS[-1].get("text")))
+check("убрать пак — тоже через посредника: карточка «Убрать талант», ничего не снято", rc != 0 and d.get("waiting") == "asked" and "Убрать талант «" in CARDS[-1]["text"] and os.path.isdir(os.path.join(CL, "skills", "jev")), (rc, d, CARDS[-1].get("text")))
 io({"op": "callback", "data": json.loads(CARDS[-1]["reply_markup"])["inline_keyboard"][0][0]["callback_data"], "from_id": OWNER, "chat_id": OWNER})
 rc, d = U("remove-pack", "jev")
 check("…после «да» — снят", rc == 0 and not os.path.isdir(os.path.join(CL, "skills", "jev")), (rc, d))

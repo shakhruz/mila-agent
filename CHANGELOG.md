@@ -6,14 +6,17 @@
 
 **Для хозяина**
 - После знакомства и чувств я сама предлагаю свои таланты — по одному, не чаще раза в день и никогда ночью: Штурман Telegram, потом таланты из библиотеки. «Позже» — полный ответ, сама больше не предлагаю. Штурмана подключаете вы сами, после трёх честных строк о риске.
+- Я говорю «талант» и «библиотека талантов», а не «пак»: в карточке «Поставить?», в карточке «Убрать?», в виджете библиотеки, в документации.
 
 </details>
 
 **For the owner**
 - After getting acquainted and my senses, I offer my talents myself — one at a time, at most one a day and never at night: the Telegram Navigator, then talents of the library. «Later» is a full answer; I do not offer it again. You connect the Navigator yourself, after three honest lines about the risk.
+- I say «talent» and «talent library» instead of «pack»: on the «Install?» and «Remove?» cards, in the library widget and in the docs.
 
 **For Milas**
 - New skill `talanty` (`scripts/talents.py list | next | answer | done`): the core's queue (`talents.json`: shturman, then packs); a pack is offered only if this core's checked library holds it — its card is `library.py offer`'s own; one that is not there is named «not in the library» in `list`. A card only after an answer to the previous one and a day after it, none 22:00–08:00 in the owner's zone. Shturman «connect» only opens the Shturman skill's card with its risks (state `asked`). `skills/shturman/talent.json` — its passport in four languages; the home template offers talents after the connectors.
+- Owner-facing words: `update.py` install and remove cards (ru «Талант «…»» / «убери талант», en «Talent», uz «iqtidor» — the Uzbek word is not yet read by a native speaker), consent lines, `vidzhet/status.py` labels, README.ru and docs/*.ru; `library` and `packs` skills say the word to use. Internal names stay: packs/, pack.json, install-pack, pack:yes.
 
 ## v1.7.12 · 12.11 — the key page on this computer; imagination, the second sense of birth
 

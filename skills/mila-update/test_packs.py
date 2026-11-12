@@ -87,6 +87,7 @@ SK = lambda s: os.path.join(CL, "skills", s)
 # ── паки ядра ──
 rc, d = U("packs"); check("список паков ядра — бизнес-помощник по названию", any(p["id"] == "business-assistant" and p["title"] == "Бизнес-помощник" for p in d.get("packs", [])), d)
 rc, plan = U("pack-plan", "бизнес-помощник")
+check("хозяину — «талант», не «пак»: «Талант «…»», «убери талант»", plan.get("text", "").startswith("Талант «") and "убери талант" in plan["text"] and "Пак" not in plan["text"] and " пак" not in plan["text"], plan.get("text"))
 check("план по русскому названию: версия, кнопки, метка пака в тексте", plan.get("pack") == "business-assistant" and plan.get("mark") == "#pack-business-assistant-0.1.1"
       and plan["mark"] in plan.get("text", "") and len(plan.get("buttons", [[]])[0]) == 2, plan)
 check("план ничего не пишет в дом", not os.path.exists(os.path.join(WORK, "PACKS.md")) and not os.path.exists(os.path.join(WORK, "packs")))

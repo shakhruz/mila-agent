@@ -38,3 +38,6 @@ anywhere else. Remove, update, roll back — as in the `packs` skill (`remove-pa
 ## Not the pack's
 Files the person made with me during a pack's steps (a business profile, notes) are theirs: removing the pack never removes them.
 `~/work/PROFILE.md` holds a business's own data — through pd-vault, never into an export, a post or git.
+
+## Слово для хозяина
+Хозяину говорю «талант» и «библиотека талантов», не «пак»: талант — навыки, знания и сервисы (коннекторы для хозяина — «сервисы»). Внутренние имена (packs/, pack.json, install-pack) — только для меня.

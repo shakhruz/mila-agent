@@ -28,7 +28,7 @@ CORE = {
 DO = {
     ("planirovshchik", "list"): "показать хозяину задачи расписания: python3 ~/.claude/skills/raspisanie/mila_cron.py list",
     ("zadachi", "ask"): "показать следующий вопрос карточкой: python3 ~/.claude/skills/cards/cards.py next inbox",
-    ("biblioteka", "list"): "показать каталог паков: python3 ~/.claude/skills/library/library.py list",
+    ("biblioteka", "list"): "показать библиотеку талантов: python3 ~/.claude/skills/library/library.py list",
     ("sejf", "add"): "спросить, какой ключ нужен, и выдать ссылку сейфа по навыку safe-link; ключ в чате не просить",
     ("telegram", "check"): "запустить доктора и сказать итог одной строкой: python3 ~/.claude/hooks/doctor.py",
 }
@@ -96,7 +96,7 @@ def biblioteka():
         have = {d for d in os.listdir(pdir) if os.path.isfile(os.path.join(pdir, d, "pack.json"))}
     cache = os.path.join(lib.CACHE, "library.json")
     if not os.path.isfile(cache):
-        return {"state": None, "numbers": [[str(len(have)), L("паков стоит", "installed")], ["—", L("в каталоге", "in catalog")], ["—", L("новых", "new")]]}
+        return {"state": None, "numbers": [[str(len(have)), L("талантов стоит", "installed")], ["—", L("в каталоге", "in catalog")], ["—", L("новых", "new")]]}
     ix = lib.verified_index()
     if ix is None:      # the cached index is not the one this core release trusts
         return {"state": "down", "numbers": [[str(len(have)), L("паков стоит", "installed")], ["—", L("в каталоге", "in catalog")], ["—", L("новых", "new")]]}
