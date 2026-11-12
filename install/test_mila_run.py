@@ -2,7 +2,7 @@
 """mila-run.py — Mila in the background: the session lives in her home folder, comes back after it ends, never runs with
 permissions switched off, logs carry no keys, two services over one home do not start, a home that is not born says so.
 Claude Code and bun are replaced by small scripts; nothing leaves the temp folder. Run: python3 install/test_mila_run.py"""
-import http.server, json, os, shutil, signal, subprocess, sys, tempfile, threading, time, urllib.parse
+import http.server, json, os, shutil, signal, stat, subprocess, sys, tempfile, threading, time, urllib.parse
 os.umask(0o022)   # a CI runner's umask: her files must come out 600 by themselves, not by the caller's 077
 
 H = os.path.dirname(os.path.abspath(__file__)); RUN = os.path.join(H, "mila-run.py")
@@ -89,7 +89,12 @@ def read(p):
     try: return open(p, encoding="utf-8", errors="replace").read()
     except OSError: return ""
 def feed(text):
-    with open(os.path.join(ST, "session.in"), "w") as f: f.write(text + "\n")
+    """into the service's pipe only: never create session.in here (a file made by the test under umask 022 would be 644 — the
+    flake of «журналы 600» when the service had not made its pipe yet)."""
+    p = os.path.join(ST, "session.in")
+    if not wait(lambda: stat.S_ISFIFO(os.stat(p).st_mode) if os.path.exists(p) else False): raise SystemExit("the service made no pipe " + p)
+    fd = os.open(p, os.O_WRONLY)
+    with os.fdopen(fd, "w") as f: f.write(text + "\n")
 
 
 procs = []
@@ -145,8 +150,15 @@ try:
     chk("строка на вход → законченный ход посчитан (ходов стало 2)", wait(lambda: status()[1]["turns"] == 2), status()[1])
     logs = "".join(read(os.path.join(ST, f)) for f in os.listdir(ST) if f.endswith((".jsonl", ".err", ".log")))
     chk("в журналах ключа бота нет — стоит маска", KEY not in logs and "<bot-token>" in logs and "saw" in logs, logs[-300:])
-    chk("журналы, pid и очередь 600 — даже при umask 022", all(oct(os.stat(os.path.join(ST, f)).st_mode & 0o777) == "0o600" for f in os.listdir(ST) if os.path.isfile(os.path.join(ST, f))),
-        [(f, oct(os.stat(os.path.join(ST, f)).st_mode & 0o777)) for f in os.listdir(ST)])
+    def modes():   # a file replaced between listdir and stat is skipped, not a crash
+        res = []
+        for f in os.listdir(ST):
+            try: st = os.lstat(os.path.join(ST, f))
+            except FileNotFoundError: continue
+            res.append((f, oct(st.st_mode & 0o777), "fifo" if stat.S_ISFIFO(st.st_mode) else "file" if stat.S_ISREG(st.st_mode) else "other"))
+        return res
+    m_ = modes()
+    chk("журналы, pid и очередь 600 — даже при umask 022", all(m == "0o600" for f, m, k in m_ if k in ("file", "fifo")), m_)
 
     p2 = start(); out2, err2 = p2.communicate(timeout=20)
     chk("вторая служба над тем же домом не стартует (код 3)", p2.returncode == 3 and "already running" in err2, (p2.returncode, err2))
