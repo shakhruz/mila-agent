@@ -204,11 +204,12 @@ def api_code(body):
 
 
 def api_collect():
-    """No code to copy: the person created the bot through the parent bot, and the token (with the owner — the one who
-    created it) comes by the page's own secret. Polled by the page; «wait» — not there yet. The token goes straight to
-    onboard's storage and is never returned or printed."""
-    if token_state()["done"] and pair_state()["done"]:
-        return 200, {"ok": True, "username": token_state()["username"], "paired": True}
+    """No code to copy: the person created the bot through the parent bot, and its token comes by the page's own secret.
+    Polled by the page; «wait» — not there yet. The token goes straight to onboard's storage and is never returned or printed.
+    The OWNER does not come this way: whoever saw the link first could have created the bot, so «who created it» is not «whose
+    Mila this is». The owner is the person who opens the new bot from THIS page — the pairing step, one tap, as before."""
+    if token_state()["done"]:
+        return 200, {"ok": True, "username": token_state()["username"], "paired": pair_state()["done"]}
     r = birth_relay.collect(S.secret)
     if not r["ok"]:
         return 200, {"ok": False, "error": "wait" if r["error"] == "refused" else "relay"}
@@ -217,12 +218,8 @@ def api_collect():
     if not me.get("ok"):
         return 200, {"ok": False, "error": "telegram" if me.get("error_code") else "network"}
     onboard.save_token(tok)
-    paired = False
-    if r["owner_id"]:
-        onboard.finish_pair(tok, r["owner_id"], greet=False)   # the creator of the bot is the owner; her first words come from Mila
-        paired = True
     res = me["result"]
-    return 200, {"ok": True, "username": res.get("username", ""), "name": res.get("first_name", ""), "paired": paired}
+    return 200, {"ok": True, "username": res.get("username", ""), "name": res.get("first_name", ""), "paired": False}
 
 
 def api_claude_login():

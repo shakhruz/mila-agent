@@ -68,10 +68,13 @@ function enter1(){go(1)}
 /* No code to copy: after the tap the page asks its own server for the key every 2 s; a minute of nothing — a hint about the code */
 let botTimer=null;
 $("bone").addEventListener("click",()=>{if(botTimer)return;const t0=Date.now();say("m1","w_bot","");
- botTimer=setInterval(async()=>{let r={};try{r=await api("collect",{})}catch(e){}
-  if(r.ok){clearInterval(botTimer);botTimer=null;say("m1","ok1","ok",r.username);setTimeout(next,700)}
-  else if(Date.now()-t0>600000){clearInterval(botTimer);botTimer=null}
-  else if(Date.now()-t0>60000&&msgKey.m1&&msgKey.m1[0]==="w_bot")say("m1","w_bot_late","")},2000)});
+ const tick=async()=>{let r={};try{r=await api("collect",{})}catch(e){}
+  if(r.ok){botTimer=null;say("m1","ok1","ok",r.username);setTimeout(next,700);return}
+  if(Date.now()-t0>600000){botTimer=null;return}
+  if(Date.now()-t0>60000&&msgKey.m1&&msgKey.m1[0]==="w_bot")say("m1","w_bot_late","");
+  botTimer=setTimeout(tick,Date.now()-t0<20000?2000:5000)};   /* every 2 s at first, then every 5 s */
+ botTimer=setTimeout(tick,2000)});
+/* the key is polled by this page's own server (birth.py), never by the browser from another origin */
 $("b0").onclick=next;
 $("bgo").onclick=async()=>{const v=$("pasted").value.trim(),k=kind(v);say("m1","");if(!k){say("m1","e_input","err");return}
  $("bgo").disabled=true;const r=await api(k,k==="code"?{code:v}:{token:v});$("bgo").disabled=false;$("pasted").value="";

@@ -155,6 +155,22 @@ from Telegram. Nobody is at a screen to answer «allow?», so the fence is what 
   the person's user: the wall between her and the rest of the disk is this list, not the operating system. A separate user
   of the computer for her is the wall.
 
+## Birth: the bot's key without a code to copy
+
+The birth page's process makes a secret S and keeps it in memory. The link to the parent bot carries only its fingerprint
+h (`start=birth_<lang>_<h>`, 32 characters of base64url(sha256(S))). The new bot's token is issued for h and handed out once,
+to whoever shows S — the page's own server polls for it; the browser never talks to the relay.
+
+- **Open:** h. It rides in a link, a QR, a screenshot. With h alone nobody gets a token.
+- **Secret:** S. It never leaves the page's process except in that one request to the relay over TLS.
+- **Who the owner is.** Not «who created the bot»: someone who saw the link before the person at the page could create a bot
+  under that fingerprint. The owner is the person who opens the new bot from the page itself (the pairing step, one tap).
+- **What stays possible.** Whoever created the bot holds its token too (BotFather gives it to the creator). If a stranger
+  created it, the Mila born on this machine speaks through a bot the stranger can also drive. The page shows the bot's
+  @name before pairing — look at it. A birth through a bot you did not create yourself should be started again.
+- **On the parent side** one bot gets its token issued once; a second request for the same bot is refused until someone
+  clears it by hand.
+
 ## The one-container setup
 
 `docker-compose.yml` runs Mila in one container (Claude Code, the kit, the plugin). There the session runs with
