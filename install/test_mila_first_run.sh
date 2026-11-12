@@ -6,7 +6,7 @@
 set -u; unset TELEGRAM_STATE_DIR; H="$(cd "$(dirname "$0")" && pwd)"; T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 ok=0; n=0; chk(){ n=$((n+1)); if eval "$2" >/dev/null 2>&1; then ok=$((ok+1)); echo "✅ $1"; else echo "❌ $1"; fi; }
 mkdir -p "$T/bin" "$T/home/work" "$T/proj"
-printf '#!/bin/sh\necho "ARGS: $*"; echo "CWD: $PWD"\n' > "$T/bin/claude"; printf '#!/bin/sh\nexit 0\n' > "$T/bin/pgrep"; chmod +x "$T/bin/claude" "$T/bin/pgrep"
+printf '#!/bin/sh\necho "ARGS: $*"; echo "CWD: $(pwd -P)"\n' > "$T/bin/claude"; printf '#!/bin/sh\nexit 0\n' > "$T/bin/pgrep"; chmod +x "$T/bin/claude" "$T/bin/pgrep"
 # Mila is born in these checks: the launcher decides it from files on the machine (a saved bot token together with access.json,
 # or a birth record), never from the network; the birth page has its own checks below
 ST="$T/home/.claude/channels/telegram"; mkdir -p "$T/home/.claude/hooks" "$ST" "$T/cfg"; : > "$ST/.env"; echo '{}' > "$ST/access.json"
