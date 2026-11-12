@@ -1,6 +1,6 @@
 {
  "url": "https://raw.githubusercontent.com/shakhruz/mila-library/core-v1.7.13/library.json",
  "base": "https://raw.githubusercontent.com/shakhruz/mila-library/core-v1.7.13",
- "index_sha256": "525175ef0eb324e462f64755e03aca1b8b35448b43e2e3c15df224cbe1f12e19",
+ "index_sha256": "38d86cf72cf4414b705c2bc4d00ea9b7aa35355e2bf431cd5340d149864cc6fb",
  "note": "the sha256 of mila-library's library.json at the library tag made for this core release (tools/build_library.py prints it); empty = the library is not connected"
 }
