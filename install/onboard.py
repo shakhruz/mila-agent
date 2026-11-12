@@ -333,7 +333,7 @@ def main():
     elif not ok2 and not check:
         say("✗", "3/3 owner: needs Claude signed in first")
     if ok1 and ok2 and ok3:
-        print("\nAll three done. First start:  mila new      Next times:  mila (continues the conversation)      Check any time:  mila doctor")
+        print("\nAll three done. Start her in the background:  mila start      How she is:  mila      Check any time:  mila doctor")
         return 0
     print("\nNot done yet — fix the ✗ line and run `mila onboard` again.")
     return 1
