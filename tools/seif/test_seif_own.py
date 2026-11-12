@@ -28,4 +28,9 @@ check("срок вышел — закрылась, «ничего не сохр�
 check("ссылка после срока не оживает (токен удалён)", not os.listdir(os.path.join(T, "seif", "tokens")))
 _gone = [json.load(open(os.path.join(H, "locales", f), encoding="utf-8")).get("seif.gone.p", "") for f in sorted(os.listdir(os.path.join(H, "locales"))) if f.endswith(".json")]
 check("страница «ссылка не работает» не называет минут: у своего Сейфа срок 10, у службы 30", _gone and all(t and not any(c.isdigit() for c in t) for t in _gone), _gone)
+# the own page does not ask the network for its own name: socket.getfqdn can hang for half a minute on a Mac (CI 12.11)
+import socket; sys.path.insert(0, H); sys.argv = ["seif.py"]; import seif as SE
+asked = []; _fq = socket.getfqdn; socket.getfqdn = lambda *a: asked.append(a) or _fq(*a)
+srv_ = SE.OwnServer(("127.0.0.1", 0), SE.H); socket.getfqdn = _fq
+check("свой Сейф поднимает страницу без socket.getfqdn (на Маке он висит)", not asked and srv_.server_name == "127.0.0.1", asked); srv_.server_close()
 shutil.rmtree(T, ignore_errors=True); print(f"итог {ok}/{n}"); sys.exit(0 if ok == n else 1)

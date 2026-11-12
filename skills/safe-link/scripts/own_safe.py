@@ -12,10 +12,11 @@ own в папке набора (~/mila). Этот файл и есть мост 
   С телефона ссылка не откроется — это адрес этого компьютера.
 Ни ключа, ни ссылки в журналах нет; вывод — одна строка JSON со ссылкой для хозяина. Сохранил — seif пишет записку «в сейфе
 появились …» без значения; дальше — connectors.py check <id>. Код выхода: 0 — страница открыта, 1 — отказ (причина в "why")."""
-import json, os, shutil, stat, subprocess, sys
+import json, os, shutil, stat, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 SKILLS = os.path.dirname(os.path.dirname(HERE))
+LINK_WAIT = 20   # seconds for the page to start and print its link
 
 
 def out(d, code=0):
@@ -85,8 +86,18 @@ def main(argv):
                          cwd=os.path.expanduser("~"), env=env)
     os.close(w)
     first = b""
-    with os.fdopen(r, "rb") as f:
-        first = f.readline()   # seif own prints the link first; the page lives on in the background after we stop reading
+    with os.fdopen(r, "rb") as f:   # seif own prints the link first; the page lives on in the background after we stop reading
+        import select
+        end = time.time() + LINK_WAIT
+        while not first.endswith(b"\n") and time.time() < end:   # never wait forever: no link in LINK_WAIT seconds — a refusal
+            ready, _, _ = select.select([f], [], [], max(0.0, end - time.time()))
+            if not ready: break
+            b = os.read(f.fileno(), 4096)
+            if not b: break
+            first += b
+    first = first.split(b"\n")[0]
+    if not first:
+        p.kill(); out({"ok": False, "why": "страница сейфа не дала ссылку за %d с" % LINK_WAIT}, 1)
     try:
         link = json.loads(first.decode("utf-8"))
     except ValueError:

@@ -28,8 +28,12 @@ def run(T, *a, display=True, extra=None):
     if display: env["DISPLAY"] = ":0"
     env.update(extra or {})
     t0 = time.time()
-    p = subprocess.run([sys.executable, "-B", os.path.join(T, ".claude", "skills", "safe-link", "scripts", "own_safe.py")] + list(a),
-                       capture_output=True, text=True, env=env, timeout=30)
+    try:
+        p = subprocess.run([sys.executable, "-B", os.path.join(T, ".claude", "skills", "safe-link", "scripts", "own_safe.py")] + list(a),
+                           capture_output=True, text=True, env=env, timeout=60)
+    except subprocess.TimeoutExpired as e:   # say which call hung and what it had printed — a red run on a runner nobody can log into
+        print("   own_safe.py %s did not return in 60 s; stdout=%r stderr=%r" % (" ".join(a), (e.stdout or b"")[-300:], (e.stderr or b"")[-300:]))
+        return {"timeout": True}, -1, time.time() - t0, ""
     try: d = json.loads(p.stdout.strip().splitlines()[-1])
     except Exception: d = {"raw": p.stdout, "err": p.stderr}
     return d, p.returncode, time.time() - t0, p.stdout
@@ -85,7 +89,10 @@ check("пятая неверная попытка — страница «Ссы�
 d, rc, _, _ = run(T, "nope")
 check("чужой коннектор — отказ, страницы нет", rc == 1 and d.get("ok") is False, d)
 d, rc, _, _ = run(T, "sluh", display=False)
-check("нет экрана (нет DISPLAY) — open: false, ссылка всё равно дана", rc == 0 and d.get("open") is False and d.get("url", "").startswith("http://127.0.0.1:"), d)
+if sys.platform == "darwin":   # a Mac opens a page with `open`, no DISPLAY is involved
+    check("Мак без DISPLAY — страница открыта командой open, ссылка дана", rc == 0 and d.get("open") is True and d.get("url", "").startswith("http://127.0.0.1:"), d)
+else:
+    check("нет экрана (нет DISPLAY) — open: false, ссылка всё равно дана", rc == 0 and d.get("open") is False and d.get("url", "").startswith("http://127.0.0.1:"), d)
 if d.get("url"): req(d["url"], {"DEEPGRAM_API_KEY": "x"}, origin="http://" + urllib.parse.urlsplit(d["url"]).netloc)   # the page closes, no process outlives the test
 time.sleep(1.5); shutil.rmtree(T, ignore_errors=True)
 

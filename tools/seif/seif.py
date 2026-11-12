@@ -174,6 +174,15 @@ def cmd_link(a):
     print(json.dumps(out, ensure_ascii=False), flush=True); return out, tok
 
 
+class OwnServer(ThreadingHTTPServer):
+    """HTTPServer.server_bind asks socket.getfqdn() for the address — a reverse name lookup that can take half a minute on a
+    Mac with no answer from the network; the own page needs no name, so the lookup is skipped."""
+    def server_bind(self):
+        import socketserver
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = "127.0.0.1", self.server_address[1]
+
+
 def cmd_own(a, ready=None):
     """«Свой Сейф» (С1): Мила владельца на его машине, без службы и без администратора. Страница на 127.0.0.1 на случайном порту
     ровно на одну ссылку: сохранили — страница закрывается; не сохранили за --ttl минут (10) — тоже. Ключ — в ~/work/secrets/<имя>.env.
@@ -183,7 +192,7 @@ def cmd_own(a, ready=None):
     SELF_HOME = SELF_HOME or os.path.expanduser("~")
     opt = lambda k, d=None: a[a.index(k) + 1] if k in a else d
     ttl = min(float(opt("--ttl", "10")), 30)
-    srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    srv = OwnServer(("127.0.0.1", 0), H)
     H.own_port = srv.server_address[1]
     BASE = "http://127.0.0.1:%d/v/" % srv.server_address[1]
     args = ["self", a[0], "--name", opt("--name", "keys"), "--ttl", str(ttl)] + (["--lang", opt("--lang")] if opt("--lang") else [])
