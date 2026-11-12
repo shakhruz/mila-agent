@@ -77,6 +77,9 @@ json.dump({"bot_username": "ivan_mila_bot", "lang": "uz"}, open(os.path.join(CL,
 
 
 def journal(): return read(os.path.join(TG, "inbound", "events.jsonl"))
+def pid_alive(pid):
+    try: os.kill(int(pid), 0); return True
+    except (OSError, ValueError): return False
 def start(): return subprocess.Popen([sys.executable, "-B", RUN, "run"], env=ENV, cwd=ELSE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 def status():
     r = subprocess.run([sys.executable, "-B", RUN, "status", "--json"], env=ENV, cwd=ELSE, capture_output=True, text=True)
@@ -161,7 +164,7 @@ try:
     spid = status()[1]
     p.send_signal(signal.SIGTERM); p.wait(timeout=25)
     rcv = read(os.path.join(TG, "receiver.pid")).strip()
-    chk("остановка службы (SIGTERM): сеанс, приёмник и feeder остановлены", p.returncode == 0 and wait(lambda: not os.path.exists("/proc/%s" % rcv), 10) and not status()[1]["running"], (p.returncode, status()[1]))
+    chk("остановка службы (SIGTERM): сеанс, приёмник и feeder остановлены", p.returncode == 0 and wait(lambda: not pid_alive(rcv), 10) and not status()[1]["running"], (p.returncode, status()[1]))
     other = subprocess.Popen(["sleep", "300"]); procs.append(other); open(os.path.join(TG, "receiver.pid"), "w").write(str(other.pid)); bun_before = read(ENV["FAKE_LOG"] + ".bun").count("\n")
     p = start(); procs.append(p)
     chk("приёмник уже работает у другого хозяина процесса — второй не запускаю", wait(lambda: status()[1]["session"]) and read(ENV["FAKE_LOG"] + ".bun").count("\n") == bun_before and "already running" in read(os.path.join(ST, "run.log")), read(os.path.join(ST, "run.log"))[-300:])

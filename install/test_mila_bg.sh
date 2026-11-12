@@ -24,6 +24,13 @@ C
 chmod +x "$BIN/claude" "$BIN/bun"
 home() {   # home <name> [Darwin] → a fresh installed home; prints nothing
   local H="$T/$1"; mkdir -p "$H" "$T/$1-bin"; cp "$BIN/claude" "$BIN/bun" "$T/$1-bin/"
+  if [ "${2:-}" != Darwin ]; then   # a Linux machine whatever this test runs on (also on a Mac in CI): uname says Linux, and systemd --user
+    # «is not running» — so she is started as a plain process and nothing of the real machine's service manager is touched
+    printf '#!/bin/bash\n[ "${1:-}" = -s ] || [ -z "${1:-}" ] && echo Linux || /usr/bin/uname "$@"\n' > "$T/$1-bin/uname"
+    printf '#!/bin/bash\nprintf "%%s\\n" "$*" >> "$FAKE_LOG.systemctl"\ncase "$*" in *"--user cat"*|*"--user enable"*) exit 1;; esac\nexit 0\n' > "$T/$1-bin/systemctl"
+    printf '#!/bin/bash\nexit 1\n' > "$T/$1-bin/loginctl"
+    chmod +x "$T/$1-bin/uname" "$T/$1-bin/systemctl" "$T/$1-bin/loginctl"
+  fi
   if [ "${2:-}" = Darwin ]; then
     printf '#!/bin/bash\n[ "${1:-}" = -s ] || [ -z "${1:-}" ] && echo Darwin || /usr/bin/uname "$@"\n' > "$T/$1-bin/uname"
     printf '#!/bin/bash\nprintf "%%s\\n" "$*" >> "$FAKE_LOG.launchctl"\ncase "$1" in bootstrap|load) ( cd "$HOME" || exit 1; MILA_TG_API="http://127.0.0.1:9" MILA_RUN_SERVICE=1 exec nohup python3 -B "$HOME/.claude/hooks/mila-run.py" run >/dev/null 2>&1 </dev/null ) >/dev/null 2>&1 & ;; esac\nexit 0\n' > "$T/$1-bin/launchctl"
@@ -47,6 +54,7 @@ born() {   # what birth leaves on the machine: a token file, an owner, the recor
 home lin
 chk "установка прошла, служба фона установлена: mila-run.py, feeder с модулями, помощник входа" '[ "$(cat "$T/lin.install.rc")" = 0 ] && for f in mila-run.py companion-feeder.py envelope.py limit_watch.py claude_login.py; do [ -f "$T/lin/.claude/hooks/$f" ] || exit 1; done' 'tail -n 5 "$T/lin.install.log"'
 chk "установка службу НЕ запускает: Мила ещё не рождена" '! in_home lin python3 -B "$T/lin/.claude/hooks/mila-run.py" status --json | grep -q "\"running\": true"'
+chk "Linux: файл службы systemd --user написан — путь к claude и bun, перезапуск, рабочая папка дома" 'U="$T/lin/.config/systemd/user/mila-session.service"; grep -q "mila-run.py run" "$U" && grep -q "Restart=always" "$U" && grep -q "Environment=PATH=.*$T/lin-bin" "$U" && grep -q "MILA_RUN_SERVICE=1" "$U"' 'cat "$T/lin/.config/systemd/user/mila-session.service"'
 o="$(in_home lin "$T/lin/.local/bin/mila" start 2>&1)"
 chk "mila start до рождения — отказ со словами «mila birth», ничего не запущено" 'echo "$o" | grep -q "mila birth" && [ ! -e "$T/lin/state/run.pid" ]' 'echo "$o"'
 born lin
@@ -66,7 +74,7 @@ chk "mila stop останавливает: служба, сеанс и приё�
 in_home lin "$T/lin/.local/bin/mila" start >/dev/null 2>&1; up lin; PID2="$(svc_pid lin)"
 o="$(in_home lin "$T/lin/.local/bin/mila" uninstall 2>&1)"; RM="$(ls -d "$T/lin/.mila-removed"/* 2>/dev/null | head -n 1)"
 chk "mila uninstall у работающей: сама останавливает её и убирает с машины" 'echo "$o" | grep -q "taken off this machine" && ! kill -0 "$PID2" 2>/dev/null' 'echo "$o"'
-chk "…ключ бота, список доступа и запись о рождении не удалены, а перенесены в ~/.mila-removed/<дата>/ (700)" '[ -f "$RM/telegram/.env" ] && [ -f "$RM/telegram/access.json" ] && [ -f "$RM/mila-birth.json" ] && [ ! -e "$T/lin/.claude/channels/telegram" ] && [ ! -e "$T/lin/.claude/mila-birth.json" ] && [ "$(stat -c %a "$RM")" = 700 ]' 'ls -la "$RM" "$T/lin/.claude"'
+chk "…ключ бота, список доступа и запись о рождении не удалены, а перенесены в ~/.mila-removed/<дата>/ (700)" '[ -f "$RM/telegram/.env" ] && [ -f "$RM/telegram/access.json" ] && [ -f "$RM/mila-birth.json" ] && [ ! -e "$T/lin/.claude/channels/telegram" ] && [ ! -e "$T/lin/.claude/mila-birth.json" ] && [ "$(python3 -c "import os,sys;print(oct(os.stat(sys.argv[1]).st_mode & 0o777))" "$RM")" = 0o700 ]' 'ls -la "$RM" "$T/lin/.claude"'
 chk "…её дом (память) оставлен, файл службы убран" '[ -d "$T/lin/work" ] && [ ! -e "$T/lin/.config/systemd/user/mila-session.service" ] && [ ! -e "$T/lin/Library/LaunchAgents/com.milagpt.session.plist" ]' 'ls "$T/lin"'
 o="$(in_home lin "$T/lin/.local/bin/mila" start 2>&1)"
 chk "после uninstall она не рождена: mila start отказывает со словами «mila birth»" 'echo "$o" | grep -q "mila birth"' 'echo "$o"'
@@ -75,11 +83,6 @@ chk "второй uninstall — «нечего убирать», без ошиб
 born lin; mkdir -p "$T/lin/.claude/projects/$(printf %s "$T/lin/work" | sed "s/[^A-Za-z0-9]/-/g")"; sleep 1.1
 o="$(in_home lin "$T/lin/.local/bin/mila" uninstall --all 2>&1)"; RM2="$(ls -d "$T/lin/.mila-removed"/* | tail -n 1)"
 chk "mila uninstall --all переносит и её дом, и её разговор — следующее рождение с чистого листа" '[ -d "$RM2/work" ] && [ -d "$RM2/conversation" ] && [ ! -e "$T/lin/work" ] && [ "$RM2" != "$RM" ]' 'echo "$o"; ls "$RM2"'
-if command -v systemctl >/dev/null 2>&1; then
-  chk "Linux с systemd: файл службы написан — путь к claude и bun, перезапуск, рабочая папка дома" 'U="$T/lin/.config/systemd/user/mila-session.service"; grep -q "mila-run.py run" "$U" && grep -q "Restart=always" "$U" && grep -q "Environment=PATH=.*$T/lin-bin" "$U" && grep -q "MILA_RUN_SERVICE=1" "$U"' 'cat "$T/lin/.config/systemd/user/mila-session.service"'
-else
-  chk "нет ни launchd, ни systemd: установка сказала, что после перезагрузки нужен mila start" 'grep -q "plain background process" "$T/lin.install.log" "$T/lin/.claude/mila-install.log"' 'grep -n "Background" -A3 "$T/lin.install.log" "$T/lin/.claude/mila-install.log"'
-fi
 
 # ── macOS: a stand-in uname and launchctl ──
 home mac Darwin
