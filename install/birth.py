@@ -263,9 +263,7 @@ def api_born(body=None):
 def api_done():
     if not read_record():
         return 200, {"ok": False, "error": "srv"}
-    S.finished.set()
-    if S.stop:
-        threading.Thread(target=S.stop, daemon=True).start()
+    S.finished.set()   # the server stops after this answer has been written (do_POST), not while it is being written
     return 200, {"ok": True}
 
 
@@ -353,6 +351,12 @@ class Handler(BaseHTTPRequestHandler):
         if r not in routes:
             return self._send(404, "not found", "text/plain")
         self._json(*routes[r]())
+        if r == "api/done" and S.finished.is_set() and S.stop:
+            try:
+                self.wfile.flush()
+            except OSError:
+                pass
+            threading.Thread(target=S.stop, daemon=True).start()
 
 
 def main():
