@@ -205,7 +205,7 @@ for f in reply-required.py pd-mask.py; do
   GUARDS_N=$((GUARDS_N + 1))
 done
 # сторож отправки и журнал обещаний — у self-host тоже из коробки
-for f in send-guard.py done-guard.py secret-guard.py skill-hint.py; do
+for f in send-guard.py done-guard.py secret-guard.py skill-hint.py hod-stream.py; do
   install_file "$ROOT/templates/home/.claude/hooks/$f" "$HOOK_DIR/$f" "$f"
   run chmod 755 "$HOOK_DIR/$f"
   say "hook → $HOOK_DIR/$f"
@@ -479,7 +479,7 @@ fi
 
 if [[ $DRY -eq 1 ]]; then
   say "would check $CLAUDE_DIR/settings.json — register hooks (backup first if it changes):"
-  say "  UserPromptSubmit: telegram-inbox-feed.py, skill-hint.py · SessionStart + PostToolUse(CronCreate|CronDelete): crons-keeper.py · Stop: reply-required.py · PostToolUse(Write|Edit): pd-mask.py"
+  say "  UserPromptSubmit: telegram-inbox-feed.py, skill-hint.py, hod-stream.py · PreToolUse + PostToolUse + Stop: hod-stream.py · SessionStart + PostToolUse(CronCreate|CronDelete): crons-keeper.py · Stop: reply-required.py · PostToolUse(Write|Edit): pd-mask.py"
   say "  PreToolUse(reply|edit_message): send-guard.py, done-guard.py · PostToolUseFailure: done-guard.py · PostToolUse(reply): task-sent.py · SessionStart: task-open.py · env OWNER_ID (MILA_OWNER_ID)"
   say "would create the personal data vault key ~/.config/mila/pd.key (600) if missing"
 else
@@ -555,6 +555,12 @@ for _r in ('Read(~/.mila-auth/**)', 'Edit(~/.mila-auth/**)', 'Read(~/work/secret
 sh = 'python3 ' + os.path.join(cfg_dir, 'hooks', 'skill-hint.py')
 if not any('skill-hint.py' in json.dumps(x) for x in hooks.get('UserPromptSubmit', [])):
     ck_missing.append(('UserPromptSubmit', {'hooks': [{'type': 'command', 'command': sh}]}))
+# hod-stream: the work progress stream (one message in the owner's private chat that updates while Mila works; /hod off switches it off).
+# Four events, one entry each; it never blocks a tool (it always ends with code 0)
+hs = 'python3 ' + os.path.join(cfg_dir, 'hooks', 'hod-stream.py')
+for _ev in ('PreToolUse', 'PostToolUse', 'Stop', 'UserPromptSubmit'):
+    if not any('hod-stream.py' in json.dumps(x) for x in hooks.get(_ev, [])):
+        ck_missing.append((_ev, {'hooks': [{'type': 'command', 'command': hs}]}))
 # сторож упал/завис → сообщение НЕ уходит. Уже записанный хук без onFailure — дописываем ключ
 for e in hooks.get('PreToolUse', []):
     for hk in (e.get('hooks') or []) if isinstance(e, dict) else []:

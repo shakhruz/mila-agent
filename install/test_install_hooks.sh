@@ -28,9 +28,10 @@ chk "PreToolUse send-guard зарегистрирован и лежит файл
 chk "done-guard: PreToolUse и PostToolUseFailure зарегистрированы, файл лежит" "python3 -c \"import json;h=json.load(open('$S'))['hooks'];assert any('done-guard.py' in json.dumps(e) for e in h['PreToolUse']) and any('done-guard.py' in json.dumps(e) for e in h['PostToolUseFailure'])\" && [ -x $T/home/.claude/hooks/done-guard.py ]"
 chk "secret-guard зарегистрирован, лежит файлом; deny Read/Edit на ~/.mila-auth и ~/work/secrets" "grep -q 'secret-guard.py' $S && [ -x $T/home/.claude/hooks/secret-guard.py ] && python3 -c \"import json;d=json.load(open('$S'))['permissions']['deny'];assert 'Read(~/.mila-auth/**)' in d and 'Read(~/work/secrets/**)' in d\""
 chk "skill-hint: UserPromptSubmit зарегистрирован, файл лежит" "grep -q 'skill-hint.py' $S && [ -x $T/home/.claude/hooks/skill-hint.py ]"
+chk "hod-stream: зарегистрирован на PreToolUse, PostToolUse, Stop, UserPromptSubmit по одному разу, файл лежит" "python3 -c \"import json;h=json.load(open('$S'))['hooks'];assert all(json.dumps(h[e]).count('hod-stream.py')==1 for e in ('PreToolUse','PostToolUse','Stop','UserPromptSubmit'))\" && [ -x $T/home/.claude/hooks/hod-stream.py ] && [ -f $T/home/.claude/skills/hod/hod.py ]"
 chk "task-sent (PostToolUse reply) и task-open (SessionStart) зарегистрированы" "grep -q 'task-sent.py' $S && grep -q 'task-open.py' $S"
 chk "OWNER_ID из MILA_OWNER_ID — в env settings.json" "python3 -c \"import json;assert json.load(open('$S'))['env']['OWNER_ID']=='$OID'\""
-chk "повторная установка не дублирует хуки" "HOME=$T/home CLAUDE_CONFIG_DIR=$T/home/.claude MILA_OWNER_ID=$OID PATH=/usr/bin:/bin:/usr/local/bin bash $REPO/install/install.sh >/dev/null 2>&1; [ \$(grep -c 'send-guard.py' $S) -eq 1 ] && [ \$(grep -c 'done-guard.py' $S) -eq 2 ]"
+chk "повторная установка не дублирует хуки" "HOME=$T/home CLAUDE_CONFIG_DIR=$T/home/.claude MILA_OWNER_ID=$OID PATH=/usr/bin:/bin:/usr/local/bin bash $REPO/install/install.sh >/dev/null 2>&1; [ \$(grep -c 'send-guard.py' $S) -eq 1 ] && [ \$(grep -c 'done-guard.py' $S) -eq 2 ] && [ \$(grep -c 'hod-stream.py' $S) -eq 4 ]"
 # сторож отправки — с "onFailure": "block" и при установке, и у старой записи без ключа
 sgok() { python3 -c "import json,sys; d=json.load(open(sys.argv[1])); h=[h for e in d['hooks']['PreToolUse'] for h in e['hooks'] if 'send-guard.py' in h['command']]; sys.exit(0 if h and all(x.get('onFailure')=='block' for x in h) else 1)" "$S"; }
 chk "SG-ONFAIL: установка пишет send-guard с onFailure: block" "sgok"
@@ -125,8 +126,8 @@ chk "settings.json не JSON — на экране ✗ с причиной и ч
 nocyr() { python3 -c "import re,sys; sys.exit(1 if any(re.search('[Ѐ-ӿ]', l) for l in open(sys.argv[1], encoding='utf-8') if 'hello' not in l) else 0)" "$1"; }
 HOME="$T/home" CLAUDE_CONFIG_DIR="$T/home/.claude" MILA_OWNER_ID=$OID PATH=/usr/bin:/bin:/usr/local/bin bash "$REPO/install/install.sh" > "$T/again.out" 2>&1
 NSK=$(ls -d $REPO/skills/*/ | wc -l | tr -d ' ')
-NHK=0; for f in telegram-inbox-feed crons-keeper reply-required pd-mask send-guard done-guard secret-guard skill-hint; do [ -x $T/home/.claude/hooks/$f.py ] && NHK=$((NHK+1)); done
-chk "число навыков на экране = числу навыков набора; стражей = числу файлов хуков в доме (8)" "grep -q \"✓ $NSK skills\" $T/again.out && [ $NHK -eq 8 ] && grep -q \"✓ $NHK guardians\" $T/again.out"
+NHK=0; for f in telegram-inbox-feed crons-keeper reply-required pd-mask send-guard done-guard secret-guard skill-hint hod-stream; do [ -x $T/home/.claude/hooks/$f.py ] && NHK=$((NHK+1)); done
+chk "число навыков на экране = числу навыков набора; стражей = числу файлов хуков в доме (9)" "grep -q \"✓ $NSK skills\" $T/again.out && [ $NHK -eq 9 ] && grep -q \"✓ $NHK guardians\" $T/again.out"
 chk "экран повторной установки: без построчных фактов, без кириллицы (кроме приветствия), короткий" "! grep -q 'unchanged, no copy needed' $T/again.out && ! grep -q 'hook → ' $T/again.out && nocyr $T/again.out && [ \$(wc -l < $T/again.out) -le 30 ]"
 LOGH=$T/home/.claude/mila-install.log
 chk "журнал: есть, права 600, построчные факты внутри, перезаписан (одно «Mila installer»)" "python3 -c \"import os,sys; sys.exit(0 if os.stat(sys.argv[1]).st_mode & 0o777 == 0o600 else 1)\" $LOGH && grep -q 'hook → ' $LOGH && grep -q 'unchanged, no copy needed' $LOGH && [ \$(grep -c '^Mila installer' $LOGH) -eq 1 ]"

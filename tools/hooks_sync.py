@@ -5,7 +5,7 @@
 mila-update settings.json не трогает, поэтому нужен этот шаг при раскатке.
 --guards (06.11, канарейка v1.7.2: сторожа лежали в доме, но не были подключены): ещё и хуки из ~/.claude/hooks, которые ставит
 обновление, — так же, как install.sh: send-guard и done-guard на отправку, done-guard на PostToolUseFailure (Claude Code ≥ 2.1.295),
-secret-guard на инструменты с deny-правилами входа и сейфа, skill-hint, pd-mask, crons-keeper, reply-required. Только те, чей файл
+secret-guard на инструменты с deny-правилами входа и сейфа, skill-hint, hod-stream, pd-mask, crons-keeper, reply-required. Только те, чей файл
 есть и кто ещё не записан; без навыка mila-tasks с --guards — только сторожа.
   python3 hooks_sync.py [--home DIR] [--dry-run] [--guards]     выход: JSON {added:[…], hooks_dir, backup}"""
 import datetime, json, os, re, subprocess, sys
@@ -48,6 +48,10 @@ def guards(home, cfg, hooks, has, added):
             if r not in deny: deny.append(r); added.append("deny: " + r)
     if here("skill-hint.py") and not has("UserPromptSubmit", "skill-hint.py"):
         add("UserPromptSubmit", {"hooks": [{"type": "command", "command": cmd("skill-hint.py")}]}, "UserPromptSubmit: skill-hint.py")
+    if here("hod-stream.py"):   # the work progress stream: four events, no matcher, never blocks
+        for ev in ("PreToolUse", "PostToolUse", "Stop", "UserPromptSubmit"):
+            if not has(ev, "hod-stream.py"):
+                add(ev, {"hooks": [{"type": "command", "command": cmd("hod-stream.py")}]}, ev + ": hod-stream.py")
     if here("pd-mask.py") and not has("PostToolUse", "pd-mask.py"):
         add("PostToolUse", {"matcher": "Write|Edit|MultiEdit", "hooks": [{"type": "command", "command": cmd("pd-mask.py")}]}, "PostToolUse(write): pd-mask.py")
     if here("crons-keeper.py"):
