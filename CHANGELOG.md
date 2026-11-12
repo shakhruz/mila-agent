@@ -1,20 +1,23 @@
 # CHANGELOG · Mila
 
-## Unreleased — voice messages when a speech service cannot be reached; the work progress stream
+## Unreleased — voice messages when a speech service cannot be reached; the work progress stream; one look for every page of the first minutes
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
 **Для хозяина**
 - Голосовые: если один сервис расшифровки недоступен, я спрашиваю второй, а не молчу.
 - Пока я работаю, вы видите в нашей личке, что я делаю: одно сообщение, которое обновляется. Выключить — /hod off, включить — /hod on.
+- Страницы, где вы вводите ключ или пароль, выглядят так же, как страница рождения: светлые, с моим портретом и одной кнопкой.
 
 </details>
 
 **For the owner**
 - Voice messages: when one speech service cannot be reached, I ask the second one instead of staying silent.
 - While I work, you see in our private chat what I am doing: one message that keeps updating. Switch it off with /hod off, on with /hod on.
+- The pages where you enter a key or a password (the Safe, the key page, the token page) look like the birth page: light, with my portrait and one button.
 
 **For Milas**
+- `install/mila_style.py`: one small stdlib module with the birth-page look (cream paper, white card, round portrait, serif heading, one teal button, language pills, 16 px inputs, no outside requests, works without the portrait file). `tools/seif/seif.py`, `docker/key_page.py` and `docker/token_page.py` use it through identical copies kept next to each page (same way as `mila_i18n.py`); `docker/Dockerfile` copies it into the image; the CSP of these pages now allows images from `data:` only. Texts, locales, addresses, field names and checks are unchanged. Tests: `install/test_mila_style.py` (copies identical, no outside addresses, no portrait still works) and one look check per page.
 - `install/transcribe-voice.sh`: a speech service that cannot be reached over the network no longer ends the script silently with curl's exit code. Deepgram unreachable — a line with the reason and the script goes on to Groq (before, it stopped right there and Groq was never asked); no text from anyone — a reason for each service and exit 1, so the receiver says «transcription failed», not «empty».
 - The work progress stream (`templates/home/.claude/hooks/hod-stream.py`, skill `skills/hod`): a hook on PreToolUse, PostToolUse, Stop and UserPromptSubmit. For a turn that came from the owner's private chat only, it keeps one Telegram message in that chat and edits it in place: the current step in human words (a Bash step by its description, any other tool by a short phrase by kind, no raw commands or paths), a one-line result of a Bash step, and at Stop «Done» with the turn summary in a collapsed MarkdownV2 quote. Never sent to groups, guests, clients, scheduled or terminal turns. On by default; off by the file `hod.off` in the channel state folder, by `/hod off` / `/hod on` / `/hod status` from the owner (the hook runs the command itself) or by `skills/hod/hod.py`. Every outgoing text goes through a secret mask as wide as the send guard and the personal-data vault (keys, tokens, passwords in URLs, JWT, PEM blocks, cards, phones, e-mail, `*PASS*`/`*PWD*`/`*KEY*`/`*SECRET*` assignments, long hex and base64); the output of a Bash step is never shown, only «ok · N lines» or «exit N»; the transcript is followed by a byte offset kept in the state, and a turn whose start is not found sends nothing; `/hod` is read from the outermost envelope only; the channel folder from `TELEGRAM_STATE_DIR` must lie inside the Mila's own config dir; the token is read from the channel folder and never printed or stored. Network errors and any exception end in code 0 with empty stdout; a failed request starts a one-minute quiet period. Strings are in `skills/hod/locales/*.json`. `install/install.sh` installs and registers it; for homes updated by `mila-update`, `tools/hooks_sync.py --guards` registers it. Test: `templates/home/.claude/hooks/test_hod_stream.py`.
 
