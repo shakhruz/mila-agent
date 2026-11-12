@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """mila birth: the birth page's local server — on a fake Telegram and a fake `claude`, no network, no real home.
 python3 install/test_birth.py"""
-import http.client, json, os, re, socket, stat, subprocess, sys, tempfile, threading, time
+import base64, hashlib, http.client, json, os, re, socket, stat, subprocess, sys, tempfile, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -40,14 +40,26 @@ class TG(BaseHTTPRequestHandler):
 
 GOODCODE, NOOWNER, NOTOKEN, DOWN = "MILA-ABCD-EFGH-JKLM", "MILA-NOOW-NERX-ABCD", "MILA-NOTK-NXXX-ABCD", "MILA-DOWN-DOWN-DOWN"
 HITS = []
+SEC_OK, SEC_ODD, SEC_NOTOKEN, SEC_DOWN, SEC_NONE = (base64.urlsafe_b64encode(os.urandom(32)).decode().rstrip("=") for _ in range(5))
+COLLECTS = []
 
 
 class Relay(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 
     def do_POST(self):
-        d = json.loads(self.rfile.read(int(self.headers["Content-Length"]))); HITS.append(d.get("code"))
+        d = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         c = d.get("code")
+        if "secret" in d:
+            COLLECTS.append((self.path, d)); s = d["secret"]
+            if s == SEC_OK: code, body = 200, {"ok": True, "token": TOKEN, "owner_id": str(S["owner2"]), "bot_username": "test_birth_bot"}
+            elif s == SEC_ODD: code, body = 200, {"ok": True, "token": TOKEN, "owner_id": "me", "bot_username": "not a name"}
+            elif s == SEC_NOTOKEN: code, body = 200, {"ok": True, "owner_id": str(S["owner2"])}
+            elif s == SEC_DOWN: code, body = 500, {"ok": False}
+            else: code, body = 404, {"ok": False}
+            b = json.dumps(body).encode(); self.send_response(code); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
+            return
+        HITS.append(c)
         if c == GOODCODE: code, body = 200, {"ok": True, "bot_token": TOKEN, "owner_id": str(S["owner2"])}
         elif c == NOOWNER: code, body = 200, {"ok": True, "bot_token": TOKEN}
         elif c == NOTOKEN: code, body = 200, {"ok": True}
@@ -370,6 +382,34 @@ import birth_relay as br
 chk("normalize_code: регистр, дефисы, пробелы, без MILA; мусор и чужой алфавит — нет",
     all(br.normalize_code(x) == GOODCODE for x in ("milaabcdefghjklm", "MILA ABCD EFGH JKLM", "abcd-efgh-jklm", " abcdefghjklm ")) and br.normalize_code("MILA-ABC0-EFGH-JKLM") is None and br.normalize_code("hello") is None and br.normalize_code("") is None)
 chk("claim: relay недоступен (порт закрыт) → unreachable", br.claim(GOODCODE, "http://127.0.0.1:1/x")["error"] == "unreachable")
+
+# the second way: no code, the page's own secret
+RC = "http://127.0.0.1:%d/birth/api/claim" % relay.server_port
+s1, s2 = br.new_secret(), br.new_secret()
+chk("new_secret: 43 знака base64url из 32 случайных байт, каждый раз новый",
+    all(re.fullmatch(r"[A-Za-z0-9_-]{43}", x) and len(base64.urlsafe_b64decode(x + "=")) == 32 for x in (s1, s2)) and s1 != s2)
+want = base64.urlsafe_b64encode(hashlib.sha256(SEC_OK.encode("ascii")).digest()).decode().rstrip("=")[:32]
+chk("bind_of: первые 32 знака base64url(sha256(S)) — сверено с hashlib; у разных секретов разный",
+    br.bind_of(SEC_OK) == want and len(want) == 32 and re.fullmatch(r"[A-Za-z0-9_-]{32}", br.bind_of(s1)) and br.bind_of(s1) != br.bind_of(s2))
+chk("collect_url: рядом с claim — …/collect; по умолчанию от адреса relay; чужой адрес не трогается",
+    br.collect_url(RC) == RC[:-len("claim")] + "collect" and br.collect_url() == br.DEFAULT_RELAY[:-len("claim")] + "collect" and br.collect_url(RC + "x") == RC + "x")
+h0 = len(HITS); r = br.collect(SEC_OK, RC)
+chk("collect: верный секрет → bot_token, owner_id, bot_username; запрос ушёл на /birth/api/collect с секретом, не на claim",
+    r == {"ok": True, "bot_token": TOKEN, "owner_id": str(S["owner2"]), "bot_username": "test_birth_bot"} and COLLECTS[-1] == ("/birth/api/collect", {"secret": SEC_OK}) and len(HITS) == h0)
+os.environ["BIRTH_RELAY"] = RC
+chk("collect: адрес из BIRTH_RELAY, как у claim", br.collect(SEC_OK).get("bot_token") == TOKEN and COLLECTS[-1][0] == "/birth/api/collect")
+os.environ.pop("BIRTH_RELAY")
+chk("collect: relay ответил 404 → refused (ещё нет или уже нет); 500 → relay_http",
+    br.collect(SEC_NONE, RC) == {"ok": False, "error": "refused", "status": 404} and br.collect(SEC_DOWN, RC) == {"ok": False, "error": "relay_http", "status": 500})
+chk("collect: в ответе нет ключа → no_token; чужие owner_id и имя бота → пустые строки",
+    br.collect(SEC_NOTOKEN, RC) == {"ok": False, "error": "no_token"} and br.collect(SEC_ODD, RC) == {"ok": True, "bot_token": TOKEN, "owner_id": "", "bot_username": ""})
+c0 = len(COLLECTS)
+chk("collect: секрет не той формы (короткий, длинный, чужие знаки, не строка) → format, в relay не ходили",
+    all(br.collect(x, RC) == {"ok": False, "error": "format"} for x in (SEC_OK[:42], "A" * 129, SEC_OK[:42] + "+", SEC_OK + "\n", "", None, 5)) and len(COLLECTS) == c0)
+os.environ.pop("BIRTH_RELAY_INSECURE_TEST")
+chk("collect: relay по http без тестового флага → insecure, в relay не ходили", br.collect(SEC_OK, RC) == {"ok": False, "error": "insecure"} and len(COLLECTS) == c0)
+os.environ["BIRTH_RELAY_INSECURE_TEST"] = "1"
+chk("collect: relay недоступен (порт закрыт) → unreachable", br.collect(SEC_OK, "http://127.0.0.1:1/x") == {"ok": False, "error": "unreachable"})
 chk("за весь проход страница не отправила хозяину ни одного сообщения — ни при коде пары, ни при коде рождения с хозяином: первые слова говорит Мила",
     not S["sent"] and not S["photos"])
 print("итог %d/%d" % (ok, n))
