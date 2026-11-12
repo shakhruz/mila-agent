@@ -1,12 +1,13 @@
 # CHANGELOG · Mila
 
-## Unreleased — Mila works in the background, no terminal after birth; the birth page tells the bot its language; voice messages when a speech service cannot be reached; the work progress stream
+## Unreleased — Mila works in the background, no terminal after birth; the birth page tells the bot its language; voice messages when a speech service cannot be reached; the work progress stream; one look for every page of the first minutes
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
 **Для хозяина**
 - Голосовые: если один сервис расшифровки недоступен, я спрашиваю второй, а не молчу.
 - Пока я работаю, вы видите в нашей личке, что я делаю: одно сообщение, которое обновляется. Выключить — /hod off, включить — /hod on.
+- Страницы, где вы вводите ключ или пароль, выглядят так же, как страница рождения: светлые, с моим портретом и одной кнопкой.
 - Рождение в браузере: бот, который помогает создать бота для новой Милы, отвечает на языке страницы.
 - Терминал после рождения больше не нужен: я работаю в фоне и отвечаю в Telegram, пока включён компьютер, и возвращаюсь после перезагрузки. Остановить меня — `mila stop`, запустить — `mila start`.
 - Убрать меня с компьютера — одна команда: `mila uninstall`. Ничего не удаляется: всё переносится в папку `~/.mila-removed`.
@@ -20,6 +21,7 @@
 **For the owner**
 - Voice messages: when one speech service cannot be reached, I ask the second one instead of staying silent.
 - While I work, you see in our private chat what I am doing: one message that keeps updating. Switch it off with /hod off, on with /hod on.
+- The pages where you enter a key or a password (the Safe, the key page, the token page) look like the birth page: light, with my portrait and one button.
 - Birth in the browser: the bot that helps create a bot for the new Mila answers in the language of the page.
 - No terminal after birth: I work in the background and answer in Telegram while the computer is on, and I come back after a reboot. `mila stop` stops me, `mila start` starts me.
 - One command takes me off the computer: `mila uninstall`. Nothing is deleted: everything is moved to the folder `~/.mila-removed`.
