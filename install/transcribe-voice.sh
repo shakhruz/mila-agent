@@ -30,13 +30,14 @@ DG_TEXT=""
 if [ -n "$DG" ]; then
   # the key goes in a header read from stdin (-H @-), not in curl's arguments — those are visible to other processes (ps)
   DG_RAW=$(printf 'Authorization: Token %s\n' "$DG" | curl -s --max-time 90 -w '\n%{http_code}' -X POST "${DEEPGRAM_API:-https://api.deepgram.com}/v1/listen?model=nova-3&language=multi&smart_format=true" \
-    -H @- -H "Content-Type: audio/ogg" --data-binary "@$SRC")
+    -H @- -H "Content-Type: audio/ogg" --data-binary "@$SRC") || true   # no network: the code below is 000, the script goes on to Groq
   DG_CODE="${DG_RAW##*$'\n'}"; DG_BODY="${DG_RAW%$'\n'*}"
   case "$DG_CODE" in   # the reason goes to stderr (the receiver's log), never the key
     401|403) echo "[Deepgram: ключ не принят (HTTP $DG_CODE) — нужен новый ключ]" >&2 ;;
     402) echo "[Deepgram: на счёте кончился кредит (HTTP 402)]" >&2 ;;
     429) echo "[Deepgram: лимит запросов (HTTP 429), позже]" >&2 ;;
     200) ;;
+    000|"") echo "[Deepgram: сервис не ответил (сеть)]" >&2 ;;
     *) echo "[Deepgram: ответ HTTP ${DG_CODE:-нет}]" >&2 ;;
   esac
   if [ "$DG_CODE" != 200 ] && [ -z "$KEY" ]; then exit 1; fi   # no Groq to fall back on: the receiver says «transcription failed»
@@ -72,13 +73,17 @@ import sys, json
 try: d = json.load(sys.stdin)
 except Exception: print("\t"); sys.exit()
 print((d.get("language") or "") + "\t" + (d.get("text") or "").strip())'; }
-OUT=$(ask "$SRC" "" | pick)
+NET=""   # Groq did not answer over the network: say why and, if there is no text at all, fail — the receiver says «transcription failed», not «empty»
+RAW=$(ask "$SRC" "") || { echo "[Groq: сервис не ответил (сеть)]" >&2; NET=1; RAW=""; }
+OUT=$(printf '%s' "$RAW" | pick)
 LANG="${OUT%%$'\t'*}"; TEXT="${OUT#*$'\t'}"
 case "$LANG" in
   uzbek|uz|azerbaijani|az|kazakh|kk|kyrgyz|ky|turkmen|tk|tatar|tt|turkish|tr|bashkir|ba|tajik|tg|uighur|ug|chuvash|cv|"")
-    OUT2=$(ask "$SRC" "uz" | pick); TEXT2="${OUT2#*$'\t'}"; [ -n "$TEXT2" ] && TEXT="$TEXT2" ;;
+    RAW2=$(ask "$SRC" "uz") || RAW2=""
+    OUT2=$(printf '%s' "$RAW2" | pick); TEXT2="${OUT2#*$'\t'}"; [ -n "$TEXT2" ] && TEXT="$TEXT2" ;;
 esac
 [ -z "$TEXT" ] && TEXT="$DG_TEXT"   # Groq said nothing — Deepgram's unsure text is better than none
+if [ -z "$TEXT" ] && [ -n "$NET" ]; then exit 1; fi
 # D-NNNN (10.10): whisper путает имена продукта («Милодипити.io», «Milo Companion», «хайку 55»).
 # Подсказка prompt проверена и отвергнута: на голосовом 835 съела 30 % текста и вставила себя в ответ.
 # Поэтому только точная замена известных искажений после расшифровки; смысл не трогаем.

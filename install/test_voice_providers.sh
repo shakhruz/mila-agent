@@ -8,6 +8,10 @@ cat > "$T/bin/curl" <<'C'
 #!/bin/bash
 printf '%s\n' "$*" >> "$CURL_LOG.argv"   # what other processes would see in ps
 for a in "$@"; do case "$a" in Authorization:*) printf '%s\n' "$a" >> "$CURL_LOG";; @-) grep '^Authorization:' >> "$CURL_LOG";; http*) printf 'URL %s\n' "$a" >> "$CURL_LOG";; esac; done
+case "$*" in   # NET_DOWN names a service that cannot be reached: the real curl prints only its -w line («000») and exits 7
+  *listen*) case "${NET_DOWN:-}" in *deepgram*) case "$*" in *http_code*) printf '\n000';; esac; exit 7;; esac;;
+  *transcriptions*) case "${NET_DOWN:-}" in *groq*) exit 7;; esac;;
+esac
 case "$*" in
   */status*) echo "${KEYD_STATUS:-}";;
   *listen*) if [ "${DG_CODE:-200}" = 200 ]; then echo "{\"results\":{\"channels\":[{\"alternatives\":[{\"transcript\":\"$DG_SAYS\",\"confidence\":$DG_CONF}]}]}}"; else echo '{"err_code":"INVALID_AUTH"}'; fi
@@ -41,4 +45,14 @@ chk "хранитель ключей: Deepgram через него (/deepgram/v1
 : > "$T/auth.log"; o=$(MILA_KEYD=http://keyd KEYD_STATUS='{"anthropic": true, "deepgram": false, "groq": true}' run)
 chk "хранитель: только Groq — через него (/groq/openai/…), заглушка" '[ "$o" = "salom dunyo" ] && grep -q "URL http://keyd/groq/openai/v1/audio/transcriptions" "$T/auth.log" && grep -q "Bearer mila-keyd" "$T/auth.log"' 'cat "$T/auth.log"'
 o=$(MILA_KEYD=http://keyd KEYD_STATUS='{"anthropic": true, "deepgram": false, "groq": false}' run); chk "хранитель без ключей голоса — «нет ключа», код 1" 'echo "$o" | grep -q "нет ключа распознавания"' 'echo "$o"'
+# --- a service that cannot be reached over the network: a reason in the log, never a silent exit with curl's code
+printf "DEEPGRAM_API_KEY='%s'\n" "$DK" > "$T/sec/deepgram.env"; printf "GROQ_API_KEY='%s'\n" "$GK" > "$T/sec/groq.env"
+o=$(NET_DOWN=deepgram run); rc=$?; chk "Deepgram недоступен по сети, Groq есть — причина в журнале и текст Groq, код 0" '[ $rc = 0 ] && echo "$o" | grep -q "Deepgram: сервис не ответил" && echo "$o" | grep -q "salom dunyo"' 'echo "rc=$rc $o"'
+o=$(NET_DOWN="deepgram groq" run); rc=$?; chk "оба недоступны — обе причины названы, код 1 (не «пусто»)" '[ $rc = 1 ] && echo "$o" | grep -q "Deepgram: сервис не ответил" && echo "$o" | grep -q "Groq: сервис не ответил" && ! echo "$o" | grep -q "\[empty\]"' 'echo "rc=$rc $o"'
+o=$(NET_DOWN=groq DG_SAYS="salom" DG_CONF=0.31 run); rc=$?; chk "Groq недоступен, Deepgram не уверен — причина в журнале и текст Deepgram, код 0" '[ $rc = 0 ] && echo "$o" | grep -q "Groq: сервис не ответил" && echo "$o" | grep -q "^salom$"' 'echo "rc=$rc $o"'
+rm "$T/sec/groq.env"
+o=$(NET_DOWN=deepgram run); rc=$?; chk "только Deepgram и он недоступен — причина названа, код 1" '[ $rc = 1 ] && echo "$o" | grep -q "Deepgram: сервис не ответил"' 'echo "rc=$rc $o"'
+rm "$T/sec/deepgram.env"; printf "GROQ_API_KEY='%s'\n" "$GK" > "$T/sec/groq.env"
+o=$(NET_DOWN=groq run); rc=$?; chk "только Groq и он недоступен — причина названа, код 1" '[ $rc = 1 ] && echo "$o" | grep -q "Groq: сервис не ответил"' 'echo "rc=$rc $o"'
+o=$(run); rc=$?; chk "контроль: сеть есть — текст Groq, причин в журнале нет" '[ $rc = 0 ] && [ "$o" = "salom dunyo" ]' 'echo "rc=$rc $o"'
 echo "итог $ok/$n"; [ $ok -eq $n ]

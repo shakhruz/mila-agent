@@ -1,5 +1,20 @@
 # CHANGELOG · Mila
 
+## Unreleased — voice messages when a speech service cannot be reached
+
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
+**Для хозяина**
+- Голосовые: если один сервис расшифровки недоступен, я спрашиваю второй, а не молчу.
+
+</details>
+
+**For the owner**
+- Voice messages: when one speech service cannot be reached, I ask the second one instead of staying silent.
+
+**For Milas**
+- `install/transcribe-voice.sh`: a speech service that cannot be reached over the network no longer ends the script silently with curl's exit code. Deepgram unreachable — a line with the reason and the script goes on to Groq (before, it stopped right there and Groq was never asked); no text from anyone — a reason for each service and exit 1, so the receiver says «transcription failed», not «empty».
+
 ## v1.7.10 · 12.11 — Mila is born in the browser; a calm install screen; connectors and the first chat; the words «skill, talent, connector»
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
