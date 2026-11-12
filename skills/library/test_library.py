@@ -53,9 +53,10 @@ try:
     pack("proforientatsiya", "znakomstvo", "Если вы ищете, какая работа вам по душе", "proforientatsiya-test")
     pack("biznes-profil", "biznes", "Если у вас уже есть дело и нужен его профиль", "biznes-profil-sbor")
     pack("razminka-vopros", "razminka", "Если хочется размяться перед большим делом", "razminka-vopros-s")
+    pack("kurs-test", "obrazovanie", "Если хотите за неделю разобраться в деле", "kurs-test-vedenie")
     sys.path.insert(0, os.path.join(REPO, "tools")); import build_library as B
     sha, cnt = B.build(P)
-    check("сборка: три пака, sha256 индекса напечатан", cnt == 3 and len(sha) == 64, (cnt, sha))
+    check("сборка: четыре пака (с образовательным), sha256 индекса напечатан", cnt == 4 and len(sha) == 64, (cnt, sha))
     zips = os.listdir(os.path.join(P, "dist"))
     import zipfile
     names = [x for z in zips if z.endswith(".zip") for x in zipfile.ZipFile(os.path.join(P, "dist", z)).namelist()]
@@ -89,9 +90,10 @@ try:
     rc, d = run(L, "refresh"); check("lock пуст — «не подключена», ничего не скачано", rc != 0 and "не подключена" in d.get("error", ""), d)
     set_lock("0" * 64); rc, d = run(L, "refresh")
     check("индекс не тот, что в выпуске ядра — «не проверена», кэша нет", rc != 0 and "не проверена" in d.get("error", "") and not os.path.exists(os.path.join(CL, "mila-library", "library.json")), d)
-    set_lock(sha); rc, d = run(L, "refresh"); check("индекс с sha выпуска — принят", rc == 0 and d.get("packs") == 3, d)
+    set_lock(sha); rc, d = run(L, "refresh"); check("индекс с sha выпуска — принят", rc == 0 and d.get("packs") == 4, d)
     rc, d = run(L, "list"); cat = d.get("catalog") or {}
-    check("каталог по категориям", [p["id"] for p in cat.get("znakomstvo", [])] == ["proforientatsiya"] and [p["id"] for p in cat.get("biznes", [])] == ["biznes-profil"] and [p["id"] for p in cat.get("razminka", [])] == ["razminka-vopros"], d)
+    check("каталог по категориям", [p["id"] for p in cat.get("znakomstvo", [])] == ["proforientatsiya"] and [p["id"] for p in cat.get("biznes", [])] == ["biznes-profil"] and [p["id"] for p in cat.get("razminka", [])] == ["razminka-vopros"]
+          and [p["id"] for p in cat.get("obrazovanie", [])] == ["kurs-test"], d)
     cache = os.path.join(CL, "mila-library", "library.json"); keep = open(cache, "rb").read()
     open(cache, "wb").write(keep.replace(b'"0.1.0"', b'"0.1.1"', 1))
     sys.path.insert(0, H); import library as LB0

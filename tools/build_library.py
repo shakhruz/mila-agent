@@ -6,7 +6,7 @@
 Every pack is a Market archive without install.sh (tools/pack_mila.py, library mode): manifest.json with the sha256 of each file,
 the secret scanner over every file. The index lists each archive with its sha256; the sha256 of library.json itself goes into
 the core release (skills/library/library.lock) — the core trusts no index but that one. pack.json gets: category
-(znakomstvo | razminka | biznes), free: true, for_whom {ru, en, uz} — one plain line ≤120 chars: no links, @, `, commands or
+(znakomstvo | razminka | biznes | obrazovanie), free: true, for_whom {ru, en, uz} — one plain line ≤120 chars: no links, @, `, commands or
 imperatives (the same check library.py makes when it reads). A pack that fails stops the build. Only stdlib."""
 import hashlib, importlib.util, json, os, re, sys, time
 

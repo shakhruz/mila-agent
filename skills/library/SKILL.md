@@ -28,7 +28,7 @@ When I run a pack with a person: `python3 $L event <id> started` at step 1, `del
 «does it fit?» — `fit:yes`, `fit:partly` or `fit:no`. `python3 $L stats --days 7` — counts per pack for the evening report.
 
 ## Catalog
-«What packs are there?» → `python3 $L list --lang <lang>` → short list by category: znakomstvo (start), razminka (warm-up),
+«What packs are there?» → `python3 $L list --lang <lang>` → short list by category: znakomstvo (start), razminka (warm-up), obrazovanie (courses for several days),
 biznes. A pack from the list → `offer <id>` as above.
 
 ## Errors
