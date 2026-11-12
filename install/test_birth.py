@@ -67,7 +67,9 @@ os.chmod(CL, 0o755)
 CFG = os.path.join(T, ".claude")
 ENV = dict(os.environ, HOME=T, CLAUDE_CONFIG_DIR=CFG, TELEGRAM_STATE_DIR=os.path.join(T, "tg"), MILA_SKIP_TIMERS="1",
            MILA_TG_API="http://127.0.0.1:%d" % tg.server_port, MILA_CLAUDE=CL, MILA_BIRTH_NO_OPEN="1",
-           BIRTH_RELAY="http://127.0.0.1:%d/birth/api/claim" % relay.server_port, BIRTH_RELAY_INSECURE_TEST="1")
+           BIRTH_RELAY="http://127.0.0.1:%d/birth/api/claim" % relay.server_port, BIRTH_RELAY_INSECURE_TEST="1", MILA_RUN_STATE=os.path.join(T, "run"))
+# a stand-in launcher: notes that the page asked to start Mila in the background
+os.makedirs(os.path.join(T, ".local", "bin")); open(os.path.join(T, ".local", "bin", "mila"), "w").write('#!/bin/bash\necho "$*" >> "%s/mila.calls"\n' % T)
 ENV.pop("TELEGRAM_BOT_TOKEN", None)
 ok = n = 0
 
@@ -201,7 +203,8 @@ acc = json.load(open(os.path.join(T, "tg", "access.json"))) if os.path.exists(os
 sett = json.load(open(os.path.join(CFG, "settings.json"))) if os.path.exists(os.path.join(CFG, "settings.json")) else {}
 chk("`/start <код>` (ссылка t.me/бот?start=код) из личного чата: хозяин как в onboard (allowFrom, dmPolicy allowlist, OWNER_ID); из группы — не считается",
     r.get("paired") is True and acc.get("allowFrom") == [str(S["owner"])] and acc.get("dmPolicy") == "allowlist" and sett.get("env", {}).get("OWNER_ID") == str(S["owner"]))
-chk("хозяину ушло приветствие в Telegram", any("Paired" in x for x in S["sent"] + S["photos"]))
+chk("страница при привязке хозяина сама ему ничего не шлёт: первые слова скажет Мила из фона («Paired», «Claude Code», «terminal» — нет)",
+    not any(re.search(r"Paired|owner|Claude Code|terminal|mila", x) for x in S["sent"] + S["photos"]))
 
 S["msg"] = None
 sys.path.insert(0, HERE)
@@ -216,17 +219,34 @@ chk("страница делает кнопку «Открыть моего бо
 # --- born ------------------------------------------------------------------------
 rec_file = os.path.join(CFG, "mila-birth.json")
 chk("до «родилась» записи нет", not os.path.exists(rec_file))
-st, b1 = api("born")
+chk("…и Милу в фоне страница ещё не запускала", not os.path.exists(os.path.join(T, "mila.calls")))
+st, aw = req("GET", BASE + "api/awake")
+chk("до её первых слов страница знает: «ещё не написала» (awake greeted=false)", json.loads(aw).get("greeted") is False)
+st, b1 = api("born", {"lang": "ru"})
 rec = b1.get("record", {})
 on_disk = json.load(open(rec_file)) if os.path.exists(rec_file) else {}
 chk("запись о рождении: дата с часовым поясом, @username, имя хозяина; в ответе — для сертификата",
     b1.get("ok") is True and re.match(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d$", rec.get("born_at", "")) and rec.get("bot_username") == "test_birth_bot"
     and rec.get("owner_first_name") == "Ada" and on_disk == rec)
+chk("в записи — язык страницы рождения (на нём она скажет первые слова)", rec.get("lang") == "ru")
+def _calls():
+    try: return open(os.path.join(T, "mila.calls")).read().split()
+    except OSError: return []
+_t = time.time()
+while not _calls() and time.time() - _t < 10: time.sleep(0.1)
+chk("после «родилась» страница сама запускает Милу в фоне (mila start), терминал человеку не нужен", _calls() == ["start"])
+os.makedirs(os.path.join(T, "run"), exist_ok=True); open(os.path.join(T, "run", "greeted"), "w").close()
+st, aw = req("GET", BASE + "api/awake")
+chk("её первые слова ушли — страница узнаёт об этом (awake greeted=true) и только тогда говорит «она ждёт»", json.loads(aw).get("greeted") is True)
+chk("страница: «она ждёт» показывается по факту — сначала «просыпается», опрос awake, при молчании — честная строка; ум подключается в чате",
+    'data-i="wake"' in page and 'api("awake")' in page and 'wakeKey="p4"' in page and 'wakeKey="wake_late"' in page and "if(!st.claude.done)return enter2()" not in page
+    and all(len(re.findall(r'"%s":' % k, page)) == 4 for k in ("wake", "wake_late")))
 raw = open(rec_file).read() if os.path.exists(rec_file) else ""
-chk("в записи нет секретов (ни ключа бота, ни id хозяина)", TOKEN not in raw and str(S["owner"]) not in raw and set(on_disk) <= {"born_at", "bot_username", "owner_first_name"})
+chk("в записи нет секретов (ни ключа бота, ни id хозяина)", TOKEN not in raw and str(S["owner"]) not in raw and set(on_disk) <= {"born_at", "bot_username", "owner_first_name", "lang"})
 time.sleep(1.1)
 st, b2 = api("born")
 chk("запись пишется один раз: повторный вызов и существующий файл не перезаписываются", b2.get("record") == rec and json.load(open(rec_file)) == rec)
+chk("…и второй раз фон не запускается", _calls() == ["start"])
 
 # --- onboard --check after the page ----------------------------------------------
 c = subprocess.run([sys.executable, os.path.join(HERE, "onboard.py"), "--check"], env=ENV, capture_output=True, text=True, timeout=60)

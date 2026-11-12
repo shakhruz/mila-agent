@@ -26,13 +26,15 @@ home() {   # home <name> [Darwin] → a fresh installed home; prints nothing
   local H="$T/$1"; mkdir -p "$H" "$T/$1-bin"; cp "$BIN/claude" "$BIN/bun" "$T/$1-bin/"
   if [ "${2:-}" = Darwin ]; then
     printf '#!/bin/bash\n[ "${1:-}" = -s ] || [ -z "${1:-}" ] && echo Darwin || /usr/bin/uname "$@"\n' > "$T/$1-bin/uname"
-    printf '#!/bin/bash\nprintf "%%s\\n" "$*" >> "$FAKE_LOG.launchctl"\ncase "$1" in bootstrap|load) ( cd "$HOME" || exit 1; MILA_RUN_SERVICE=1 exec nohup python3 -B "$HOME/.claude/hooks/mila-run.py" run >/dev/null 2>&1 </dev/null ) >/dev/null 2>&1 & ;; esac\nexit 0\n' > "$T/$1-bin/launchctl"
+    printf '#!/bin/bash\nprintf "%%s\\n" "$*" >> "$FAKE_LOG.launchctl"\ncase "$1" in bootstrap|load) ( cd "$HOME" || exit 1; MILA_TG_API="http://127.0.0.1:9" MILA_RUN_SERVICE=1 exec nohup python3 -B "$HOME/.claude/hooks/mila-run.py" run >/dev/null 2>&1 </dev/null ) >/dev/null 2>&1 & ;; esac\nexit 0\n' > "$T/$1-bin/launchctl"
     chmod +x "$T/$1-bin/uname" "$T/$1-bin/launchctl"
   fi
   ( export HOME="$H" PATH="$T/$1-bin:$PATH" MILA_SKIP_TIMERS=1 FAKE_LOG="$T/$1.fake" MILA_RUN_STATE="$H/state" MILA_RUN_PAUSE=0.5; unset TELEGRAM_STATE_DIR CLAUDE_CONFIG_DIR XDG_STATE_HOME MILA_WORK
     bash "$R/install/install.sh" > "$T/$1.install.log" 2>&1; echo $? > "$T/$1.install.rc" )
 }
-in_home() { local name="$1"; shift; ( export HOME="$T/$name" PATH="$T/$name-bin:$PATH" FAKE_LOG="$T/$name.fake" MILA_RUN_STATE="$T/$name/state" MILA_RUN_PAUSE=0.5; unset TELEGRAM_STATE_DIR CLAUDE_CONFIG_DIR XDG_STATE_HOME MILA_WORK; cd "$T"; "$@" ); }
+# Telegram is a dead local port here: her first words must not leave this machine
+in_home() { local name="$1"; shift; ( export HOME="$T/$name" PATH="$T/$name-bin:$PATH" FAKE_LOG="$T/$name.fake" MILA_RUN_STATE="$T/$name/state" MILA_RUN_PAUSE=0.5 MILA_TG_API="http://127.0.0.1:9"; unset TELEGRAM_STATE_DIR CLAUDE_CONFIG_DIR XDG_STATE_HOME MILA_WORK; cd "$T"; "$@" ); }
+up() { local i; for i in $(seq 1 40); do in_home "$1" python3 -B "$T/$1/.claude/hooks/mila-run.py" status --json | grep -q '"session": true' && return 0; sleep 0.5; done; return 1; }   # the session of a home is up (waits up to 20 s)
 born() {   # what birth leaves on the machine: a token file, an owner, the record, the plugin
   local H="$T/$1"; mkdir -p "$H/.claude/channels/telegram" "$H/.claude/plugins/cache/mila/mila-telegram/1.0"
   printf 'TELEGRAM_BOT_TOKEN=%s\n' "5550""0111:$(printf 'K%.0s' $(seq 1 35))" > "$H/.claude/channels/telegram/.env"; chmod 600 "$H/.claude/channels/telegram/.env"
@@ -49,7 +51,7 @@ o="$(in_home lin "$T/lin/.local/bin/mila" start 2>&1)"
 chk "mila start до рождения — отказ со словами «mila birth», ничего не запущено" 'echo "$o" | grep -q "mila birth" && [ ! -e "$T/lin/state/run.pid" ]' 'echo "$o"'
 born lin
 o="$(in_home lin "$T/lin/.local/bin/mila" start 2>&1)"
-chk "после рождения mila start поднимает её фоном" 'echo "$o" | grep -q "running in the background" && in_home lin python3 -B "$T/lin/.claude/hooks/mila-run.py" status --json | grep -q "\"session\": true"' 'echo "$o"; cat "$T/lin/state/run.log" "$T/lin/state/service.log" 2>/dev/null | tail -n 5'
+chk "после рождения mila start поднимает её фоном" 'echo "$o" | grep -q "running in the background" && up lin' 'echo "$o"; cat "$T/lin/state/run.log" "$T/lin/state/service.log" 2>/dev/null | tail -n 5'
 chk "сеанс открыт в доме Милы, а не в папке, где набрали команду" 'grep -q "^$T/lin/work|-p " "$T/lin.fake.claude" && ! grep " -p " "$T/lin.fake.claude" | grep -qv "^$T/lin/work|"' 'cat "$T/lin.fake.claude"'
 chk "…без отключения разрешений" '! grep -q "skip-permissions" "$T/lin.fake.claude"' 'cat "$T/lin.fake.claude"'
 chk "дом Милы помечен доверенным в настройках Claude Code (для mila open)" 'python3 -c "import json,sys;d=json.load(open(sys.argv[1]));sys.exit(0 if d[\"projects\"][sys.argv[2]][\"hasTrustDialogAccepted\"] is True else 1)" "$T/lin/.claude.json" "$T/lin/work"' 'cat "$T/lin/.claude.json"'
@@ -73,7 +75,7 @@ chk "Мак: plist службы написан — RunAtLoad, KeepAlive, PATH у
 chk "…plist разбирается как XML" 'python3 -c "import plistlib,sys;d=plistlib.load(open(sys.argv[1],\"rb\"));assert d[\"ProgramArguments\"][-1]==\"run\" and d[\"EnvironmentVariables\"][\"MILA_RUN_SERVICE\"]==\"1\"" "$P"'
 born mac
 o="$(in_home mac "$T/mac/.local/bin/mila" start 2>&1)"
-chk "Мак: mila start загружает службу через launchctl bootstrap, она поднимает сеанс" 'grep -q "^bootstrap gui/.* $P" "$T/mac.fake.launchctl" && echo "$o" | grep -q "running in the background"' 'echo "$o"; cat "$T/mac.fake.launchctl"'
+chk "Мак: mila start загружает службу через launchctl bootstrap, она поднимает сеанс" 'grep -q "^bootstrap gui/.* $P" "$T/mac.fake.launchctl" && echo "$o" | grep -q "running in the background" && up mac' 'echo "$o"; cat "$T/mac.fake.launchctl"'
 o="$(in_home mac "$T/mac/.local/bin/mila" stop 2>&1)"
 chk "Мак: mila stop выгружает службу (bootout) и она остановлена" 'grep -q "^bootout gui/.*/com.milagpt.session" "$T/mac.fake.launchctl" && echo "$o" | grep -q "stopped"' 'echo "$o"; cat "$T/mac.fake.launchctl"'
 echo "итог $ok/$n"; [ "$ok" = "$n" ]

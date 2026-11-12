@@ -2,10 +2,12 @@
 """mila birth — the same three steps as `mila onboard`, on a local web page instead of the terminal.
 
   1. A voice  — the BotFather token is pasted on the page, checked with getMe, saved exactly as onboard saves it (600 / 700).
-  2. A mind   — Claude sign-in: Anthropic's own page opens (`claude auth login`); the page waits for `claude auth status`.
-  3. You      — a 6-character code is shown; the person who sends it to the bot becomes the owner (access.json, OWNER_ID).
-  Then a small birth record (no secrets) is written once, the page shows the certificate, and the server stops:
-  the page is used once.
+  2. You      — a 6-character code is shown; the person who sends it to the bot becomes the owner (access.json, OWNER_ID).
+  Then a small birth record (no secrets) is written once and Mila is started in the background (`mila start`). She writes to
+  her owner first; her mind — the Claude sign-in — is connected from the chat with one button, not on this page (a computer
+  that is already signed in to Claude needs nothing). The page says «she is waiting» only after her first words have left;
+  then it shows the certificate and the server stops: the page is used once.
+  (The sign-in step of the page, `claude auth login`, is still served for a page that asks for it.)
 
 The server listens on 127.0.0.1 only, on a free port, and serves the page only under a one-time random path:
 http://mila.localhost:<port>/<token>/   (`.localhost` is loopback in browsers; 127.0.0.1 and localhost work too).
@@ -51,10 +53,12 @@ def read_record():
         return None
 
 
-def write_record_once(username, first_name):
-    """The birth record: date and time with the local offset, bot @username, owner's first name when known. No secrets.
-    Created with O_EXCL — an existing record is never overwritten."""
+def write_record_once(username, first_name, lang=""):
+    """The birth record: date and time with the local offset, bot @username, owner's first name when known, the language of
+    the birth page (she speaks it from her first word). No secrets. Created with O_EXCL — an existing record is never overwritten."""
     rec = {"born_at": datetime.now().astimezone().isoformat(timespec="seconds"), "bot_username": username}
+    if lang in ("en", "ru", "uz", "zh"):
+        rec["lang"] = lang
     if first_name:
         rec["owner_first_name"] = first_name
     os.makedirs(onboard.CLAUDE_DIR, exist_ok=True)
@@ -103,7 +107,47 @@ def pair_state():
 
 
 def all_done():
-    return token_state()["done"] and claude_state()["done"] and pair_state()["done"]
+    """Born = a bot and an owner. The mind is connected from the chat."""
+    return token_state()["done"] and pair_state()["done"]
+
+
+LANGS = ("en", "ru", "uz", "zh")
+
+
+def run_state_dir():
+    return os.environ.get("MILA_RUN_STATE") or os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state"), "mila", "run")
+
+
+def launcher():
+    for c in (os.path.join(os.path.expanduser("~"), ".local", "bin", "mila"), os.path.join(HERE, "mila")):
+        if os.path.isfile(c):
+            return c
+    return ""
+
+
+def start_background():
+    """`mila start`, once, not waiting for it: the page asks /api/awake how she is."""
+    with S.lock:
+        if S.started:
+            return
+        S.started = True
+    m = launcher()
+    if not m:
+        return
+    try:
+        subprocess.Popen(["bash", m, "start"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        pass
+
+
+def api_awake():
+    """Has she said her first words? The page promises «she is waiting» only after this is true."""
+    d = run_state_dir()
+    try:
+        st = json.load(open(os.path.join(d, "state.json"), encoding="utf-8"))
+    except (OSError, ValueError):
+        st = {}
+    return 200, {"ok": True, "greeted": os.path.isfile(os.path.join(d, "greeted")), "claude": str(st.get("claude") or ""), "note": str(st.get("note") or "")[:200]}
 
 
 class Birth:
@@ -115,6 +159,7 @@ class Birth:
         self.first_name = ""
         self.login = None
         self.finished = threading.Event()
+        self.started = False   # `mila start` was asked for
         self.stop = None   # set by main(): shuts the server down
 
 
@@ -199,17 +244,19 @@ def api_pair_poll():
     f = onboard.code_from(r.get("result", []), code)
     if not f:
         return 200, {"paired": False, "error": "no_code"}
-    onboard.finish_pair(tok, str(f["id"]))
+    onboard.finish_pair(tok, str(f["id"]), greet=False)   # her first words come from Mila herself, not from this page
     with S.lock:
         S.first_name = str(f.get("first_name", ""))[:64]
     return 200, {"paired": True}
 
 
-def api_born():
+def api_born(body=None):
     ts = token_state()
-    if not (ts["done"] and claude_state()["done"] and pair_state()["done"]):
+    if not (ts["done"] and pair_state()["done"]):
         return 200, {"ok": False, "error": "srv"}
-    rec = read_record() or write_record_once(ts["username"], S.first_name)
+    lang = str((body or {}).get("lang") or "")
+    rec = read_record() or write_record_once(ts["username"], S.first_name, lang if lang in LANGS else "")
+    start_background()
     return 200, {"ok": True, "record": rec}
 
 
@@ -275,6 +322,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, claude_state())
         if r == "api/pair/poll":
             return self._json(*api_pair_poll())
+        if r == "api/awake":
+            return self._json(*api_awake())
         return self._send(404, "not found", "text/plain")
 
     do_HEAD = do_GET
@@ -300,7 +349,7 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(body, dict):
             return self._json(400, {"ok": False, "error": "srv"})
         routes = {"api/token": lambda: api_token(body), "api/code": lambda: api_code(body), "api/claude/login": api_claude_login, "api/pair/start": api_pair_start,
-                  "api/born": api_born, "api/done": api_done}
+                  "api/born": lambda: api_born(body), "api/done": api_done}
         if r not in routes:
             return self._send(404, "not found", "text/plain")
         self._json(*routes[r]())
@@ -308,7 +357,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     if all_done():
-        print("Mila is already born: bot, Claude and owner are set. Start her with:  mila")
+        print("Mila is already born: her bot and her owner are set. She lives in the background:  mila status  ·  mila start")
         return 0
     path_token = secrets.token_urlsafe(24)
     handler = type("BoundHandler", (Handler,), {"path_token": path_token})

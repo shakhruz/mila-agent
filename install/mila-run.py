@@ -197,13 +197,14 @@ def wait_for_claude():
             save_state(claude="missing", note=why); say(why); stopping.wait(30); continue
         save_state(claude="waiting", note="waiting for the owner to sign in to Claude — the button is in the chat with the bot")
         say("no Claude login — the sign-in helper is talking to the owner in Telegram")
-        env = dict(os.environ, TELEGRAM_BOT_TOKEN=tok, OWNER_ID=str(owners[0]), MILA_AUTH_DIR=AUTH)
+        env = dict(os.environ, TELEGRAM_BOT_TOKEN=tok, OWNER_ID=str(owners[0]), MILA_AUTH_DIR=AUTH, MILA_BORN="1", MILA_BORN_LANG=birth_lang(), MILA_STICKER_SET=sticker_set())
         if os.environ.get("TELEGRAM_API_ROOT"): env["TG_API"] = os.environ["TELEGRAM_API_ROOT"]
         try:
             p = subprocess.Popen([sys.executable, "-B", helper], env=env, cwd=WORK, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
         except OSError as e:
             say("the sign-in helper did not start: %s" % e); stopping.wait(30); continue
         children["login"] = p; pump(p.stdout, "login.log"); p.wait(); children.pop("login", None)
+        if p.returncode == 0: greet_and_note(by_helper=True)     # the helper has said «My mind is on … what's your name?»
         if p.returncode != 0 and not stopping.is_set(): say("the sign-in helper stopped (code %s) — again in 10 s" % p.returncode); stopping.wait(10)
     return False
 
@@ -223,6 +224,68 @@ def session_settings():
     except (OSError, ValueError) as e:
         say("the session's allow-list is broken (%s) — starting without it: she will be refused every tool" % e); return ""
     return out
+
+
+def birth_lang():
+    """The language of the birth page (the birth record), else MILA_LANG, else English."""
+    try: l = str(json.load(open(os.path.join(CL, "mila-birth.json"), encoding="utf-8")).get("lang") or "")
+    except (OSError, ValueError, AttributeError): l = ""
+    l = l or (os.environ.get("MILA_LANG") or "")[:2].lower()
+    return l if l in ("en", "ru", "uz", "zh") else "en"
+
+
+def sticker_set():
+    """The name of her sticker set: MILA_STICKER_SET, else the one line of hooks/sticker-set.txt (shipped with the kit). '' — none."""
+    v = os.environ.get("MILA_STICKER_SET")
+    if v is not None: return v.strip()
+    try: return open(os.path.join(HOOKS, "sticker-set.txt"), encoding="utf-8").readline().strip()
+    except OSError: return ""
+
+
+GREETED = os.path.join(ST, "greeted")
+
+
+def greet_and_note(by_helper):
+    """Once in a home's life. Her first words: said by the sign-in helper (by_helper) or, on a computer that was already
+    signed in, said here — a sticker and «I'm born … what's your name?». Then one note into her inbound journal, so that the
+    session knows what has already been said from her and does not greet a second time."""
+    if os.path.exists(GREETED): return
+    sys.path.insert(0, HOOKS); sys.path.insert(0, os.path.join(HOOKS, "..", "docker"))
+    try:
+        import claude_login as cl
+        ob = onboard_mod(); tok = ob.saved_token(); owners = ob.owner_ids()
+    except Exception as e:
+        say("her first words were not sent: %s" % type(e).__name__); return
+    if not tok or not owners: return
+    lang = birth_lang(); owner = str(owners[0]); words = cl.BORN_T[lang]
+    if by_helper:
+        said = words["mind"]
+    else:
+        said = words["born_ready"]; sset = sticker_set()
+        try:
+            if sset:
+                r = ob.tg(tok, "getStickerSet", {"name": sset}); st = (r.get("result") or {}).get("stickers") or [] if r.get("ok") else []
+                if st:
+                    pick = next((x for x in st if any(e in str(x.get("emoji") or "") for e in ("👋", "🎉", "✨", "🥳"))), st[0])
+                    ob.tg(tok, "sendSticker", {"chat_id": owner, "sticker": pick.get("file_id")})
+            if not ob.tg(tok, "sendMessage", {"chat_id": owner, "text": said}).get("ok"):
+                say("her first words did not reach Telegram — will try at the next start"); return
+        except Exception as e:
+            say("her first words were not sent: %s" % type(e).__name__); return
+    note = ("[birth] You were born a moment ago on your owner's computer. Your first words have ALREADY been sent to them from you, "
+            "in their language (%s): «%s». Do not greet again and do not send anything now. Wait for their answer — it will be their "
+            "name — and go on with the first conversation from there, one question at a time, in the same language." % (lang, said.replace("\n", " ")))
+    ev = {"ts": int(time.time() * 1000), "method": "notifications/claude/channel",
+          "params": {"content": note, "meta": {"chat_id": owner, "chat_type": "private", "message_id": "birth-%d" % int(time.time()), "user": "Birth", "user_id": owner,
+                                               "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "ritual": "birth"}}}
+    try:
+        d = os.path.join(TG, "inbound"); os.makedirs(d, mode=0o700, exist_ok=True)
+        fd = os.open(os.path.join(d, "events.jsonl"), os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        os.write(fd, (json.dumps(ev, ensure_ascii=False) + "\n").encode()); os.close(fd)
+    except OSError as e:
+        say("the birth note for the session was not written: %s" % e)
+    fd = os.open(GREETED, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600); os.write(fd, (time.strftime("%Y-%m-%dT%H:%M:%S%z") + "\n").encode()); os.close(fd)
+    say("her first words are with the owner (%s)" % ("after the sign-in" if by_helper else "this computer was already signed in"))
 
 
 def has_conversation():
@@ -306,6 +369,7 @@ def run():
 
     def life():
         if not wait_for_claude(): return      # the receiver starts only after it: the sign-in helper reads the bot's updates itself
+        greet_and_note(by_helper=False)       # a computer that was signed in already: her first words are said here, once
         try: rp = open(os.path.join(TG, "receiver.pid")).read().strip()
         except OSError: rp = ""
         mine = []

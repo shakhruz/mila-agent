@@ -258,10 +258,13 @@ def code_sender(updates, code):
     return str(f["id"]) if f else None
 
 
-def finish_pair(tok, uid):
-    """The sender of the code becomes the owner (access.json + settings.json) and gets the first greeting."""
+def finish_pair(tok, uid, greet=True):
+    """The sender of the code becomes the owner (access.json + settings.json). greet=False — nothing is sent here: on the
+    birth page Mila herself writes the first words, from the background service."""
     set_owner(uid)
-    hi = "Paired ✓ You are my owner. Start Claude Code with `mila` in your terminal."
+    if not greet:
+        return
+    hi = "You are my owner now ✨ One command is left on this computer:  mila start  — and I will write to you here."
     if not tg_photo(tok, uid, hi):
         tg(tok, "sendMessage", {"chat_id": uid, "text": hi})
 

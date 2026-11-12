@@ -2,7 +2,7 @@
 """mila-run.py — Mila in the background: the session lives in her home folder, comes back after it ends, never runs with
 permissions switched off, logs carry no keys, two services over one home do not start, a home that is not born says so.
 Claude Code and bun are replaced by small scripts; nothing leaves the temp folder. Run: python3 install/test_mila_run.py"""
-import json, os, shutil, signal, subprocess, sys, tempfile, time
+import http.server, json, os, shutil, signal, subprocess, sys, tempfile, threading, time, urllib.parse
 
 H = os.path.dirname(os.path.abspath(__file__)); RUN = os.path.join(H, "mila-run.py")
 T = os.path.realpath(tempfile.mkdtemp(prefix="milarun-")); ok = n = 0
@@ -48,6 +48,7 @@ echo $$ > "$TELEGRAM_STATE_DIR/receiver.pid"; printf '%s|%s|%s\\n' "$RECEIVER_DA
 HELPER = os.path.join(BIN, "login_helper.py")
 open(HELPER, "w").write("""import os, sys, time
 # a stand-in for the sign-in helper: notes who it was started for, waits for the «owner», then leaves a saved login (600)
+open(os.environ["FAKE_LOG"] + ".helper-env", "a").write("%s|%s|%s\\n" % (os.environ.get("MILA_BORN"), os.environ.get("MILA_BORN_LANG"), os.environ.get("MILA_STICKER_SET")))
 open(os.environ["FAKE_LOG"] + ".login", "a").write("%s|%s|%s\\n" % (os.environ.get("OWNER_ID"), bool(os.environ.get("TELEGRAM_BOT_TOKEN")), os.path.exists(os.path.join(os.environ["TG_DIR"], "receiver.pid"))))
 while not os.path.exists(os.environ["FAKE_LOG"] + ".owner-signed"): time.sleep(0.2)
 os.makedirs(os.environ["MILA_AUTH_DIR"], mode=0o700, exist_ok=True)
@@ -60,6 +61,22 @@ ENV = dict(os.environ, HOME=os.path.join(T, "home"), CLAUDE_CONFIG_DIR=CL, MILA_
 for k in ("TELEGRAM_STATE_DIR", "MILA_PLUGIN_DIR", "MILA_PLUGIN_REF", "XDG_STATE_HOME", "CLAUDE_CODE_" + "OAUTH_TOKEN", "ANTHROPIC_" + "API_KEY", "ANTHROPIC_" + "AUTH_TOKEN", "TELEGRAM_" + "BOT_TOKEN", "OWNER_ID"): ENV.pop(k, None)
 
 
+class TGFake(http.server.BaseHTTPRequestHandler):   # a stand-in Telegram for her first words
+    calls = []
+    def log_message(self, *a): pass
+    def do_POST(self):
+        raw = self.rfile.read(int(self.headers.get("Content-Length") or 0)); m = self.path.rsplit("/", 1)[-1]
+        body = {k: v[0] for k, v in urllib.parse.parse_qs(raw.decode("utf-8", "replace")).items()}
+        TGFake.calls.append((m, body))
+        res = {"stickers": [{"file_id": "ST-HELLO", "emoji": "👋"}]} if m == "getStickerSet" else {"message_id": 1}
+        b = json.dumps({"ok": True, "result": res}).encode(); self.send_response(200); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
+    do_GET = do_POST
+tgsrv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), TGFake); threading.Thread(target=tgsrv.serve_forever, daemon=True).start()
+ENV["MILA_TG_API"] = "http://127.0.0.1:%d" % tgsrv.server_port; ENV["MILA_STICKER_SET"] = "super_set"; ENV["MILA_LANG"] = "en"
+json.dump({"bot_username": "ivan_mila_bot", "lang": "uz"}, open(os.path.join(CL, "mila-birth.json"), "w"))   # the page was in Uzbek
+
+
+def journal(): return read(os.path.join(TG, "inbound", "events.jsonl"))
 def start(): return subprocess.Popen([sys.executable, "-B", RUN, "run"], env=ENV, cwd=ELSE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 def status():
     r = subprocess.run([sys.executable, "-B", RUN, "status", "--json"], env=ENV, cwd=ELSE, capture_output=True, text=True)
@@ -89,6 +106,11 @@ try:
     chk("хозяин вошёл — служба поднимает сеанс, приёмник и feeder", wait(lambda: status()[1]["session"] and status()[1]["receiver"] and status()[1]["feeder"]), status()[1])
     argv = read(ENV["FAKE_LOG"] + ".argv").strip().splitlines()
     chk("сеанс — без окна (claude -p, вход потоком), с плагином по имени маркетплейса из манифеста", argv and "-p" in argv[0].split() and "--input-format stream-json" in argv[0] and "plugin:mila-telegram@mila-test-market" in argv[0], argv)
+    hl = read(ENV["FAKE_LOG"] + ".helper-env").strip()
+    chk("помощник входа запущен как у рождённой: язык страницы рождения (из записи о рождении, не из MILA_LANG) и имя набора стикеров", hl == "1|uz|super_set", hl)
+    chk("после входа: отметка «первые слова сказаны» и одна записка сеансу — что уже сказано от её имени, «не здоровайся заново»",
+        os.path.isfile(os.path.join(ST, "greeted")) and journal().count('"ritual": "birth"') == 1 and "Aql menda" in journal() and "Do not greet again" in journal(), journal()[-400:])
+    chk("…сама служба в этом случае хозяину ничего не шлёт (слова сказал помощник входа)", not TGFake.calls, TGFake.calls)
     chk("сохранённый вход передан сеансу в окружении (и только ему: в журналах его нет)", read(ENV["FAKE_LOG"] + ".auth").strip().splitlines()[0] == "saved-login-in-env" and "saved-login-value" not in "".join(read(os.path.join(ST, f)) for f in os.listdir(ST) if not f.endswith(".in")), read(ENV["FAKE_LOG"] + ".auth"))
     chk("разрешения НЕ отключены: ни --dangerously-skip-permissions, ни режима обхода", "skip-permissions" not in argv[0] and "bypass" not in argv[0], argv)
     rs = os.path.join(ST, "session-settings.json"); allow = json.load(open(rs))["permissions"]["allow"] if os.path.exists(rs) else []
@@ -105,8 +127,9 @@ try:
     chk("приёмник — демоном над настоящей папкой Telegram", bun.startswith("1|%s|" % TG) and bun.endswith("receiver.ts"), bun)
     chk("папка состояния и труба закрыты (700 / 600)", oct(os.stat(ST).st_mode & 0o777) == "0o700" and oct(os.stat(os.path.join(ST, "session.in")).st_mode & 0o777) == "0o600")
 
+    chk("записка о рождении дошла до сеанса через feeder (первый ход)", wait(lambda: status()[1]["turns"] == 1), status()[1])
     feed('{"type":"user","message":{"role":"user","content":"hello"}}')
-    chk("строка на вход → законченный ход посчитан (status turns = 1)", wait(lambda: status()[1]["turns"] == 1), status()[1])
+    chk("строка на вход → законченный ход посчитан (ходов стало 2)", wait(lambda: status()[1]["turns"] == 2), status()[1])
     logs = "".join(read(os.path.join(ST, f)) for f in os.listdir(ST) if f.endswith((".jsonl", ".err", ".log")))
     chk("в журналах ключа бота нет — стоит маска", KEY not in logs and "<bot-token>" in logs and "saw" in logs, logs[-300:])
     chk("журналы 600", all(oct(os.stat(os.path.join(ST, f)).st_mode & 0o777) == "0o600" for f in os.listdir(ST) if f.endswith((".jsonl", ".err", ".log"))))
@@ -138,6 +161,16 @@ try:
     # signed in on this computer (claude auth status) and no saved login: the helper is not needed
     shutil.rmtree(ENV["MILA_AUTH_DIR"]); open(ENV["FAKE_LOG"] + ".signed", "w").close(); n_login = read(ENV["FAKE_LOG"] + ".login").count("\n"); os.remove(os.path.join(TG, "receiver.pid"))
     p = start(); procs.append(p)
+    chk("…и второй раз она не здоровается: отметка есть — ни слов, ни второй записки", wait(lambda: status()[1]["session"]) and not TGFake.calls and journal().count('"ritual": "birth"') == 1, (TGFake.calls, journal().count("birth")))
+    p.send_signal(signal.SIGTERM); p.wait(timeout=25)
+    # a fresh home on a computer that is already signed in: her first words are said by the service itself
+    os.remove(os.path.join(ST, "greeted")); os.remove(os.path.join(TG, "inbound", "events.jsonl")); os.remove(os.path.join(TG, "receiver.pid")) if os.path.exists(os.path.join(TG, "receiver.pid")) else None
+    p = start(); procs.append(p)
+    chk("компьютер уже со входом в Claude: служба сама говорит первые слова — стикер, затем «Я родилась … как вас зовут?» на языке страницы, хозяину",
+        wait(lambda: len(TGFake.calls) >= 3) and [m for m, _ in TGFake.calls[:3]] == ["getStickerSet", "sendSticker", "sendMessage"] and TGFake.calls[1][1].get("sticker") == "ST-HELLO"
+        and TGFake.calls[2][1].get("chat_id") == "555000" and TGFake.calls[2][1].get("text", "").startswith("Men tug‘ildim! ✨") and "Ismingiz nima?" in TGFake.calls[2][1]["text"], TGFake.calls)
+    chk("…в её первых словах нет технических слов", not any(w in TGFake.calls[2][1].get("text", "") for w in ("Paired", "Claude", "token", "session", "terminal")) if len(TGFake.calls) >= 3 else False)
+    chk("…отметка и записка сеансу оставлены", wait(lambda: os.path.isfile(os.path.join(ST, "greeted")) and journal().count('"ritual": "birth"') == 1), journal()[-200:])
     chk("вход сделан на этом компьютере (claude auth status) — помощник входа не запускается, сеанс стартует", wait(lambda: status()[1]["session"] and status()[1]["claude"] == "ready") and read(ENV["FAKE_LOG"] + ".login").count("\n") == n_login, status()[1])
     p.send_signal(signal.SIGTERM); p.wait(timeout=25)
 

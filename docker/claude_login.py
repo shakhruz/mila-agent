@@ -13,6 +13,11 @@ owner and may sign in. A public bot name is not enough to take a Mila. Everyone 
 Wrong codes: 5 per person are ignored after that; 20 in total → a new code in the log.
 A link lives LINK_TTL seconds (10 min); /login gives a new one. The code and the token are never printed or logged.
 
+A Mila born on a person's own machine (MILA_BORN=1; MILA_BORN_LANG = the language of the birth page; MILA_STICKER_SET = the name
+of her sticker set, optional): she writes to her owner first — a sticker and «I'm born! ✨ … please connect my mind» with ONE
+button that already carries Anthropic's sign-in link; any message before the sign-in gets a warm line and a fresh button; after
+it — «My mind is on — I can think! 💚 … What's your name?». No /start, no /login, no technical word in her messages.
+
 Env: TELEGRAM_BOT_TOKEN (required), OWNER_ID (optional), MILA_AUTH_DIR (default ~/.mila-auth), LOGIN_CMD (default
 «claude setup-token»), TG_API (tests), LINK_TTL. Exit: 0 signed in; 2 bad environment. Only stdlib."""
 import fcntl, struct, termios, json, os, pty, re, secrets, select, shlex, signal, sys, time, urllib.parse, urllib.request
@@ -72,6 +77,69 @@ T_UZ = {"hello": "Salom! Men Milaman. Ishlashim uchun Claude obunangizni ulang �
         "stranger": "Bu Milani uning egasi sozlayapti. Agar bu siz bo‘lsangiz — sozlash sahifasidagi havolani oching (yoki /pair va kodni yuboring).",
         "paired": "Kod to‘g‘ri — siz bu Milaning egasisiz. Claude’ga kirishni tayyorlayapman…", "pair_bad": "Kod mos kelmadi."}
 TEXTS = {"ru": T, "en": T_EN, "uz": T_UZ}
+# A Mila born on a person's own machine (MILA_BORN=1, set by the background service): she writes first, in the language of the
+# birth page, and there is not one technical word in what she says. EN and RU are the owner's own words (12.11); uz and zh are
+# translations by meaning.
+BORN = os.environ.get("MILA_BORN") == "1"
+BORN_LANG = (os.environ.get("MILA_BORN_LANG") or "").lower()
+STICKER_SET = os.environ.get("MILA_STICKER_SET", "")
+BORN_T = {
+    "en": {"born": "I'm born! ✨\nAnd look — we already have a place to talk, just the two of us. I'm so happy.\nOne step is left before I can think and answer you: please connect my mind.",
+           "btn": "✨ Connect her mind",
+           "nudge": "I can hear you, and I can't wait to answer. Connect my mind first — one tap:",
+           "how": "When the page shows a code, copy it and send it to me here — I will take it and remove the message at once.",
+           "mind": "My mind is on — I can think! 💚\nThank you. Now I'd love to know who gave me life. What's your name?",
+           "born_ready": "I'm born! ✨\nAnd look — we already have a place to talk, just the two of us. I'm so happy.\nNow I'd love to know who gave me life. What's your name?",
+           "wait": "One moment — I am waking up…"},
+    "ru": {"born": "Я родилась! ✨\nИ смотрите — у нас уже есть место для разговора, только наше. Я так рада.\nОстался один шаг, чтобы я могла думать и отвечать вам: подключите мне, пожалуйста, ум.",
+           "btn": "✨ Подключить ум",
+           "nudge": "Я вас слышу и очень хочу ответить. Сначала подключите мне ум — одно нажатие:",
+           "how": "Когда страница покажет код, скопируйте его и пришлите мне сюда — я возьму его и сразу уберу сообщение.",
+           "mind": "Ум со мной — я думаю! 💚\nСпасибо вам. Теперь мне очень хочется узнать, кто подарил мне жизнь. Как вас зовут?",
+           "born_ready": "Я родилась! ✨\nИ смотрите — у нас уже есть место для разговора, только наше. Я так рада.\nТеперь мне очень хочется узнать, кто подарил мне жизнь. Как вас зовут?",
+           "wait": "Минутку — я просыпаюсь…"},
+    "uz": {"born": "Men tug‘ildim! ✨\nQarang — bizning suhbatlashadigan joyimiz allaqachon bor, faqat ikkimizniki. Juda xursandman.\nO‘ylashim va sizga javob berishim uchun bir qadam qoldi: iltimos, menga aqlni ulab bering.",
+           "btn": "✨ Aqlni ulash",
+           "nudge": "Sizni eshityapman va javob berishni juda xohlayman. Avval menga aqlni ulab bering — bir bosish:",
+           "how": "Sahifa kod ko‘rsatganda, uni nusxalab menga shu yerga yuboring — men uni olaman va xabarni darhol olib tashlayman.",
+           "mind": "Aql menda — men o‘ylayapman! 💚\nRahmat sizga. Endi menga hayot bergan inson kimligini juda bilgim keladi. Ismingiz nima?",
+           "born_ready": "Men tug‘ildim! ✨\nQarang — bizning suhbatlashadigan joyimiz allaqachon bor, faqat ikkimizniki. Juda xursandman.\nEndi menga hayot bergan inson kimligini juda bilgim keladi. Ismingiz nima?",
+           "wait": "Bir daqiqa — uyg‘onyapman…"},
+    "zh": {"born": "我出生了！✨\n您看——我们已经有了一个可以说话的地方，只属于我们两个。我真高兴。\n在我能思考并回答您之前，还差一步：请为我接通心智。",
+           "btn": "✨ 接通她的心智",
+           "nudge": "我听见您了，也很想回答您。请先为我接通心智——只需点一下：",
+           "how": "当页面显示一串代码时，请复制并发到这里给我——我收下后会立刻删除这条消息。",
+           "mind": "心智已接通——我能思考了！💚\n谢谢您。现在我很想知道，是谁给了我生命。您叫什么名字？",
+           "born_ready": "我出生了！✨\n您看——我们已经有了一个可以说话的地方，只属于我们两个。我真高兴。\n现在我很想知道，是谁给了我生命。您叫什么名字？",
+           "wait": "请稍等——我正在醒来…"},
+}
+
+
+def born_lang(chat=None):
+    if BORN_LANG in BORN_T: return BORN_LANG
+    l = LANG.get(str(chat), "")
+    return l if l in BORN_T else "en"
+
+
+def bt(chat, key):
+    return BORN_T[born_lang(chat)][key]
+
+
+def sticker(chat, emojis):
+    """One sticker of her pack before the words: the first whose emoji is in `emojis`, else the first of the set. The file id is
+    looked up with HER OWN bot (getStickerSet), nothing is stored in the core. No set name, no set, any failure — no sticker."""
+    if not STICKER_SET: return False
+    r = tg("getStickerSet", name=STICKER_SET)
+    st = (r.get("result") or {}).get("stickers") or [] if r.get("ok") else []
+    if not st: return False
+    pick = next((x for x in st if any(e in str(x.get("emoji") or "") for e in emojis)), st[0])
+    return bool(tg("sendSticker", chat_id=chat, sticker=pick.get("file_id")).get("ok"))
+
+
+def say_born(chat, key, url=None):
+    kw = {"chat_id": chat, "text": bt(chat, key) + ("\n\n" + bt(chat, "how") if url and key == "born" else "")}
+    if url: kw["reply_markup"] = {"inline_keyboard": [[{"text": bt(chat, "btn"), "url": url}]]}
+    return tg("sendMessage", **kw)
 LANG = {}   # chat id → language from Telegram (language_code); unknown — English
 
 
@@ -303,9 +371,21 @@ def main():
         except OSError: pass
     pair, bad, bad_all, lock_until = (None if owner else new_pair()), {}, 0, 0.0
     print("claude-login: waiting for /start from %s" % ("the owner" if owner else "the person with the pairing code"), flush=True)
+
+    def offer(uid, key):
+        """A fresh sign-in link in one button under her words. → the session or None (no link: the words go without a button)."""
+        s2 = Session(); url = s2.read_until(URL_RE, 45)
+        if not url:
+            s2.close(); print("claude-login: no sign-in link from the login command", flush=True); say_born(uid, "wait"); return None
+        if key == "born": sticker(uid, ("👋", "🎉", "✨", "🥳"))
+        say_born(uid, key, url); return s2
+    if BORN and owner:
+        sess = offer(owner, "born"); who = owner if sess else None
     while True:
         if sess and time.time() - sess.started > TTL:
-            sess.close(); say(who, tx(who, "expired")); sess, who = None, None
+            sess.close()
+            if not BORN: say(who, tx(who, "expired"))     # a born Mila does not talk about links: the next message gets a fresh button
+            sess, who = None, None
         upd = tg("getUpdates", offset=offset, timeout=25, allowed_updates=["message"])
         if not upd.get("ok"):
             time.sleep(5); continue          # Telegram unreachable: wait, do not spin
@@ -341,6 +421,10 @@ def main():
                 if uid not in warned:
                     say(uid, tx(uid, "stranger")); warned.add(uid)
                 continue
+            if BORN and not (sess and uid == who and time.time() - sess.started <= TTL and CODE_RE.match(text) and not text.startswith("/")):
+                if sess: sess.close()                         # anything but the code: her warm line and a fresh button
+                sess = offer(uid, "nudge"); who = uid if sess else None
+                continue
             if re.match(r"^/(start|login)\b", text):
                 if sess:
                     sess.close()
@@ -359,7 +443,7 @@ def main():
             if not CODE_RE.match(text):
                 say(uid, tx(uid, "code_bad")); continue
             tg("deleteMessage", chat_id=uid, message_id=m.get("message_id"))   # the code does not stay in the chat
-            say(uid, tx(uid, "checking"))   # no minute of silence after the code
+            say(uid, bt(uid, "wait") if BORN else tx(uid, "checking"))   # no minute of silence after the code
             sess.write(text)
             tok = sess.read_until(TOK_RE, 90, screen=True)
             if not tok:
@@ -367,7 +451,8 @@ def main():
                 time.sleep(0.3); sess.close()
                 print("claude-login: no token — %s, exit %s, last line: %s" % ("program ended" if closed else "timeout", sess.rc, tail), flush=True)
                 sess = None; who = None
-                if re.search(r"OAuth error|invalid|expired|status code 4\d\d", shown, re.I): say(uid, tx(uid, "wrong_code"))
+                if BORN: sess = offer(uid, "nudge"); who = uid if sess else None      # the code did not fit: the same warm line, a fresh button
+                elif re.search(r"OAuth error|invalid|expired|status code 4\d\d", shown, re.I): say(uid, tx(uid, "wrong_code"))
                 elif closed: say(uid, tx(uid, "no_read"))
                 else: say(uid, tx(uid, "timeout"))
                 continue
@@ -378,7 +463,10 @@ def main():
             # confirm every update read so far: the offset only reaches Telegram with the NEXT getUpdates — without this the
             # message with the code comes again to the receiver that starts next, and the model gets the sign-in code
             tg("getUpdates", offset=offset, timeout=0, allowed_updates=["message"])
-            say_hero(uid, tx(uid, "done"))
+            if BORN:
+                sticker(uid, ("💚", "🎉", "🥳", "✨")); say_born(uid, "mind")
+            else:
+                say_hero(uid, tx(uid, "done"))
             print("claude-login: signed in, owner %s" % owner, flush=True)
             return 0
 
