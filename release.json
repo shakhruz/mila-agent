@@ -33,6 +33,12 @@
       "kind": "file"
     },
     {
+      "what": "что можно фоновому сеансу без человека у экрана",
+      "src": "install/mila-run-settings.json",
+      "dst": "{claude}/hooks/*",
+      "kind": "file"
+    },
+    {
       "what": "переводы хуков (doctor)",
       "src": "install/locales/*.json",
       "dst": "{claude}/hooks/locales/*",

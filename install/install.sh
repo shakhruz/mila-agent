@@ -231,6 +231,12 @@ for f in usage_collect.py turns_collect.py records.py tasks.py chats_index.py \
     problem "the kit is missing $f — reinstall the kit (run the install command again)"
   fi
 done
+# What the background session may do with nobody at a screen to ask: its own short allow-list, beside the service.
+if [[ -f "$HERE/mila-run-settings.json" ]]; then
+  install_file "$HERE/mila-run-settings.json" "$HOOK_DIR/mila-run-settings.json" "mila-run-settings.json"
+else
+  problem "the kit is missing mila-run-settings.json — reinstall the kit (run the install command again)"
+fi
 # The sign-in from Telegram (a born Mila with no Claude login asks her owner in the chat): the same helper the container image
 # uses, beside the background service that starts it.
 if [[ -f "$HERE/../docker/claude_login.py" ]]; then

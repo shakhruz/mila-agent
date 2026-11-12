@@ -11,8 +11,11 @@ One process keeps these alive, the same way the container image does:
                      (~/work), never the folder a command was typed in. A session that ends is started again after a pause;
                      the conversation goes on (--continue), a continued session that dies at once starts fresh next time.
 There is no window, so nothing is asked on a screen: Claude Code's «trust this folder» dialog does not exist in this mode.
-Permissions are NOT switched off (a laptop is not a container): the rules in settings.json and the guard hooks apply as in a
-terminal session; what needs the owner's «yes» goes to them as a card in Telegram through the plugin.
+Permissions are NOT switched off (a laptop is not a container). With nobody at a screen to ask, Claude Code refuses every tool
+that is not allowed beforehand — so the session gets a short allow-list of its own (mila-run-settings.json, passed with
+--settings; it does not touch the owner's other Claude Code sessions): her Telegram tools, reading, writing inside her home
+folder ~/work, her own skill and hook scripts, web search. Everything else is refused and she says so; the guard hooks and the
+deny rules of settings.json apply as in a terminal session.
 
   mila-run.py run                 the service itself (foreground)
   mila-run.py status [--json]     what is alive, since when, how many turns the session has finished
@@ -34,6 +37,7 @@ ST = os.environ.get("MILA_RUN_STATE") or os.path.join(os.environ.get("XDG_STATE_
 HOOKS = os.path.dirname(os.path.abspath(__file__))
 AUTH = os.path.expanduser(os.environ.get("MILA_AUTH_DIR") or "~/.mila-auth")
 FIFO = os.path.join(ST, "session.in")
+RUN_SETTINGS = os.environ.get("MILA_RUN_SETTINGS") or os.path.join(HOOKS, "mila-run-settings.json")
 STATE = os.path.join(ST, "state.json")
 LOG_MAX = 8 * 1024 * 1024
 MASKS = [(re.compile(r"\b\d{6,12}:[A-Za-z0-9_-]{30,50}\b"), "<bot-token>"),
@@ -204,6 +208,23 @@ def wait_for_claude():
     return False
 
 
+def session_settings():
+    """The allow-list of the background session, with her real home folder in it. → path of the rendered file or ''.
+    In Claude Code's rules a path under the person's home is «~/…», any other absolute path is «//…»."""
+    try: tpl = open(RUN_SETTINGS, encoding="utf-8").read()
+    except OSError: return ""
+    w = os.path.realpath(WORK); h = os.path.realpath(HOME)
+    rule = "~/" + os.path.relpath(w, h) if w.startswith(h + os.sep) else "/" + w
+    out = os.path.join(ST, "session-settings.json")
+    try:
+        json.loads(tpl.replace("{work}", rule))
+        fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f: f.write(tpl.replace("{work}", rule))
+    except (OSError, ValueError) as e:
+        say("the session's allow-list is broken (%s) — starting without it: she will be refused every tool" % e); return ""
+    return out
+
+
 def has_conversation():
     d = os.path.join(CL, "projects", re.sub(r"[^A-Za-z0-9]", "-", os.path.realpath(WORK)))
     try: return any(n.endswith(".jsonl") for n in os.listdir(d))
@@ -232,6 +253,8 @@ def session_loop(ref):
         cont = has_conversation() and not os.path.exists(fresh)
         argv = [claude, "-p"] + (["--continue"] if cont else []) + ["--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
                                                                   "--dangerously-load-development-channels", ref]
+        rs = session_settings()
+        if rs: argv += ["--settings", rs]   # what she may do with nobody at a screen to ask
         t0 = time.time()
         try:
             p = subprocess.Popen(argv, env=env, cwd=WORK, stdin=fifo, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)

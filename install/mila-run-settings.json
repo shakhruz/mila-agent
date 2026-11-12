@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_mila-telegram_telegram",
+      "Read",
+      "Glob",
+      "Grep",
+      "Edit({work}/**)",
+      "Write({work}/**)",
+      "Bash(python3 ~/.claude/skills/:*)",
+      "Bash(python3 ~/.claude/hooks/:*)",
+      "Bash(bash ~/.claude/skills/:*)",
+      "WebSearch"
+    ]
+  }
+}

@@ -91,6 +91,10 @@ try:
     chk("сеанс — без окна (claude -p, вход потоком), с плагином по имени маркетплейса из манифеста", argv and "-p" in argv[0].split() and "--input-format stream-json" in argv[0] and "plugin:mila-telegram@mila-test-market" in argv[0], argv)
     chk("сохранённый вход передан сеансу в окружении (и только ему: в журналах его нет)", read(ENV["FAKE_LOG"] + ".auth").strip().splitlines()[0] == "saved-login-in-env" and "saved-login-value" not in "".join(read(os.path.join(ST, f)) for f in os.listdir(ST) if not f.endswith(".in")), read(ENV["FAKE_LOG"] + ".auth"))
     chk("разрешения НЕ отключены: ни --dangerously-skip-permissions, ни режима обхода", "skip-permissions" not in argv[0] and "bypass" not in argv[0], argv)
+    rs = os.path.join(ST, "session-settings.json"); allow = json.load(open(rs))["permissions"]["allow"] if os.path.exists(rs) else []
+    chk("сеансу передан свой короткий список разрешённого (--settings): инструменты Telegram, запись только в доме Милы, её навыки", "--settings " + rs in argv[0] and "mcp__plugin_mila-telegram_telegram" in allow
+        and "Edit(~/work/**)" in allow and "Write(~/work/**)" in allow and any(a.startswith("Bash(python3 ~/.claude/skills/") for a in allow) and oct(os.stat(rs).st_mode & 0o777) == "0o600", (argv, allow))
+    chk("…в списке нет ни Bash целиком, ни записи куда угодно, ни режима обхода", not any(a in ("Bash", "Bash(*)", "Edit", "Write", "*") for a in allow) and "bypassPermissions" not in open(rs).read() and "defaultMode" not in open(rs).read(), allow)
     chk("первый запуск в доме без разговоров — без --continue", "--continue" not in argv[0], argv)
     chk("рабочая папка сеанса — дом Милы, не папка, где набрали команду", read(ENV["FAKE_LOG"] + ".cwd").strip().splitlines()[0] == WORK, read(ENV["FAKE_LOG"] + ".cwd"))
     tgs = read(ENV["FAKE_LOG"] + ".tgs").strip().splitlines()[0]
