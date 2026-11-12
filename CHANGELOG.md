@@ -1,5 +1,20 @@
 # CHANGELOG · Mila
 
+## Unreleased — talents after birth; the word «talent»; a shelf for courses; `mila` taken by another program
+
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
+**Для хозяина**
+- После знакомства и чувств я сама предлагаю свои таланты — по одному, не чаще раза в день и никогда ночью: Штурман Telegram, потом таланты из библиотеки. «Позже» — полный ответ, сама больше не предлагаю. Штурмана подключаете вы сами, после трёх честных строк о риске.
+
+</details>
+
+**For the owner**
+- After getting acquainted and my senses, I offer my talents myself — one at a time, at most one a day and never at night: the Telegram Navigator, then talents of the library. «Later» is a full answer; I do not offer it again. You connect the Navigator yourself, after three honest lines about the risk.
+
+**For Milas**
+- New skill `talanty` (`scripts/talents.py list | next | answer | done`): the core's queue (`talents.json`: shturman, then packs); a pack is offered only if this core's checked library holds it — its card is `library.py offer`'s own; one that is not there is named «not in the library» in `list`. A card only after an answer to the previous one and a day after it, none 22:00–08:00 in the owner's zone. Shturman «connect» only opens the Shturman skill's card with its risks (state `asked`). `skills/shturman/talent.json` — its passport in four languages; the home template offers talents after the connectors.
+
 ## v1.7.12 · 12.11 — the key page on this computer; imagination, the second sense of birth
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>

@@ -1,0 +1,9 @@
+{
+ "order": [
+  {"id": "shturman", "kind": "skill"},
+  {"id": "biznes-diagnostika", "kind": "pack"},
+  {"id": "proforientatsiya", "kind": "pack"},
+  {"id": "lichnyj-brend", "kind": "pack"},
+  {"id": "kurs-kniga-ii", "kind": "pack"}
+ ]
+}

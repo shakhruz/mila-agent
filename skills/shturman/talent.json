@@ -1,0 +1,19 @@
+{
+ "id": "shturman",
+ "title": {"ru": "Штурман Telegram", "en": "Telegram Navigator", "uz": "Telegram Shturmani", "zh": "Telegram 领航员"},
+ "passport": {
+  "gives": {"ru": "Читаю ваш личный Telegram — каналы и открытые группы, а личные чаты только те, что вы откроете сами, — и кладу черновики ответов; отправляете вы.",
+            "en": "I read your personal Telegram — channels and open groups, and only those private chats you open yourself — and put drafts of replies; you send them.",
+            "uz": "Shaxsiy Telegramingizni o‘qiyman — kanallar va ochiq guruhlarni, shaxsiy chatlarni esa faqat o‘zingiz ochganlarini — va javob qoralamalarini qo‘yaman; yuborish sizda.",
+            "zh": "我阅读您的个人 Telegram——频道和公开群组，私聊只读您自己打开的——并放入回复草稿；由您发送。"},
+  "needs": {"ru": "Вы сами входите в свой аккаунт в терминале этого компьютера; файл входа даёт полный доступ к аккаунту — перед подключением я скажу три вещи честно.",
+            "en": "You sign in to your account yourself in a terminal of this computer; the sign-in file gives full access to the account — before connecting I tell you three things honestly.",
+            "uz": "Hisobingizga o‘zingiz shu kompyuter terminalida kirasiz; kirish fayli hisobga to‘liq kirish beradi — ulashdan oldin uchta narsani ochiq aytaman.",
+            "zh": "您自己在这台电脑的终端里登录账户；登录文件可完全访问账户——连接前我会如实告诉您三件事。"},
+  "costs": {"ru": "Бесплатно.", "en": "Free.", "uz": "Bepul.", "zh": "免费。"}
+ },
+ "offer": {"ru": "Хотите, чтобы я помогала с вашим личным Telegram — читала каналы и готовила черновики ответов?",
+           "en": "Would you like me to help with your personal Telegram — read channels and prepare drafts of replies?",
+           "uz": "Shaxsiy Telegramingizda yordam berishimni xohlaysizmi — kanallarni o‘qib, javob qoralamalarini tayyorlashimni?",
+           "zh": "您希望我帮您处理个人 Telegram 吗——阅读频道并准备回复草稿？"}
+}
