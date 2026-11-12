@@ -274,6 +274,18 @@ if [[ -z "$TURNS_MIN" ]]; then
   TURNS_MIN=$(python3 -c 'import hashlib,socket;print(10+int(hashlib.sha1(socket.gethostname().encode()).hexdigest(),16)%40)')
 fi
 PY_BIN="$(command -v python3 || echo /usr/bin/python3)"
+# A trial install into a temporary HOME must not touch the services of the person who runs it: launchd and systemd --user
+# belong to the user, not to $HOME, so loading «our» timers there would replace the ones of the Mila who already lives under
+# this user. HOME that is not this user's own home → the files are written and nothing is loaded, as with MILA_SKIP_TIMERS=1.
+# MILA_SKIP_TIMERS=0 says «load them all the same» (the installer's own tests, with stand-ins for launchctl and systemctl).
+if [[ -z "${MILA_SKIP_TIMERS:-}" ]]; then
+  OWN_HOME="$("$PY_BIN" -c 'import os, pwd; print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))' 2>/dev/null || true)"
+  THIS_HOME="$("$PY_BIN" -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$HOME" 2>/dev/null || true)"
+  if [[ -n "$OWN_HOME" && -n "$THIS_HOME" && "$OWN_HOME" != "$THIS_HOME" ]]; then
+    MILA_SKIP_TIMERS=1
+    say "note: HOME ($HOME) is not this user's own home ($OWN_HOME) — service files are written, nothing is loaded"
+  fi
+fi
 COLLECT="$HOOK_DIR/turns_collect.py"
 LOG_FILE="$CLAUDE_DIR/turns-collect.log"
 
@@ -485,6 +497,13 @@ BG_LABEL="com.milagpt.session"
 BG_PLIST="$HOME/Library/LaunchAgents/$BG_LABEL.plist"
 BG_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/mila/run"
 BG_PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
+# The service is told exactly which claude and bun to run — the ones found now. A PATH can differ between this terminal and
+# the next one (Claude Code installed a minute ago, a claude that lives inside an application): a name that is not found is
+# said here, at install, not in a log after birth.
+BG_CLAUDE="$(PATH="$BG_PATH" command -v claude 2>/dev/null || true)"
+BG_BUN="$(PATH="$BG_PATH" command -v bun 2>/dev/null || true)"
+[[ -n "$BG_CLAUDE" ]] || NOTICES+=("Background|Claude Code (the claude command) was not found in this terminal. Mila cannot run in the background until it is — install it, then run the install command again.|")
+[[ -n "$BG_BUN" ]] || NOTICES+=("Background|bun was not found in this terminal. Mila's Telegram receiver needs it — install it (curl -fsSL https://bun.sh/install | bash), then run the install command again.|")
 if [[ "$(uname -s)" == "Darwin" ]]; then
   if [[ $DRY -eq 1 ]]; then
     say "would: write $BG_PLIST (not loaded until birth)"
@@ -508,6 +527,8 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   <dict>
     <key>PATH</key><string>$BG_PATH</string>
     <key>MILA_RUN_SERVICE</key><string>1</string>
+    <key>MILA_CLAUDE</key><string>${BG_CLAUDE:-claude}</string>
+    <key>MILA_BUN</key><string>${BG_BUN:-bun}</string>
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -537,6 +558,8 @@ ExecStart=$PY_BIN -B $BG_RUN run
 WorkingDirectory=$HOME
 Environment=PATH=$BG_PATH
 Environment=MILA_RUN_SERVICE=1
+Environment=MILA_CLAUDE=${BG_CLAUDE:-claude}
+Environment=MILA_BUN=${BG_BUN:-bun}
 Restart=always
 RestartSec=10
 

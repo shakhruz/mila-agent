@@ -22,6 +22,11 @@ deny rules of settings.json apply as in a terminal session.
 
   mila-run.py run                 the service itself (foreground)
   mila-run.py status [--json]     what is alive, since when, how many turns the session has finished
+  mila-run.py unborn [--all]      take her off this machine: everything that makes her «born» here — the bot's token and
+                                  access list, the birth record, the Claude sign-in made from the chat, the owner's id in
+                                  settings.json, her logs — is MOVED to ~/.mila-removed/<date-time>/ (nothing is deleted;
+                                  it can be put back by hand). --all moves her home folder ~/work and her conversation
+                                  too: the next birth starts from an empty page. The service must be stopped first.
   mila-run.py trust               mark Mila's home folder as trusted in Claude Code's own config (the installer made this
                                   folder, so `mila open` in a terminal is not met by «do you trust this folder?»)
 State and logs: ~/.local/state/mila/run (700). Logs are size-capped and pass through a mask: bot tokens and provider keys are
@@ -87,17 +92,30 @@ def alive(pid):
 
 
 def plugin_dir():
-    """Where the installed mila-telegram plugin lies (the folder with receiver.ts). MILA_PLUGIN_DIR, else the newest copy under
-    Claude Code's plugins folder."""
+    """Where the INSTALLED mila-telegram plugin lies (the folder with receiver.ts) — the copy the session itself loads.
+    MILA_PLUGIN_DIR; else the install path Claude Code recorded (plugins/installed_plugins.json); else a search under the
+    plugins folder where the installed copy (…/cache/…) wins over a marketplace's own copy — that one can be newer or older
+    than what is installed, and a receiver of one version beside a server of another is a quiet breakage."""
     d = os.environ.get("MILA_PLUGIN_DIR")
     if d: return d if os.path.isfile(os.path.join(d, "receiver.ts")) else None
-    best = None; root = os.path.join(CL, "plugins")
+    root = os.path.join(CL, "plugins"); ok = lambda p: isinstance(p, str) and os.path.isfile(os.path.join(p, "receiver.ts")) and os.path.isfile(os.path.join(p, "server.ts"))
+    try:
+        rec = json.load(open(os.path.join(root, "installed_plugins.json"), encoding="utf-8"))
+        plugs = rec.get("plugins") if isinstance(rec, dict) else None
+        for key, val in (plugs.items() if isinstance(plugs, dict) else []):
+            if not str(key).startswith("mila-telegram@"): continue
+            for e in (val if isinstance(val, list) else [val]):
+                p = e.get("installPath") if isinstance(e, dict) else None
+                if ok(p) and os.path.realpath(p).startswith(os.path.realpath(root) + os.sep): return p
+    except (OSError, ValueError):
+        pass
+    best = None
     for cur, dirs, files in os.walk(root):
         if cur[len(root):].count(os.sep) > 6: dirs[:] = []; continue
         dirs[:] = [x for x in dirs if x != "node_modules"]
-        if "receiver.ts" in files and "server.ts" in files and "mila-telegram" in cur:
-            m = os.path.getmtime(os.path.join(cur, "receiver.ts"))
-            if best is None or m > best[0]: best = (m, cur)
+        if "mila-telegram" in cur and ok(cur):
+            rank = (1 if (os.sep + "cache" + os.sep) in cur else 0, os.path.getmtime(os.path.join(cur, "receiver.ts")))
+            if best is None or rank > best[0]: best = (rank, cur)
     return best[1] if best else None
 
 
@@ -467,12 +485,56 @@ def trust():
     return 0 if done else 1
 
 
+def unborn(everything=False):
+    """Move aside what makes her born on this machine. → 0 done, 1 nothing to move, 3 she is still running."""
+    try:
+        fd = os.open(os.path.join(ST, "lock"), os.O_WRONLY)
+        try: fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB); fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError:
+            print("Mila is still running — stop her first:  mila stop"); os.close(fd); return 3
+        os.close(fd)
+    except OSError:
+        pass
+    dest = os.path.join(HOME, ".mila-removed", time.strftime("%Y%m%d-%H%M%S")); moved = []
+
+    def move(path, name):
+        if not (os.path.lexists(path)): return
+        os.makedirs(dest, mode=0o700, exist_ok=True); os.chmod(os.path.dirname(dest), 0o700)
+        target = os.path.join(dest, name); os.rename(path, target); moved.append(name)
+    things = [(TG, "telegram"), (TGS, "telegram-session"), (os.path.join(CL, "mila-birth.json"), "mila-birth.json"), (AUTH, "mila-auth"), (ST, "run")]
+    if everything:
+        things += [(WORK, "work"), (os.path.join(CL, "projects", re.sub(r"[^A-Za-z0-9]", "-", os.path.realpath(WORK))), "conversation")]
+    for path, name in things:
+        try: move(path, name)
+        except OSError as e: print("could not move %s: %s" % (path, e))
+    # the owner's id in settings.json: the launcher reads «born» from it
+    sp = os.path.join(CL, "settings.json")
+    try:
+        d = json.load(open(sp, encoding="utf-8"))
+        if isinstance(d, dict) and isinstance(d.get("env"), dict) and "OWNER_ID" in d["env"]:
+            os.makedirs(dest, mode=0o700, exist_ok=True)
+            with open(os.path.join(dest, "owner-id.txt"), "w", encoding="utf-8") as f: f.write(str(d["env"].pop("OWNER_ID")) + "\n")
+            mode = os.stat(sp).st_mode & 0o777; tmp = sp + ".mila-tmp"
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), mode)
+            with os.fdopen(fd, "w", encoding="utf-8") as f: json.dump(d, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, sp); moved.append("owner id (settings.json)")
+    except (OSError, ValueError):
+        pass
+    if not moved:
+        print("Nothing to remove: Mila is not born on this machine."); return 1
+    print("Mila is taken off this machine. Moved to %s (nothing was deleted): %s" % (dest, ", ".join(moved)))
+    print("Her bot itself stays in Telegram — delete it in @BotFather if you do not need it. To be born again:  mila")
+    if not everything and os.path.isdir(WORK): print("Her home folder %s is kept (her memory). An empty start:  mila uninstall --all" % WORK)
+    return 0
+
+
 def main(argv):
     cmd = argv[1] if len(argv) > 1 else "status"
     if cmd == "run": return run()
     if cmd == "status": return status("--json" in argv)
     if cmd == "trust": return trust()
-    sys.stderr.write("usage: mila-run.py run | status [--json] | trust\n"); return 64
+    if cmd == "unborn": return unborn("--all" in argv)
+    sys.stderr.write("usage: mila-run.py run | status [--json] | trust | unborn [--all]\n"); return 64
 
 
 if __name__ == "__main__":

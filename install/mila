@@ -201,6 +201,14 @@ case "${1:-continue}" in
   start)       bg_start ;;
   stop)        bg_stop ;;
   restart)     bg_stop >/dev/null 2>&1 || true; bg_start ;;
+  uninstall)   # take her off this machine with one command (before a second birth): stop, remove the service, move aside what
+               # makes her born. Nothing is deleted — it goes to ~/.mila-removed/<date-time>/.
+               shift; [ -n "$RUNPY" ] || { echo "mila-run.py not found — reinstall the kit" >&2; exit 1; }
+               if bg_running; then bg_stop || exit 1; else bg_stop >/dev/null 2>&1 || true; fi
+               rm -f "$BG_PLIST" "$HOME/.config/systemd/user/$BG_UNIT"
+               command -v systemctl >/dev/null 2>&1 && systemctl --user daemon-reload 2>/dev/null
+               case "${1:-}" in --all) python3 -B "$RUNPY" unborn --all ;; *) python3 -B "$RUNPY" unborn ;; esac
+               echo "${c_dim}The background service file is removed; the install command writes it again.${c_off}" ;;
   logs|log)    shift; for f in run.log login.log session.err receiver.log feeder.err service.log; do
                  [ -s "$RUN_STATE/$f" ] && { echo "── $f ──"; tail -n "${1:-15}" "$RUN_STATE/$f"; }
                done; [ -d "$RUN_STATE" ] || echo "no logs yet — Mila has not been started in the background (mila start)" ;;
@@ -301,6 +309,8 @@ case "${1:-continue}" in
 mila            how she is: Mila lives in the background and answers in Telegram (not born yet — opens the birth page)
 mila start      start her in the background (launchd on macOS, systemd --user on Linux); she also starts after a reboot
 mila stop       stop her; she will not answer until `mila start`
+mila uninstall  take her off this machine: stop, remove the service, move her token, sign-in and birth record aside
+                (nothing is deleted — ~/.mila-removed/); --all moves her home folder too, for a birth from an empty page
 mila logs       the last lines of her logs (mila logs 50)
 mila open       a session in this terminal, in her home folder (stops the background one for that time)
 mila new        start a fresh session in this folder

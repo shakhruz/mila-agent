@@ -68,12 +68,12 @@ SM="$T/mac"; sched Darwin "$SM" > "$T/mac.out"; PL="$SM/Library/LaunchAgents/com
 chk "Мак: служба Планировщика записана — проход раз в минуту по этому дому, установленным baraban.py, с -B" "grep -q '<integer>60</integer>' $PL && grep -q '<string>-B</string>' $PL && grep -q '<string>tick</string>' $PL && grep -q \"<string>$SM</string>\" $PL && grep -q \"<string>$SM/.claude/hooks/baraban.py</string>\" $PL"
 chk "Мак: в тесте служба записана, но не загружена — так и сказано" "grep -q 'com.milagpt.scheduler — written, not loaded' $T/mac.out"
 chk "Мак: при MILA_SKIP_TIMERS launchctl не вызван ни разу — ни для сбора ходов, ни для Планировщика; обе службы записаны файлами" "[ ! -e $T/fakebin-Darwin/calls ] && [ -f $SM/Library/LaunchAgents/com.milagpt.turns-collect.plist ] && [ -f $PL ] && grep -q 'com.milagpt.turns-collect — written, not loaded' $T/mac.out"
-SMR="$T/mac-real"; (unset MILA_SKIP_TIMERS; sched Darwin "$SMR" > "$T/mac-real.out")   # the stand-in launchctl is first in PATH: nothing of the machine is touched
+SMR="$T/mac-real"; (export MILA_SKIP_TIMERS=0; sched Darwin "$SMR" > "$T/mac-real.out")   # the stand-in launchctl is first in PATH: nothing of the machine is touched
 chk "Мак без флага (launchctl — подставной): обе службы загружаются — по bootout и bootstrap на каждую" "[ \$(grep -c '^launchctl bootout .*/com.milagpt.turns-collect\$' $T/fakebin-Darwin/calls) -eq 1 ] && [ \$(grep -c '^launchctl bootstrap .*com.milagpt.turns-collect.plist\$' $T/fakebin-Darwin/calls) -eq 1 ] && [ \$(grep -c '^launchctl bootout .*/com.milagpt.scheduler\$' $T/fakebin-Darwin/calls) -eq 1 ] && [ \$(grep -c '^launchctl bootstrap .*com.milagpt.scheduler.plist\$' $T/fakebin-Darwin/calls) -eq 1 ]"
 rm -f "$T/fakebin-Darwin/calls"
 SL="$T/lin"; sched Linux "$SL" > "$T/lin.out"; UN="$SL/.config/systemd/user"
 chk "Linux: при MILA_SKIP_TIMERS systemctl не вызван ни разу; оба таймера записаны файлами" "[ ! -e $T/fakebin-Linux/calls ] && [ -f $UN/mila-turns-collect.timer ] && [ -f $UN/mila-scheduler.timer ] && grep -q 'mila-turns-collect.timer — written, not enabled' $T/lin.out"
-SLR="$T/lin-real"; (unset MILA_SKIP_TIMERS; sched Linux "$SLR" > "$T/lin-real.out")
+SLR="$T/lin-real"; (export MILA_SKIP_TIMERS=0; sched Linux "$SLR" > "$T/lin-real.out")
 chk "Linux без флага (systemctl — подставной): оба таймера включаются" "grep -q '^systemctl --user enable --now mila-turns-collect.timer\$' $T/fakebin-Linux/calls && grep -q '^systemctl --user enable --now mila-scheduler.timer\$' $T/fakebin-Linux/calls"
 rm -f "$T/fakebin-Linux/calls"
 chk "Linux: таймер и служба записаны — раз в минуту, тот же проход, без записи __pycache__ (-B)" "grep -q 'OnCalendar=minutely' $UN/mila-scheduler.timer && grep -q \"ExecStart=.* -B $SL/.claude/hooks/baraban.py tick --home $SL\$\" $UN/mila-scheduler.service"

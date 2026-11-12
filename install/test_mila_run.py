@@ -185,6 +185,22 @@ try:
     chk("вход сделан на этом компьютере (claude auth status) — помощник входа не запускается, сеанс стартует", wait(lambda: status()[1]["session"] and status()[1]["claude"] == "ready") and read(ENV["FAKE_LOG"] + ".login").count("\n") == n_login, status()[1])
     p.send_signal(signal.SIGTERM); p.wait(timeout=25)
 
+    # two copies of the plugin on the machine: the marketplace's own copy (newer by time) and the installed one — the installed wins
+    MKT = os.path.join(CL, "plugins", "mila-marketplace", "mila-telegram"); os.makedirs(MKT)
+    for d in (MKT,): open(os.path.join(d, "receiver.ts"), "w").write("// market copy"); open(os.path.join(d, "server.ts"), "w").write("// market copy")
+    future = time.time() + 3600; os.utime(os.path.join(MKT, "receiver.ts"), (future, future))
+    os.remove(os.path.join(TG, "receiver.pid")) if os.path.exists(os.path.join(TG, "receiver.pid")) else None
+    p = start(); procs.append(p); wait(lambda: status()[1]["session"])
+    chk("две копии плагина (каталог магазина новее по времени и установленная в cache): служба берёт установленную", "plugin %s" % PLUG in read(os.path.join(ST, "run.log")).strip().splitlines()[-1] or any(("plugin %s" % PLUG) in l for l in read(os.path.join(ST, "run.log")).splitlines()[-4:]), read(os.path.join(ST, "run.log"))[-300:])
+    p.send_signal(signal.SIGTERM); p.wait(timeout=25)
+    OTHER = os.path.join(CL, "plugins", "cache", "mila", "mila-telegram", "0.9.0"); os.makedirs(OTHER)
+    open(os.path.join(OTHER, "receiver.ts"), "w").write("// old"); open(os.path.join(OTHER, "server.ts"), "w").write("// old")
+    json.dump({"version": 2, "plugins": {"mila-telegram@mila": [{"scope": "user", "installPath": OTHER, "version": "0.9.0"}], "other@x": [{"installPath": MKT}]}}, open(os.path.join(CL, "plugins", "installed_plugins.json"), "w"))
+    os.remove(os.path.join(TG, "receiver.pid")) if os.path.exists(os.path.join(TG, "receiver.pid")) else None
+    p = start(); procs.append(p); wait(lambda: status()[1]["session"])
+    chk("есть запись Claude Code об установке (installed_plugins.json) — берётся путь из неё, даже если рядом есть копии новее", any(("plugin %s" % OTHER) in l for l in read(os.path.join(ST, "run.log")).splitlines()[-4:]), read(os.path.join(ST, "run.log"))[-300:])
+    p.send_signal(signal.SIGTERM); p.wait(timeout=25)
+
     # no plugin
     shutil.rmtree(os.path.join(CL, "plugins")); p = start(); out, err = p.communicate(timeout=20)
     chk("плагина Telegram нет — служба говорит, как поставить, код 2", p.returncode == 2 and "/plugin install" in err, (p.returncode, err))
