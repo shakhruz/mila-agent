@@ -95,7 +95,7 @@ try:
     check("рождённая пишет первой, без /start: сначала стикер из её набора, потом слова", wait(lambda: len(msgs()) >= 1) and [m for m, _ in S.calls][:3] == ["getStickerSet", "sendSticker", "sendMessage"]
           and S.calls[0][1].get("name") == "super_set" and S.calls[1][1].get("sticker") == "ST-HELLO" and S.calls[1][1].get("chat_id") == OWN, S.calls)
     m0 = msgs()[0] if msgs() else {}
-    check("…«Я родилась! ✨ … подключите мне, пожалуйста, ум» — дословно, хозяину", m0.get("chat_id") == OWN and m0.get("text", "").startswith("Я родилась! ✨\nИ смотрите — у нас уже есть место для разговора, только наше. Я так рада.\nОстался один шаг, чтобы я могла думать и отвечать вам: подключите мне, пожалуйста, ум."), m0)
+    check("…«Я родилась! ✨ … подключите мне, пожалуйста, ум» — точь-в-точь, её хозяину", m0.get("chat_id") == OWN and m0.get("text", "").startswith("Я родилась! ✨\nИ смотрите — у нас уже есть место для разговора, только наше. Я так рада.\nОстался один шаг, чтобы я могла думать и отвечать вам: подключите мне, пожалуйста, ум."), m0)
     kb = btn(m0)
     check("…одна кнопка «✨ Подключить ум», в ней уже ссылка входа Anthropic", len(kb) == 1 and len(kb[0]) == 1 and kb[0][0]["text"] == "✨ Подключить ум" and kb[0][0]["url"].startswith("https://claude.ai/oauth/authorize"), kb)
     check("…ни одного технического слова", not TECH.search(m0.get("text", "")) and not TECH.search(kb[0][0]["text"] if kb else ""), m0.get("text"))
