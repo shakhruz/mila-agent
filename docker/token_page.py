@@ -24,27 +24,16 @@ PAIR_ALPH = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 PER_ADDR, PER_ADDR_WINDOW, TOTAL = 5, 600, 20
 DONE = os.path.join(AUTH, "token_page.done")
 
-FACE = ""
-try:   # Mila's face, 240 px webp (~4 KB), inside the page as data: — no outside requests
-    import base64
-    FACE = base64.b64encode(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "mila-face.webp"), "rb").read()).decode()
-except OSError:
-    pass
-
-CSS = ("body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;max-width:30rem;margin:2.5rem auto;padding:0 1.2rem;"
-       "color:#1d2b2a;background:#f4faf8}.c{background:#fff;border-radius:1.2rem;padding:1.6rem;box-shadow:0 .4rem 1.6rem #0001}"
-       ".h{display:flex;align-items:center;gap:1rem}.h img{width:84px;height:84px;border-radius:50%}h1{font-size:1.5rem;margin:0}"
-       "input:focus{outline:2px solid #2a9d8f;border-color:#2a9d8f}input{width:100%;padding:.8rem;font-size:1rem;border:1px solid #bcd;border-radius:.6rem;box-sizing:border-box;margin-top:.6rem}"
-       "button,a.b{display:inline-block;margin-top:1rem;padding:.8rem 1.4rem;font-size:1rem;background:#2a9d8f;color:#fff;border:0;"
-       "border-radius:.6rem;text-decoration:none;cursor:pointer}small{color:#6a7b7a}.e{color:#b3261e}")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import mila_style   # the one look of Mila's pages (a copy of install/mila_style.py): portrait, card, serif heading, one button
 
 # Greeting carousel, pure CSS (no script, no outside fonts): big words fade in and out one after another.
 HELLOS = ["hello", "hola", "здравствуйте", "salom", "你好", "bonjour", "merhaba", "hallo", "مرحبا", "こんにちは"]
 STEP = 2.4   # seconds per word
 _n = len(HELLOS); _in, _out = 100 / _n * 0.25, 100 / _n * 0.85
-HERO_CSS = (".w{position:relative;height:5.5rem;margin:1rem 0 1.4rem;text-align:center}"
-            ".w span{position:absolute;left:0;right:0;font-size:clamp(2rem,10vw,3.6rem);font-weight:600;white-space:nowrap;letter-spacing:-.02em;opacity:0;"
-            "background:linear-gradient(90deg,#2a9d8f,#5e60ce);-webkit-background-clip:text;background-clip:text;color:transparent;"
+HERO_CSS = (".w{position:relative;height:4rem;margin:0 0 .6rem;text-align:center}"
+            ".w span{position:absolute;left:0;right:0;font:600 clamp(1.8rem,9vw,2.8rem) Georgia,serif;white-space:nowrap;letter-spacing:-.02em;opacity:0;"
+            "background:linear-gradient(90deg,#0f766e,#8a5a1f);-webkit-background-clip:text;background-clip:text;color:transparent;"
             "animation:hi %.1fs ease-in-out infinite}" % (_n * STEP)
             + "".join(".w span:nth-child(%d){animation-delay:%.1fs}" % (i + 1, i * STEP) for i in range(_n))
             + "@keyframes hi{0%%{opacity:0;transform:translateY(.6rem) scale(.98);filter:blur(4px)}%.1f%%{opacity:1;transform:none;filter:none}"
@@ -146,10 +135,8 @@ def lang(header):
 
 
 def page(body, lg="en"):
-    face = "<img alt='' src='data:image/webp;base64,%s'>" % FACE if FACE else ""
-    return ("<!doctype html><html lang=%s><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
-            "<meta name=robots content=noindex><title>Mila</title><style>%s%s</style></head><body>%s<div class=c><div class=h>%s<h1>%s</h1></div>%s"
-            "</div></body></html>" % (lg, CSS, HERO_CSS, HERO, face, html.escape(L[lg]["hi"]), body)).encode()
+    return mila_style.shell("Mila", lg, "%s<h1>%s</h1>%s" % (HERO, html.escape(L[lg]["hi"]), body), extra_css=HERO_CSS,
+                            portrait="mila-wake" not in body).encode()   # the animated Mila replaces the portrait on the done screen
 
 
 def form(lg, err=""):
@@ -201,7 +188,7 @@ class H(http.server.BaseHTTPRequestHandler):
     def send(self, code, body):
         self.send_response(code)
         for k, v in (("Content-Type", "text/html; charset=utf-8"), ("Cache-Control", "no-store"), ("Referrer-Policy", "no-referrer"),
-                     ("X-Frame-Options", "DENY"), ("Content-Security-Policy", "default-src 'none'; img-src data:; style-src 'unsafe-inline'; form-action 'self'"),
+                     ("X-Frame-Options", "DENY"), ("Content-Security-Policy", mila_style.CSP),
                      ("Content-Length", str(len(body)))):
             self.send_header(k, v)
         self.end_headers(); self.wfile.write(body)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Сейф Милы целиком на временных папках: ссылка → страница (GET не тратит) → ошибка в карте (ссылка жива, введённое не возвращается)
 → сохранение → .env 600 с прежними ключами, журнал без значений, записка компаньону, повтор — 410, просроченная — 410. python3 test_seif.py"""
-import json, os, random, subprocess, sys, tempfile, threading, time, urllib.request, urllib.parse, urllib.error
+import json, os, random, re, subprocess, sys, tempfile, threading, time, urllib.request, urllib.parse, urllib.error
 H = os.path.dirname(os.path.abspath(__file__)); T = tempfile.mkdtemp(prefix="seif-"); ok = n = 0
 def check(name, c, x=""):
     global ok, n; n += 1; ok += bool(c); print(("✅ " if c else "❌ ") + name + ("" if c else "  " + str(x)[:300]))
@@ -30,6 +30,7 @@ def post(u, d):
         with urllib.request.urlopen(urllib.request.Request(u, data=urllib.parse.urlencode(d).encode(), method="POST")) as x: return x.status, x.read().decode()
     except urllib.error.HTTPError as e: return e.code, e.read().decode()
 s, b, hd = get(U); s2, _, _ = get(U)
+check("единый вид: общий стиль страницы рождения (portrait, card, serif heading), поле не меньше 16 px, без внешних адресов", "class=card" in b and "class=av" in b and "Georgia" in b and "font:16px" in b and "color-scheme" in b and not re.search(r"https?://(?!www\.w3\.org)", b), b[:300])
 check("страница: 4 поля с подписями, пароль скрыт, no-store; GET не тратит ссылку", s == 200 and s2 == 200 and "Логин сайта" in b and 'name=SITE_PASSWORD type=password' in b and hd.get("Cache-Control") == "no-store")
 check("форма целиком autocomplete=off — браузер не сохраняет введённое в черновик", "<form method=post autocomplete=off" in get(U)[1])
 bad = P[:-1] + str((int(P[-1]) + 1) % 10)

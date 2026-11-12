@@ -9,6 +9,8 @@ wrong path → 404; 5 attempts in total. Neither the key nor the link token is w
 Without a public address (no RAILWAY_PUBLIC_DOMAIN / MILA_PUBLIC_URL) it says so in one line: then the key goes into the
 platform's variables (GROQ_API_KEY). Only stdlib. Exit 0 = saved, 3 = closed without a key, 2 = cannot open a page here."""
 import html, http.server, json, os, re, secrets, sys, threading, time, urllib.parse, urllib.request
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import mila_style   # the one look of Mila's pages (a copy of install/mila_style.py)
 
 KINDS = {"deepgram": {"field": "DEEPGRAM_API_KEY", "file": "deepgram.env", "re": r"^[A-Za-z0-9]{32,64}$", "auth": "Token ",
                       "check": "https://api.deepgram.com/v1/projects", "where": "console.deepgram.com",
@@ -44,12 +46,7 @@ def lang(h, q=""):
 
 
 def page(body, lg):
-    return ("<!doctype html><html lang=%s><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
-            "<meta name=robots content=noindex><title>Mila</title><style>body{font-family:system-ui,sans-serif;max-width:30rem;margin:3rem auto;"
-            "padding:0 1.2rem;color:#1d2b2a;background:#f4faf8}.c{background:#fff;border-radius:1rem;padding:1.4rem;box-shadow:0 .4rem 1.4rem #0001}"
-            "input{width:100%%;padding:.8rem;font-size:1rem;border:1px solid #bcd;border-radius:.6rem;box-sizing:border-box}"
-            "button{margin-top:1rem;padding:.8rem 1.4rem;font-size:1rem;background:#2a9d8f;color:#fff;border:0;border-radius:.6rem}"
-            ".e{color:#b3261e}</style></head><body><div class=c>%s</div></body></html>" % (lg, body)).encode()
+    return mila_style.shell("Mila", lg, body).encode()
 
 
 def check(kind, key):
@@ -84,7 +81,7 @@ def serve(kind, port, token):
         def send(self, code, body):
             self.send_response(code)
             for a, b in (("Content-Type", "text/html; charset=utf-8"), ("Cache-Control", "no-store"), ("Referrer-Policy", "no-referrer"),
-                         ("X-Frame-Options", "DENY"), ("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'"),
+                         ("X-Frame-Options", "DENY"), ("Content-Security-Policy", mila_style.CSP),
                          ("Content-Length", str(len(body)))):
                 self.send_header(a, b)
             self.end_headers(); self.wfile.write(body)
@@ -93,7 +90,7 @@ def serve(kind, port, token):
             return not st["saved"] and st["tries"] < TRIES and time.time() - st["start"] < TTL
 
         def form(self, lg, err=""):
-            return page("<h2>%s</h2><p>%s</p><form method=post autocomplete=off action='?l=%s'><input name=k type=text required autofocus autocomplete=off "
+            return page("<h1>%s</h1><p>%s</p><form method=post autocomplete=off action='?l=%s'><input name=k type=text required autofocus autocomplete=off "
                         "spellcheck=false data-1p-ignore data-lpignore=true>%s<button type=submit>%s</button></form>"
                         % (html.escape(k["title"][lg]), html.escape(k["intro"][lg]), lg, ("<p class=e>%s</p>" % html.escape(err)) if err else "",
                            BTN[lg]), lg)
@@ -119,7 +116,7 @@ def serve(kind, port, token):
             if not check(kind, key):
                 return self.send(200, self.form(lg, BAD[lg]))
             save(kind, key); st["saved"] = True
-            self.send(200, page("<h2>%s</h2>" % html.escape(OK[lg]), lg))
+            self.send(200, page("<h1>%s</h1>" % html.escape(OK[lg]), lg))
             threading.Thread(target=self.server.shutdown, daemon=True).start()
 
     srv = http.server.ThreadingHTTPServer((os.environ.get("BIND", "0.0.0.0"), port), H)

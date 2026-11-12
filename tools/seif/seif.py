@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mila_i18n
+import mila_style   # единый вид страниц Милы (копия install/mila_style.py)
 
 SEIF_DIR = os.path.expanduser(os.environ.get("SEIF_DIR", "~/.local/share/mila-seif"))
 HOMES = os.environ.get("SEIF_HOMES", "")
@@ -235,15 +236,6 @@ def load_tok(tok):
     return rec
 
 
-CSS = """body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:linear-gradient(#eaf5f0,#fbf6ee);color:#15524a;margin:0;padding:24px}
-.c{max-width:460px;margin:0 auto;background:#fff;border-radius:18px;padding:24px;box-shadow:0 6px 24px rgba(0,0,0,.06)}
-h1{font-size:22px;margin:0 0 6px}p{color:#5f6e6c;font-size:15px;line-height:1.4}label{display:block;margin:14px 0 6px;font-weight:600;font-size:14px}
-input{width:100%;box-sizing:border-box;padding:12px;border:1px solid #cfe0da;border-radius:10px;font-size:16px}
-button{margin-top:20px;width:100%;padding:14px;border:0;border-radius:24px;background:#168a7a;color:#fff;font-size:16px;font-weight:600}
-.e{color:#b44;font-size:13px;margin-top:4px}.ok{font-size:40px;text-align:center}
-.lang{text-align:right;font-size:13px;margin:-8px 0 8px}.lang a{color:#168a7a;text-decoration:none;margin-left:10px}.lang b{margin-left:10px}"""
-
-
 def T(lang, key, **kw):
     return html.escape(mila_i18n.t(LOC, lang, key, **kw))
 
@@ -255,9 +247,7 @@ def switcher(lang):
 
 
 def page(body, lang):
-    return ("<!doctype html><html lang=%s><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
-            "<meta name=robots content=noindex><title>%s</title><style>%s</style></head><body><div class=c>%s%s</div></body></html>"
-            % (lang, T(lang, "seif.title"), CSS, switcher(lang), body)).encode()
+    return mila_style.shell(mila_i18n.t(LOC, lang, "seif.title"), lang, body, lang_bar=switcher(lang)).encode()
 
 
 def form(rec, lang, errs=None):
@@ -270,7 +260,7 @@ def form(rec, lang, errs=None):
         im = " inputmode=numeric" if f in ("CARD_NUMBER", "CARD_EXPIRY") else ""
         e = ("<div class=e>%s</div>" % T(lang, errs[f])) if f in errs else ""
         rows.append("<label for=%s>%s</label><input id=%s name=%s type=%s autocomplete=off%s required>%s" % (f, lab, f, f, typ, im, e))
-    return page("<h1>%s</h1><p>%s</p><form method=post autocomplete=off action='?lang=%s'>%s<button type=submit>%s</button></form><p style='font-size:12px'>%s</p>"
+    return page("<h1>%s</h1><p>%s</p><form method=post autocomplete=off action='?lang=%s'>%s<button type=submit>%s</button></form><p class=fine>%s</p>"
                 % (T(lang, "seif.h1"), T(lang, "seif.intro"), lang, "".join(rows), T(lang, "seif.save"), T(lang, "seif.once", min=int(rec.get("ttl", 30)))), lang)
 
 
@@ -284,7 +274,7 @@ class H(BaseHTTPRequestHandler):
         self.send_response(code)
         for k, v in (("Content-Type", "text/html; charset=utf-8"), ("Cache-Control", "no-store"), ("Referrer-Policy", "no-referrer"),
                      ("X-Frame-Options", "DENY"), ("X-Content-Type-Options", "nosniff"),
-                     ("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'"), ("Content-Length", str(len(body)))):
+                     ("Content-Security-Policy", mila_style.CSP), ("Content-Length", str(len(body)))):
             self.send_header(k, v)
         self.end_headers(); self.wfile.write(body)
 

@@ -38,6 +38,7 @@ check("одна строка — одноразовая ссылка на пуб
 check("страница поднялась в фоне", wait_port(port))
 check("чужой путь — 404", req("http://127.0.0.1:%d/k/wrong" % port)[0] == 404)
 c, b = req(url); check("по ссылке — форма про Groq (по-английски по умолчанию)", c == 200 and "console.groq.com/keys" in b)
+check("единый вид: общий стиль страницы рождения (portrait, card, serif heading), поле не меньше 16 px, без внешних адресов", "class=card" in b and "class=av" in b and "Georgia" in b and "font:16px" in b and "color-scheme" in b and not re.search(r"https?://(?!www\.w3\.org)", b), b[:300])
 c, b = req(url, {"k": "hello"}); check("не ключ — просьба, ничего не сохранено", "did not accept" in b and not os.path.exists(os.path.join(SEC, "groq.env")))
 c, b = req(url, {"k": BAD}); check("ключ, который сервис не принял, — просьба, ничего не сохранено", "did not accept" in b and not os.path.exists(os.path.join(SEC, "groq.env")))
 c, b = req(url, {"k": GOOD})

@@ -35,6 +35,7 @@ def req(url, data=None, lang=None, xff=None):
     except urllib.error.HTTPError as e: return e.code, e.read().decode()
 A = os.path.join(T, "auth"); p, U = run(A)
 c, b = req(U); check("форма: по умолчанию английский, лицо Милы внутри (data:), без внешних адресов", c == 200 and "Hi, I am Mila" in b and "data:image/webp;base64," in b and not re.search(r"(src|href)=['\"]?https?:", b), b[:200])
+check("единый вид: общий стиль страницы рождения (portrait, card, serif heading), поле не меньше 16 px, без внешних адресов", "class=card" in b and "class=av" in b and "Georgia" in b and "font:16px" in b and "color-scheme" in b and not re.search(r"https?://(?!www\.w3\.org)", b), b[:300])
 check("приветствия сменяют друг друга: hello, hola, здравствуйте, salom, 你好 — только CSS, без скриптов", all(w in b for w in ("hello", "hola", "здравствуйте", "salom", "你好")) and "@keyframes" in b and "<script" not in b)
 c, b = req(U, lang="ru-RU,ru;q=0.9,en;q=0.8"); check("поле не похоже на пароль: type=text, без автозаполнения и менеджеров паролей", "type=text" in b and "type=password" not in b and "autocomplete=off" in b and "data-1p-ignore" in b and "name=bt" in b)
 check("язык браузера ru → форма по-русски", "Привет, я Мила" in b and 'lang=ru' in b)
