@@ -2,9 +2,10 @@
   "permissions": {
     "allow": [
       "mcp__plugin_mila-telegram_telegram",
-      "Read",
-      "Glob",
-      "Grep",
+      "Read({work}/**)",
+      "Read(~/.claude/skills/**)",
+      "Read(~/.claude/hooks/**)",
+      "Read(~/.claude/channels/**)",
       "Edit({work}/**)",
       "Write({work}/**)",
       "Bash(python3 ~/.claude/skills/:*)",

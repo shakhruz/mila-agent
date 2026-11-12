@@ -13,8 +13,9 @@ One process keeps these alive, the same way the container image does:
 There is no window, so nothing is asked on a screen: Claude Code's «trust this folder» dialog does not exist in this mode.
 Permissions are NOT switched off (a laptop is not a container). With nobody at a screen to ask, Claude Code refuses every tool
 that is not allowed beforehand — so the session gets a short allow-list of its own (mila-run-settings.json, passed with
---settings; it does not touch the owner's other Claude Code sessions): her Telegram tools, reading, writing inside her home
-folder ~/work, her own skill and hook scripts, web search. Everything else is refused and she says so; the guard hooks and the
+--settings; it does not touch the owner's other Claude Code sessions): her Telegram tools, reading and writing inside her
+home folder ~/work, reading her skills and the files people send her, her own skill and hook scripts, web search. The rest of
+the person's disk is not hers to read. Everything else is refused and she says so; the guard hooks and the
 deny rules of settings.json apply as in a terminal session.
 
   mila-run.py run                 the service itself (foreground)
@@ -161,6 +162,8 @@ def keep(name, argv, env, pause, logname, cwd=None):
 
 def onboard_mod():
     sys.path.insert(0, HOOKS)
+    if os.environ.get("TELEGRAM_API_ROOT") and not os.environ.get("MILA_TG_API"):
+        os.environ["MILA_TG_API"] = os.environ["TELEGRAM_API_ROOT"]      # one Telegram address for the plugin and for her first words
     import onboard
     return onboard
 

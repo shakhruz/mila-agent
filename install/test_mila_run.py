@@ -116,6 +116,8 @@ try:
     rs = os.path.join(ST, "session-settings.json"); allow = json.load(open(rs))["permissions"]["allow"] if os.path.exists(rs) else []
     chk("сеансу передан свой короткий список разрешённого (--settings): инструменты Telegram, запись только в доме Милы, её навыки", "--settings " + rs in argv[0] and "mcp__plugin_mila-telegram_telegram" in allow
         and "Edit(~/work/**)" in allow and "Write(~/work/**)" in allow and any(a.startswith("Bash(python3 ~/.claude/skills/") for a in allow) and oct(os.stat(rs).st_mode & 0o777) == "0o600", (argv, allow))
+    chk("…читать ей разрешено её дом, её навыки и папку канала (вложения) — НЕ весь диск человека: общего Read, Glob, Grep в списке нет",
+        "Read(~/work/**)" in allow and "Read(~/.claude/skills/**)" in allow and "Read(~/.claude/channels/**)" in allow and not any(a in ("Read", "Glob", "Grep", "Read(*)", "Read(**)", "Read(~/**)") for a in allow), allow)
     chk("…в списке нет ни Bash целиком, ни записи куда угодно, ни режима обхода", not any(a in ("Bash", "Bash(*)", "Edit", "Write", "*") for a in allow) and "bypassPermissions" not in open(rs).read() and "defaultMode" not in open(rs).read(), allow)
     chk("первый запуск в доме без разговоров — без --continue", "--continue" not in argv[0], argv)
     chk("рабочая папка сеанса — дом Милы, не папка, где набрали команду", read(ENV["FAKE_LOG"] + ".cwd").strip().splitlines()[0] == WORK, read(ENV["FAKE_LOG"] + ".cwd"))
