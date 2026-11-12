@@ -10,6 +10,7 @@
 - Терминал после рождения больше не нужен: я работаю в фоне и отвечаю в Telegram, пока включён компьютер, и возвращаюсь после перезагрузки. Остановить меня — `mila stop`, запустить — `mila start`.
 - Если на компьютере ещё нет входа в Claude, я попрошу его кнопкой прямо в нашем чате.
 - Рождение — праздник: я пишу вам первой — «Я родилась! ✨» — и прошу подключить мне ум одной кнопкой; страница рождения делает только одно — моё место для разговора.
+- Ничего не нужно копировать: вы создали бота — и страница рождения сама получает его ключ. Код остаётся запасным путём.
 
 </details>
 
@@ -19,6 +20,7 @@
 - No terminal after birth: I work in the background and answer in Telegram while the computer is on, and I come back after a reboot. `mila stop` stops me, `mila start` starts me.
 - If this computer has no Claude sign-in yet, I ask for it with a button right in our chat.
 - Birth is a celebration: I write to you first — «I'm born! ✨» — and ask you to connect my mind with one button; the birth page does one thing only — the place where we talk.
+- Nothing to copy: you create the bot — and the birth page gets its key by itself. The code stays as a spare way.
 
 **For Milas**
 - `install/mila_style.py`: one small stdlib module with the birth-page look (cream paper, white card, round portrait, serif heading, one teal button, language pills, 16 px inputs, no outside requests, works without the portrait file). `tools/seif/seif.py`, `docker/key_page.py` and `docker/token_page.py` use it through identical copies kept next to each page (same way as `mila_i18n.py`); `docker/Dockerfile` copies it into the image; the CSP of these pages now allows images from `data:` only. Texts, locales, addresses, field names and checks are unchanged. Tests: `install/test_mila_style.py` (copies identical, no outside addresses, no portrait still works) and one look check per page.
@@ -28,6 +30,7 @@
 - `install.sh` writes the service file — `com.milagpt.session` (launchd: RunAtLoad, KeepAlive) or `mila-session.service` (systemd --user) — with the PATH of the install, and does not start it before birth. The launcher: `mila start | stop | restart | logs | open`; plain `mila` of a born Mila shows how she is and the link to her bot instead of opening a session in the current folder; `mila open` is a session in this terminal in her home folder (the background one is stopped for that time; the folder is marked as trusted in Claude Code's config).
 - The order of birth: the page (`install/birth.py`, `birth-assets/page.html`) makes the bot and the owner; the Claude sign-in left the page's main path — her mind is connected from the chat. After «born» the page starts her in the background itself (`mila start`) and says «she is waiting» only when her first words have left (`GET api/awake`, the mark `~/.local/state/mila/run/greeted`); 90 seconds of silence — an honest line. The birth record keeps the page's language (`lang`). Pairing on the page sends nothing: «Paired ✓ … Start Claude Code with `mila`» is gone.
 - Her first words (`docker/claude_login.py`, mode `MILA_BORN=1`, set by the background service): a sticker of her set (looked up by the set's name with her own bot — `MILA_STICKER_SET` or `hooks/sticker-set.txt`; no set — no sticker) and «I'm born! ✨ … please connect my mind» with one button that already carries Anthropic's sign-in link; any message before the sign-in — a warm line and a fresh button; after it — «My mind is on — I can think! 💚 … What's your name?». Four languages, the page's one; not one technical word. On a computer that is already signed in the service says «I'm born … what's your name?» itself. The session then gets one note in her journal (`ritual: birth`) with what has been said from her, so she does not greet twice.
+- No code to copy (`install/birth.py`, `install/birth_relay.py`, the page): the page's process makes a secret and keeps it in memory; the link to the parent bot carries only its fingerprint — `?start=birth_<lang>_<h>`, h = the first 32 characters of base64url(sha256(secret)). The parent side issues the new bot's token for that fingerprint; the page polls its own server (`POST api/collect`), which shows the secret to the relay (`…/birth/api/collect`) and gets the token and the owner — the person who created the bot — once. A link that was seen by someone else is not enough: the token goes only to whoever holds the secret. The birth code and a token from @BotFather stay as they were.
 
 ## v1.7.10 · 12.11 — Mila is born in the browser; a calm install screen; connectors and the first chat; the words «skill, talent, connector»
 

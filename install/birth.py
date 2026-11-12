@@ -78,7 +78,7 @@ def parent_bot():
 
 
 def page_html():
-    html = open(os.path.join(ASSETS, "page.html"), encoding="utf-8").read().replace("__PARENT__", parent_bot())
+    html = open(os.path.join(ASSETS, "page.html"), encoding="utf-8").read().replace("__PARENT__", parent_bot()).replace("__BIND__", birth_relay.bind_of(S.secret))
     img = base64.b64encode(open(os.path.join(ASSETS, "portrait.jpg"), "rb").read()).decode()
     return html.replace("__PORTRAIT__", "data:image/jpeg;base64," + img)
 
@@ -160,6 +160,9 @@ class Birth:
         self.login = None
         self.finished = threading.Event()
         self.started = False   # `mila start` was asked for
+        # The page's secret: made here, kept in this process only, never sent to the page. Its public fingerprint rides in the
+        # link to the parent bot; the bot token issued for that fingerprint is handed out only to whoever shows the secret.
+        self.secret = birth_relay.new_secret()
         self.stop = None   # set by main(): shuts the server down
 
 
@@ -195,6 +198,28 @@ def api_code(body):
     paired = False
     if r["owner_id"]:
         onboard.finish_pair(tok, r["owner_id"], greet=False)   # the page's path: her first words come from Mila herself
+        paired = True
+    res = me["result"]
+    return 200, {"ok": True, "username": res.get("username", ""), "name": res.get("first_name", ""), "paired": paired}
+
+
+def api_collect():
+    """No code to copy: the person created the bot through the parent bot, and the token (with the owner — the one who
+    created it) comes by the page's own secret. Polled by the page; «wait» — not there yet. The token goes straight to
+    onboard's storage and is never returned or printed."""
+    if token_state()["done"] and pair_state()["done"]:
+        return 200, {"ok": True, "username": token_state()["username"], "paired": True}
+    r = birth_relay.collect(S.secret)
+    if not r["ok"]:
+        return 200, {"ok": False, "error": "wait" if r["error"] == "refused" else "relay"}
+    tok = r["bot_token"]
+    me = onboard.tg(tok, "getMe")
+    if not me.get("ok"):
+        return 200, {"ok": False, "error": "telegram" if me.get("error_code") else "network"}
+    onboard.save_token(tok)
+    paired = False
+    if r["owner_id"]:
+        onboard.finish_pair(tok, r["owner_id"], greet=False)   # the creator of the bot is the owner; her first words come from Mila
         paired = True
     res = me["result"]
     return 200, {"ok": True, "username": res.get("username", ""), "name": res.get("first_name", ""), "paired": paired}
@@ -347,7 +372,7 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(body, dict):
             return self._json(400, {"ok": False, "error": "srv"})
         routes = {"api/token": lambda: api_token(body), "api/code": lambda: api_code(body), "api/claude/login": api_claude_login, "api/pair/start": api_pair_start,
-                  "api/born": lambda: api_born(body), "api/done": api_done}
+                  "api/born": lambda: api_born(body), "api/done": api_done, "api/collect": api_collect}
         if r not in routes:
             return self._send(404, "not found", "text/plain")
         self._json(*routes[r]())

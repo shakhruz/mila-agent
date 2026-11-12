@@ -56,6 +56,8 @@ class Relay(BaseHTTPRequestHandler):
             elif s == SEC_ODD: code, body = 200, {"ok": True, "token": TOKEN, "owner_id": "me", "bot_username": "not a name"}
             elif s == SEC_NOTOKEN: code, body = 200, {"ok": True, "owner_id": str(S["owner2"])}
             elif s == SEC_DOWN: code, body = 500, {"ok": False}
+            elif S.get("collect_any") and re.fullmatch(r"[A-Za-z0-9_-]{43}", s):   # the page's own secret: «the bot is created, the key is issued»
+                S["page_secret"] = s; code, body = 200, {"ok": True, "token": TOKEN, "owner_id": str(S["owner2"]), "bot_username": "test_birth_bot"}
             else: code, body = 404, {"ok": False}
             b = json.dumps(body).encode(); self.send_response(code); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
             return
@@ -318,11 +320,35 @@ def serve(env):
 reset_state()
 p4, first4, rest4 = serve(dict(ENV, MILA_BIRTH_PARENT="my_parent_bot"))
 page4 = req("GET", BASE)[1]
-chk("кнопка «одним нажатием» ведёт на t.me/<MILA_BIRTH_PARENT>?start=birth_<язык>; по умолчанию — mila_gpt_bot и английский",
-    'href="https://t.me/my_parent_bot?start=birth_en"' in page4 and 'href="https://t.me/mila_gpt_bot?start=birth_en"' in page and "__PARENT__" not in page4)
-chk("…язык страницы идёт в ссылку: при смене языка ссылка получает метку birth_<язык> (бот ответит на языке страницы)",
-    '$("bone").href="https://t.me/my_parent_bot?start=birth_"+l' in page4 and page4.index('function L(l){') < page4.index('$("bone").href=')
+_h4 = (re.search(r'href="https://t\.me/my_parent_bot\?start=birth_en_([A-Za-z0-9_-]{32})"', page4) or [None, ""])[1]
+_h0 = (re.search(r'href="https://t\.me/mila_gpt_bot\?start=birth_en_([A-Za-z0-9_-]{32})"', page) or [None, ""])[1]
+chk("кнопка «одним нажатием» ведёт на t.me/<MILA_BIRTH_PARENT>?start=birth_<язык>_<отпечаток>; по умолчанию — mila_gpt_bot и английский",
+    bool(_h4) and bool(_h0) and "__PARENT__" not in page4 and "__BIND__" not in page4)
+chk("…отпечаток у каждой страницы свой (секрет создаётся в процессе страницы), метка умещается в 64 знака параметра start", _h4 != _h0 and len("birth_en_" + _h4) <= 64)
+chk("…язык страницы идёт в ссылку: при смене языка ссылка получает метку birth_<язык>_<отпечаток> (бот ответит на языке страницы)",
+    ('$("bone").href="https://t.me/my_parent_bot?start=birth_"+l+"_%s"' % _h4) in page4 and page4.index('function L(l){') < page4.index('$("bone").href=')
     and all('data-l="%s"' % l in page4 for l in ("en", "ru", "uz", "zh")) and 'start=birth"' not in page4)
+# --- no code to copy: the key comes by the page's own secret -------------------------------
+r = api("collect")[1]
+chk("ключ без копирования: бот ещё не создан — страница получает «wait», ничего не сохранено, в ответе нет секрета",
+    r == {"ok": False, "error": "wait"} and not os.path.exists(envf) and not os.path.exists(os.path.join(T, "tg", "access.json")) and len(COLLECTS) >= 1)
+S["collect_any"] = True; _sent0 = len(S["sent"]) + len(S["photos"])
+st, body = req("POST", BASE + "api/collect", body={}); r = json.loads(body)
+_acc = json.load(open(os.path.join(T, "tg", "access.json"))) if os.path.exists(os.path.join(T, "tg", "access.json")) else {}
+chk("…бот создан и ключ выпущен под отпечаток: страница сама получает ключ и хозяина (создателя бота), ключа в ответе нет",
+    r.get("ok") is True and r.get("paired") is True and r.get("username") == "test_birth_bot" and TOKEN not in body
+    and open(envf).read().strip().endswith(TOKEN) and _acc.get("allowFrom") == [str(S["owner2"])] and _acc.get("dmPolicy") == "allowlist")
+import hashlib as _hl
+_want = base64.urlsafe_b64encode(_hl.sha256(S.get("page_secret", "").encode()).digest()).decode().rstrip("=")[:32]
+chk("…в ссылке ехал только отпечаток секрета: секрета нет ни в странице, ни в ответах, а отпечаток — sha256 от него", bool(S.get("page_secret")) and _want == _h4
+    and S["page_secret"] not in page4 and S["page_secret"] not in body)
+chk("…хозяину при этом ничего не отправлено (первые слова скажет Мила)", len(S["sent"]) + len(S["photos"]) == _sent0)
+_c0 = len(COLLECTS); r2 = api("collect")[1]
+chk("…повторный опрос после получения — «уже готово», к службе кодов больше не ходит", r2.get("ok") is True and r2.get("paired") is True and len(COLLECTS) == _c0)
+chk("страница: после нажатия кнопки опрашивает api/collect, через минуту подсказывает про код; тексты на четырёх языках",
+    'api("collect",{})' in page4 and '"w_bot_late"' in page4 and all(len(re.findall(r'"%s":' % k, page4)) == 4 for k in ("w_bot", "w_bot_late")))
+S["collect_any"] = False; os.remove(envf); os.remove(os.path.join(T, "tg", "access.json"))
+_s = json.load(open(os.path.join(CFG, "settings.json"))); _s.get("env", {}).pop("OWNER_ID", None); json.dump(_s, open(os.path.join(CFG, "settings.json"), "w"))
 chk("новые тексты на четырёх языках: кнопки, строка про родительского бота, ошибки, «Открыть моего бота»",
     len(re.findall(r'"(?:en|ru|uz|zh)":\{"t0"', page4)) == 4 and all(len(re.findall(r'"%s":' % k, page4)) == 4 for k in ("bone", "bbot", "bothint", "honest", "e_input", "e_code_refused", "e_relay", "e_relay_no_token", "bopen", "orsend", "sub4")))
 chk("шаг «адрес»: одно поле (код или ключ), одна кнопка «Дальше»; кнопки «одним нажатием» и «Открыть @BotFather» над ним; второго поля и <details> нет",
