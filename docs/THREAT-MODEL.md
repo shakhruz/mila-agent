@@ -135,6 +135,26 @@ image and voice generation, payment links). Keys for those services are the main
   `--dangerously-load-development-channels plugin:mila-telegram@…` — see [SECURITY.md](../SECURITY.md#the-development-channels-flag).
 - **Updates.** `mila update` checks the release manifest and accepts only an explicit ok, but releases are not signed yet.
 
+## Mila in the background on a person's own computer
+
+After birth she runs as a service of that person's user (`install/mila-run.py`): a Claude Code session without a window, fed
+from Telegram. Nobody is at a screen to answer «allow?», so the fence is what is allowed beforehand.
+
+- **Permissions are not switched off.** The session gets a short list of its own (`mila-run-settings.json`, passed with
+  `--settings`): her Telegram tools, reading and writing inside her home folder `~/work` (its `.git`, `.claude` and `.mcp.json`
+  are closed for writing), reading her skills and the `inbox` folder where files people send her arrive, web search. Everything
+  else Claude Code refuses by itself, and she says so.
+- **Bash has no rule in that list.** A hook (`run-allow.py`) allows one shape of command only: `python3` or `bash` with a
+  script that, with every link resolved, lies inside `~/.claude/skills` or `~/.claude/hooks`, typed without `..`, and with
+  nothing a shell would act on. A prefix rule would let `~/.claude/skills/../../work/x.py` through — a file she can write.
+- **Said plainly — what this does not stop.** (1) A script of the kit does what its arguments make it do: the fence is as
+  good as the kit's own scripts. (2) The Claude sign-in made from the chat is given to the session in its environment
+  (Claude Code has no other way to take it), so every script the session runs can read it from its own environment; the
+  secret guard stops a command that dumps the environment, not a script that reads it. (3) Allow rules the owner wrote into
+  their own `~/.claude/settings.json` apply to her as well — `mila status` and her log say how many there are. (4) She runs as
+  the person's user: the wall between her and the rest of the disk is this list, not the operating system. A separate user
+  of the computer for her is the wall.
+
 ## The one-container setup
 
 `docker-compose.yml` runs Mila in one container (Claude Code, the kit, the plugin). There the session runs with

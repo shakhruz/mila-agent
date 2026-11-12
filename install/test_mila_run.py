@@ -115,10 +115,17 @@ try:
     chk("разрешения НЕ отключены: ни --dangerously-skip-permissions, ни режима обхода", "skip-permissions" not in argv[0] and "bypass" not in argv[0], argv)
     rs = os.path.join(ST, "session-settings.json"); allow = json.load(open(rs))["permissions"]["allow"] if os.path.exists(rs) else []
     chk("сеансу передан свой короткий список разрешённого (--settings): инструменты Telegram, запись только в доме Милы, её навыки", "--settings " + rs in argv[0] and "mcp__plugin_mila-telegram_telegram" in allow
-        and "Edit(~/work/**)" in allow and "Write(~/work/**)" in allow and any(a.startswith("Bash(python3 ~/.claude/skills/") for a in allow) and oct(os.stat(rs).st_mode & 0o777) == "0o600", (argv, allow))
+        and "Edit(~/work/**)" in allow and "Write(~/work/**)" in allow and oct(os.stat(rs).st_mode & 0o777) == "0o600", (argv, allow))
+    rsj = json.load(open(rs)) if os.path.exists(rs) else {}
+    chk("…для Bash в списке НЕТ ни одного правила: её скрипты разрешает хук run-allow.py (путь к нему — настоящий, из папки хуков службы)",
+        not any(a.startswith("Bash") for a in allow) and rsj.get("hooks", {}).get("PreToolUse", [{}])[0].get("matcher") == "Bash"
+        and rsj["hooks"]["PreToolUse"][0]["hooks"][0]["command"] == "python3 -B %s/run-allow.py" % H and os.path.isfile(os.path.join(H, "run-allow.py")), rsj.get("hooks"))
+    deny = rsj.get("permissions", {}).get("deny", [])
+    chk("…в её доме закрыты на запись .mcp.json, .git и .claude (ими можно подменить её собственные правила)", all(x in deny for x in ("Edit(~/work/.mcp.json)", "Write(~/work/.git/**)", "Edit(~/work/.claude/**)", "Write(~/work/.claude/**)")), deny)
     chk("…читать ей разрешено её дом, её навыки и папку канала (вложения) — НЕ весь диск человека: общего Read, Glob, Grep в списке нет",
-        "Read(~/work/**)" in allow and "Read(~/.claude/skills/**)" in allow and "Read(~/.claude/channels/**)" in allow and not any(a in ("Read", "Glob", "Grep", "Read(*)", "Read(**)", "Read(~/**)") for a in allow), allow)
+        "Read(~/work/**)" in allow and "Read(~/.claude/skills/**)" in allow and "Read(~/.claude/channels/**/inbox/**)" in allow and "Read(~/.claude/channels/**)" not in allow and not any(a in ("Read", "Glob", "Grep", "Read(*)", "Read(**)", "Read(~/**)") for a in allow), allow)
     chk("…в списке нет ни Bash целиком, ни записи куда угодно, ни режима обхода", not any(a in ("Bash", "Bash(*)", "Edit", "Write", "*") for a in allow) and "bypassPermissions" not in open(rs).read() and "defaultMode" not in open(rs).read(), allow)
+    json.dump({"permissions": {"allow": ["Bash(git status:*)", "WebFetch"]}}, open(os.path.join(CL, "settings.json"), "w"))
     chk("первый запуск в доме без разговоров — без --continue", "--continue" not in argv[0], argv)
     chk("рабочая папка сеанса — дом Милы, не папка, где набрали команду", read(ENV["FAKE_LOG"] + ".cwd").strip().splitlines()[0] == WORK, read(ENV["FAKE_LOG"] + ".cwd"))
     tgs = read(ENV["FAKE_LOG"] + ".tgs").strip().splitlines()[0]
@@ -163,6 +170,8 @@ try:
     # signed in on this computer (claude auth status) and no saved login: the helper is not needed
     shutil.rmtree(ENV["MILA_AUTH_DIR"]); open(ENV["FAKE_LOG"] + ".signed", "w").close(); n_login = read(ENV["FAKE_LOG"] + ".login").count("\n"); os.remove(os.path.join(TG, "receiver.pid"))
     p = start(); procs.append(p)
+    chk("в настройках человека есть свои разрешающие правила — служба говорит об этом в status и в журнале (они действуют и на неё)",
+        wait(lambda: status()[1]["owner_allow"] == 2) and "2 allow rule(s)" in read(os.path.join(ST, "run.log")), status()[1])
     chk("…и второй раз она не здоровается: отметка есть — ни слов, ни второй записки", wait(lambda: status()[1]["session"]) and not TGFake.calls and journal().count('"ritual": "birth"') == 1, (TGFake.calls, journal().count("birth")))
     p.send_signal(signal.SIGTERM); p.wait(timeout=25)
     # a fresh home on a computer that is already signed in: her first words are said by the service itself

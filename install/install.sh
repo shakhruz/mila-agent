@@ -221,7 +221,7 @@ note ""
 note "Tools"
 for f in usage_collect.py turns_collect.py records.py tasks.py chats_index.py \
          chat_note.py chat_locale.py doctor.py onboard.py birth.py birth_relay.py backup.py design_check.py mila_i18n.py tg_delivery.py \
-         mila-run.py companion-feeder.py envelope.py limit_watch.py; do
+         mila-run.py run-allow.py companion-feeder.py envelope.py limit_watch.py; do
   if [[ -f "$HERE/$f" ]]; then
     install_file "$HERE/$f" "$HOOK_DIR/$f" "$f"
     run chmod 755 "$HOOK_DIR/$f"

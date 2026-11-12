@@ -14,8 +14,10 @@ There is no window, so nothing is asked on a screen: Claude Code's «trust this 
 Permissions are NOT switched off (a laptop is not a container). With nobody at a screen to ask, Claude Code refuses every tool
 that is not allowed beforehand — so the session gets a short allow-list of its own (mila-run-settings.json, passed with
 --settings; it does not touch the owner's other Claude Code sessions): her Telegram tools, reading and writing inside her
-home folder ~/work, reading her skills and the files people send her, her own skill and hook scripts, web search. The rest of
-the person's disk is not hers to read. Everything else is refused and she says so; the guard hooks and the
+home folder ~/work (not its .git, .claude and .mcp.json), reading her skills and the files people send her, web search. Bash has
+no rule at all: a hook (run-allow.py) allows only «python3|bash <a script of the kit>», the path resolved, nothing for a shell
+to act on. The rest of the person's disk is not hers to read. Rules the owner has put into their own settings.json still
+apply to her as well — the start says how many. Everything else is refused and she says so; the guard hooks and the
 deny rules of settings.json apply as in a terminal session.
 
   mila-run.py run                 the service itself (foreground)
@@ -48,7 +50,7 @@ MASKS = [(re.compile(r"\b\d{6,12}:[A-Za-z0-9_-]{30,50}\b"), "<bot-token>"),
 stopping = threading.Event()
 children = {}          # name → Popen
 state_lock = threading.Lock()
-state = {"claude": None, "started": None, "session_pid": None, "session_started": None, "turns": 0, "last_turn": None, "restarts": 0, "receiver": None, "feeder": None, "note": ""}
+state = {"owner_allow": 0, "claude": None, "started": None, "session_pid": None, "session_started": None, "turns": 0, "last_turn": None, "restarts": 0, "receiver": None, "feeder": None, "note": ""}
 
 
 def mask(s):
@@ -221,9 +223,10 @@ def session_settings():
     rule = "~/" + os.path.relpath(w, h) if w.startswith(h + os.sep) else "/" + w
     out = os.path.join(ST, "session-settings.json")
     try:
-        json.loads(tpl.replace("{work}", rule))
+        text = tpl.replace("{work}", rule).replace("{hooks}", json.dumps(HOOKS)[1:-1])
+        json.loads(text)
         fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as f: f.write(tpl.replace("{work}", rule))
+        with os.fdopen(fd, "w", encoding="utf-8") as f: f.write(text)
     except (OSError, ValueError) as e:
         say("the session's allow-list is broken (%s) — starting without it: she will be refused every tool" % e); return ""
     return out
@@ -289,6 +292,13 @@ def greet_and_note(by_helper):
         say("the birth note for the session was not written: %s" % e)
     fd = os.open(GREETED, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600); os.write(fd, (time.strftime("%Y-%m-%dT%H:%M:%S%z") + "\n").encode()); os.close(fd)
     say("her first words are with the owner (%s)" % ("after the sign-in" if by_helper else "this computer was already signed in"))
+
+
+def owner_allow():
+    """How many allow rules the owner's own settings.json carries: they widen this session too (Claude Code merges them)."""
+    try: a = json.load(open(os.path.join(CL, "settings.json"), encoding="utf-8")).get("permissions", {}).get("allow") or []
+    except (OSError, ValueError, AttributeError): return 0
+    return len(a) if isinstance(a, list) else 0
 
 
 def has_conversation():
@@ -368,6 +378,9 @@ def run():
         if stopping.wait(30): return 0                               # as a service: wait quietly, do not flap
     save_state(started=time.strftime("%Y-%m-%dT%H:%M:%S%z"), turns=0, restarts=0, note="")
     say("start: home %s, plugin %s" % (WORK, pdir))
+    extra = owner_allow()
+    if extra: say("note: %d allow rule(s) in %s apply to her as well — she may do what they permit" % (extra, os.path.join(CL, "settings.json")))
+    save_state(owner_allow=extra)
     threads = []
 
     def life():
@@ -416,7 +429,7 @@ def status(as_json=False):
     except OSError: rp = ""
     out = {"running": lock_held, "claude": (st.get("claude") or "unknown") if lock_held else "unknown", "session": bool(lock_held and alive(st.get("session_pid"))), "receiver": alive(rp), "feeder": bool(lock_held and alive(st.get("feeder"))),
            "turns": int(st.get("turns") or 0) if lock_held else 0, "last_turn": st.get("last_turn"), "started": st.get("started") if lock_held else None,
-           "restarts": int(st.get("restarts") or 0), "note": st.get("note") or "", "home": WORK, "logs": ST}
+           "restarts": int(st.get("restarts") or 0), "note": st.get("note") or "", "owner_allow": int(st.get("owner_allow") or 0), "home": WORK, "logs": ST}
     if as_json: print(json.dumps(out, ensure_ascii=False))
     else:
         mark = lambda b: "up  " if b else "DOWN"
@@ -425,6 +438,7 @@ def status(as_json=False):
         print("  session   %s   turns finished: %d%s" % (mark(out["session"]), out["turns"], ("  last: %s" % out["last_turn"]) if out["last_turn"] else ""))
         print("  receiver  %s" % mark(out["receiver"])); print("  feeder    %s" % mark(out["feeder"]))
         if out["note"]: print("  note: %s" % out["note"])
+        if out["owner_allow"]: print("  note: %d allow rule(s) of your own settings.json apply to her as well" % out["owner_allow"])
         print("  home: %s   logs: %s" % (WORK, ST))
     return 0 if out["running"] and out["session"] and out["receiver"] else 1
 

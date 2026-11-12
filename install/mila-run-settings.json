@@ -5,13 +5,31 @@
       "Read({work}/**)",
       "Read(~/.claude/skills/**)",
       "Read(~/.claude/hooks/**)",
-      "Read(~/.claude/channels/**)",
+      "Read(~/.claude/channels/**/inbox/**)",
       "Edit({work}/**)",
       "Write({work}/**)",
-      "Bash(python3 ~/.claude/skills/:*)",
-      "Bash(python3 ~/.claude/hooks/:*)",
-      "Bash(bash ~/.claude/skills/:*)",
       "WebSearch"
+    ],
+    "deny": [
+      "Edit({work}/.mcp.json)",
+      "Write({work}/.mcp.json)",
+      "Edit({work}/.git/**)",
+      "Write({work}/.git/**)",
+      "Edit({work}/.claude/**)",
+      "Write({work}/.claude/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -B {hooks}/run-allow.py"
+          }
+        ]
+      }
     ]
   }
 }
