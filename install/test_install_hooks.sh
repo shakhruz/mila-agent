@@ -153,4 +153,11 @@ chk "mila: alias в ~/.bashrc — то же предупреждение" "grep 
 mkdir -p "$T/sh-path/other"; printf '#!/bin/sh\necho other\n' > "$T/sh-path/other/mila"; chmod +x "$T/sh-path/other/mila"
 shw "$T/sh-path" "$T/sh-path/other" > "$T/sh-path.out"
 chk "mila: другой mila раньше по PATH — предупреждение с его путём, шаг — полный путь" "grep -q 'already means something else in your shell (~/other/mila)' $T/sh-path.out && grep -q '^      .*/.local/bin/mila\$' $T/sh-path.out"
+# the owner's own shell sees what a plain grep of rc files does not: a function from a sourced file, one made by eval
+mkdir -p "$T/sh-src"; printf 'source ~/.claw/shell.sh\n' > "$T/sh-src/.bashrc"; mkdir -p "$T/sh-src/.claw"; printf 'mila() {\n  echo claw\n}\n' > "$T/sh-src/.claw/shell.sh"
+SHELL=/bin/bash shw "$T/sh-src" "" > "$T/sh-src.out"
+chk "mila: функция из подключаемого файла (source в ~/.bashrc) — видна через настоящую оболочку: файл, строка, полный путь и uninstall полным путём" "grep -q 'bash function in ~/.claw/shell.sh' $T/sh-src.out && grep -q '1: mila() {' $T/sh-src.out && grep -q '/.local/bin/mila uninstall' $T/sh-src.out && grep -q 'source ~/.claw/shell.sh' $T/sh-src/.bashrc" "cat $T/sh-src.out"
+mkdir -p "$T/sh-ev"; printf 'eval "mi""la() { echo claw; }"\n' > "$T/sh-ev/.bashrc"
+SHELL=/bin/bash shw "$T/sh-ev" "" > "$T/sh-ev.out"
+chk "mila: функция, сделанная eval в ~/.bashrc (grep её не видит) — предупреждение есть, rc-файл не тронут" "grep -q 'already means something else' $T/sh-ev.out && [ \"\$(cat $T/sh-ev/.bashrc)\" = 'eval \"mi\"\"la() { echo claw; }\"' ]" "cat $T/sh-ev.out"
 echo "итог $ok/$n"; rm -rf "$T"

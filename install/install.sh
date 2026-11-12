@@ -151,7 +151,7 @@ case ":$PATH:" in
 esac
 # Is the word `mila` already something else for this user? A function or an alias in an rc file is invisible to this
 # non-interactive bash, so the rc files are read (never edited) and so is the PATH lookup.
-SHADOW=""
+SHADOW=""; SHADOW_TEXT=""
 if [[ $DRY -eq 0 ]]; then
   _found="$(command -v mila 2>/dev/null || true)"
   if [[ -n "$_found" && ! "$_found" -ef "$BIN_DIR/mila" ]]; then SHADOW="$_found"; fi
@@ -162,9 +162,20 @@ if [[ $DRY -eq 0 ]]; then
       if [[ -n "$_hit" ]]; then SHADOW="~/$_rc:${_hit%%:*}"; break; fi
     done
   fi
+  # the owner's own interactive shell: a function or an alias that a sourced file or an eval defines is seen only there
+  if [[ -z "$SHADOW" && -f "$HERE/shell_name.py" ]] && command -v python3 >/dev/null 2>&1; then
+    SHADOW="$(python3 -B "$HERE/shell_name.py" "$BIN_DIR/mila" --short 2>/dev/null || true)"
+    [[ -n "$SHADOW" ]] && SHADOW_TEXT="$(python3 -B "$HERE/shell_name.py" "$BIN_DIR/mila" 2>/dev/null || true)"
+  fi
   if [[ -n "$SHADOW" ]]; then
     say "NOTE: mila already means something else in the shell: $SHADOW"
+    [[ -n "${SHADOW_TEXT:-}" ]] && printf '%s\n' "$SHADOW_TEXT" | while IFS= read -r _l; do say "  $_l"; done
     NOTICES+=("Heads up|\`mila\` already means something else in your shell ($(tilde "$SHADOW")). Until you rename or remove it, start her with the full path:|$(tilde "$BIN_DIR")/mila")
+    if [[ -n "${SHADOW_TEXT:-}" ]]; then   # the very lines, so the owner sees what to remove himself (no rc file is edited here)
+      _defs="$(printf '%s\n' "$SHADOW_TEXT" | grep -E '^  ' | sed 's/^  //' | head -3 | paste -sd ';' - 2>/dev/null || true)"
+      [[ -n "$_defs" ]] && NOTICES+=("|What answers to \`mila\` now — remove or rename it yourself, then open a new terminal:|$_defs")
+    fi
+    NOTICES+=("|To take her off this computer, also by the full path:|$(tilde "$BIN_DIR")/mila uninstall")
   fi
 fi
 note ""
@@ -220,7 +231,7 @@ note ""
 # like "nothing is due".
 note "Tools"
 for f in usage_collect.py turns_collect.py records.py tasks.py chats_index.py \
-         chat_note.py chat_locale.py doctor.py onboard.py birth.py birth_relay.py backup.py design_check.py mila_i18n.py tg_delivery.py \
+         chat_note.py chat_locale.py doctor.py onboard.py shell_name.py birth.py birth_relay.py backup.py design_check.py mila_i18n.py tg_delivery.py \
          mila-run.py run-allow.py companion-feeder.py envelope.py limit_watch.py; do
   if [[ -f "$HERE/$f" ]]; then
     install_file "$HERE/$f" "$HOOK_DIR/$f" "$f"
