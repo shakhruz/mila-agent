@@ -44,6 +44,54 @@ svc() {
   return 0
 }
 
+# ── Mila in the background (no terminal): the service install.sh wrote, started after birth ─────────────────────────────
+RUNPY=""; for c in "$HOME/.claude/hooks/mila-run.py" "$(dirname "$0")/mila-run.py"; do [ -f "$c" ] && { RUNPY="$c"; break; }; done
+RUN_STATE="${MILA_RUN_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/mila/run}"
+BG_LABEL="com.milagpt.session"; BG_PLIST="$HOME/Library/LaunchAgents/$BG_LABEL.plist"; BG_UNIT="mila-session.service"
+is_born() {   # decided from files on this machine: a birth record, or a token + an owner + OWNER_ID in the settings
+  local cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}" own=0
+  [ -f "$cfg/mila-birth.json" ] && return 0
+  [ -z "${TELEGRAM_STATE_DIR:-}" ] && own=1; case "$STATE" in "$cfg"/*) own=1 ;; esac
+  [ "$own" = 1 ] && [ -f "$STATE/.env" ] && [ -f "$STATE/access.json" ] && grep -q '"OWNER_ID"' "$cfg/settings.json" 2>/dev/null
+}
+bg_how() {   # which service manager runs her here: launchd | systemd | plain
+  if [ "$(uname -s)" = Darwin ] && [ -f "$BG_PLIST" ]; then echo launchd
+  elif command -v systemctl >/dev/null 2>&1 && systemctl --user cat "$BG_UNIT" >/dev/null 2>&1; then echo systemd
+  else echo plain; fi
+}
+bg_running() { [ -n "$RUNPY" ] && python3 -B "$RUNPY" status --json 2>/dev/null | grep -q '"running": true'; }
+bg_start() {
+  [ -n "$RUNPY" ] || { echo "mila-run.py not found — reinstall the kit" >&2; return 1; }
+  is_born || { echo "Mila is not born yet — run:  mila birth"; return 1; }
+  if bg_running; then echo "Mila is already running in the background."; return 0; fi
+  python3 -B "$RUNPY" trust >/dev/null 2>&1 || true
+  case "$(bg_how)" in
+    launchd) launchctl bootout "gui/$(id -u)/$BG_LABEL" 2>/dev/null || true
+             launchctl bootstrap "gui/$(id -u)" "$BG_PLIST" 2>/dev/null || launchctl load -w "$BG_PLIST" 2>/dev/null \
+               || { echo "could not load $BG_PLIST — see: launchctl print gui/$(id -u)/$BG_LABEL" >&2; return 1; } ;;
+    systemd) systemctl --user daemon-reload 2>/dev/null || true
+             systemctl --user enable --now "$BG_UNIT" 2>/dev/null || { echo "could not start $BG_UNIT — see: systemctl --user status $BG_UNIT" >&2; return 1; } ;;
+    plain)   mkdir -p "$RUN_STATE"; chmod 700 "$RUN_STATE"
+             # every descriptor is pointed away from this terminal (and from a caller's pipe) before she is left behind
+             ( cd "$HOME" || exit 1; MILA_RUN_SERVICE=1 exec nohup $(command -v setsid || true) python3 -B "$RUNPY" run >> "$RUN_STATE/service.log" 2>&1 < /dev/null ) > /dev/null 2>&1 &
+             echo "${c_dim}no launchd or systemd --user here: started as a plain background process — it will not come back after a reboot (run  mila start  again)${c_off}" ;;
+  esac
+  local i; for i in 1 2 3 4 5 6 7 8 9 10; do bg_running && break; sleep 1; done
+  if bg_running; then echo "Mila is running in the background. She answers in Telegram; this terminal can be closed."; else echo "Mila did not start — see:  mila logs" >&2; return 1; fi
+}
+bg_stop() {
+  case "$(bg_how)" in
+    launchd) launchctl bootout "gui/$(id -u)/$BG_LABEL" 2>/dev/null || launchctl unload -w "$BG_PLIST" 2>/dev/null || true ;;
+    systemd) systemctl --user disable --now "$BG_UNIT" 2>/dev/null || true ;;
+  esac
+  local pid; pid="$(cat "$RUN_STATE/run.pid" 2>/dev/null || true)"   # a plain background process, or a leftover of one
+  case "$pid" in ''|*[!0-9]*) ;; *) if ps -p "$pid" -o command= 2>/dev/null | grep -q "mila-run.py run"; then kill "$pid" 2>/dev/null || true; fi ;; esac
+  local i; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do bg_running || break; sleep 1; done
+  if bg_running; then echo "Mila is still running — see:  mila status" >&2; return 1; fi
+  echo "Mila is stopped. She will not answer in Telegram until:  mila start"
+}
+bot_link() { python3 -c "import json,sys;print('https://t.me/'+json.load(open(sys.argv[1]))['bot_username'])" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/mila-birth.json" 2>/dev/null || true; }
+
 c_ok=$'\033[32m'; c_bad=$'\033[31m'; c_dim=$'\033[2m'; c_off=$'\033[0m'
 
 # The channel must be up BEFORE the session starts: while no session is running,
@@ -149,7 +197,22 @@ PY
 }
 
 case "${1:-continue}" in
-  status|st)   status ;;
+  start)       bg_start ;;
+  stop)        bg_stop ;;
+  restart)     bg_stop >/dev/null 2>&1 || true; bg_start ;;
+  logs|log)    shift; for f in run.log login.log session.err receiver.log feeder.err service.log; do
+                 [ -s "$RUN_STATE/$f" ] && { echo "── $f ──"; tail -n "${1:-15}" "$RUN_STATE/$f"; }
+               done; [ -d "$RUN_STATE" ] || echo "no logs yet — Mila has not been started in the background (mila start)" ;;
+  open)        # a session in THIS terminal, in Mila's home folder; the background one is stopped first — two sessions would both answer
+               shift; is_born || { echo "Mila is not born yet — run:  mila birth"; exit 1; }
+               if bg_running; then echo "${c_dim}stopping the background Mila for the time of this session — afterwards:  mila start${c_off}"; bg_stop >/dev/null 2>&1 || true; fi
+               [ -n "$RUNPY" ] && python3 -B "$RUNPY" trust >/dev/null 2>&1
+               cd "${MILA_WORK:-$HOME/work}" || { echo "Mila's home folder is missing: ${MILA_WORK:-$HOME/work}" >&2; exit 1; }
+               ensure_daemon
+               if has_session; then exec claude $FLAG "$PLUGIN" --continue "$@"; fi
+               exec claude $FLAG "$PLUGIN" "$@" ;;
+  status|st)   [ -n "$RUNPY" ] && { python3 -B "$RUNPY" status; echo; }
+               status ;;
   inbox|in)    shift; inbox "${1:-20}" ;;
   usage|u)     shift
                # Собиратель лежит рядом со скиллом; если кит поставлен
@@ -234,10 +297,14 @@ case "${1:-continue}" in
   pick|p)      ensure_daemon; shift; exec claude $FLAG "$PLUGIN" --resume "$@" ;;
   help|-h|--help)
                cat <<'HELP'
-mila            resume the last session with the plugin (--continue); none in this folder yet — a new one
-mila new        start a fresh session
+mila            how she is: Mila lives in the background and answers in Telegram (not born yet — opens the birth page)
+mila start      start her in the background (launchd on macOS, systemd --user on Linux); she also starts after a reboot
+mila stop       stop her; she will not answer until `mila start`
+mila logs       the last lines of her logs (mila logs 50)
+mila open       a session in this terminal, in her home folder (stops the background one for that time)
+mila new        start a fresh session in this folder
 mila pick       choose a session from the list (--resume)
-mila status     channel health: receiver, bridge, journal
+mila status     the background service and the channel: receiver, bridge, journal
 mila birth      first setup on a local web page: bot token, Claude sign-in, pair with your bot (plain `mila` opens it until you are set up)
 mila onboard    the same three checked steps in the terminal (--check)
 mila doctor     full diagnosis: token, privacy mode, access, daemon, permissions
@@ -258,24 +325,18 @@ mila note <id>  write to a chat card (--purpose --member --promise --done --note
 Anything after the command is passed to claude as-is:  mila new --model opus
 HELP
                ;;
-  *)           # Not born yet: the birth page instead of a session. Born is decided from files on this machine, never from
-               # the network: a birth record, or (a home set up in the terminal before the page existed) a saved bot token
-               # together with access.json AND an owner written by the pairing (OWNER_ID in settings.json). A token and
-               # access.json alone are not enough: a Claude Code that already had a Telegram channel of its own has both
-               # and no Mila. A network blip or an expired Claude sign-in must not send a living Mila back to the birth
-               # page — the session and `mila doctor` speak about those.
-               bi=""; born=0; cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-               [ -f "$cfg/mila-birth.json" ] && born=1
-               # The channel folder counts only when it lies inside this Mila's own home: TELEGRAM_STATE_DIR left in the
-               # shell by another Mila on the same machine must not make a newborn look born and open a session on
-               # someone else's channel.
-               own=0; [ -z "${TELEGRAM_STATE_DIR:-}" ] && own=1; case "$STATE" in "$cfg"/*) own=1 ;; esac
-               [ "$own" = 1 ] && [ -f "$STATE/.env" ] && [ -f "$STATE/access.json" ] && grep -q '"OWNER_ID"' "$cfg/settings.json" 2>/dev/null && born=1
-               for c in "$HOME/.claude/hooks/birth.py" "$(dirname "$0")/birth.py"; do [ -f "$c" ] && { bi="$c"; break; }; done
-               if [ "$born" = 0 ] && [ -n "$bi" ]; then
-                 exec python3 "$bi"
+  *)           # Not born yet: the birth page. Born: she lives in the background — show how she is, do not open a session in
+               # whatever folder this was typed in. Born is decided from files on this machine, never from the network.
+               bi=""; for c in "$HOME/.claude/hooks/birth.py" "$(dirname "$0")/birth.py"; do [ -f "$c" ] && { bi="$c"; break; }; done
+               if ! is_born && [ -n "$bi" ]; then exec python3 "$bi"; fi
+               if [ -n "$RUNPY" ]; then
+                 if ! bg_running; then bg_start || true; fi
+                 python3 -B "$RUNPY" status || true
+                 link="$(bot_link)"; [ -n "$link" ] && echo "  talk to her: $link"
+                 echo "${c_dim}  mila stop · mila start · mila logs · mila open (a session in this terminal) · mila help${c_off}"
+                 exit 0
                fi
-               ensure_daemon
+               ensure_daemon   # an old kit without the background service: as before
                if has_session; then exec claude $FLAG "$PLUGIN" --continue "$@"; fi
                echo "${c_dim}first start in this folder — a new conversation (same as: mila new)${c_off}"
                exec claude $FLAG "$PLUGIN" "$@" ;;

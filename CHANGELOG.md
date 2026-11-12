@@ -1,23 +1,29 @@
 # CHANGELOG · Mila
 
-## Unreleased — voice messages when a speech service cannot be reached; the birth page tells the bot its language
+## Unreleased — Mila works in the background, no terminal after birth; the birth page tells the bot its language; voice messages when a speech service cannot be reached
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
 **Для хозяина**
 - Голосовые: если один сервис расшифровки недоступен, я спрашиваю второй, а не молчу.
 - Рождение в браузере: бот, который помогает создать бота для новой Милы, отвечает на языке страницы.
+- Терминал после рождения больше не нужен: я работаю в фоне и отвечаю в Telegram, пока включён компьютер, и возвращаюсь после перезагрузки. Остановить меня — `mila stop`, запустить — `mila start`.
+- Если на компьютере ещё нет входа в Claude, я попрошу его кнопкой прямо в нашем чате.
 
 </details>
 
 **For the owner**
 - Voice messages: when one speech service cannot be reached, I ask the second one instead of staying silent.
 - Birth in the browser: the bot that helps create a bot for the new Mila answers in the language of the page.
+- No terminal after birth: I work in the background and answer in Telegram while the computer is on, and I come back after a reboot. `mila stop` stops me, `mila start` starts me.
+- If this computer has no Claude sign-in yet, I ask for it with a button right in our chat.
 
 **For Milas**
 - `install/mila_style.py`: one small stdlib module with the birth-page look (cream paper, white card, round portrait, serif heading, one teal button, language pills, 16 px inputs, no outside requests, works without the portrait file). `tools/seif/seif.py`, `docker/key_page.py` and `docker/token_page.py` use it through identical copies kept next to each page (same way as `mila_i18n.py`); `docker/Dockerfile` copies it into the image; the CSP of these pages now allows images from `data:` only. Texts, locales, addresses, field names and checks are unchanged. Tests: `install/test_mila_style.py` (copies identical, no outside addresses, no portrait still works) and one look check per page.
 - `install/transcribe-voice.sh`: a speech service that cannot be reached over the network no longer ends the script silently with curl's exit code. Deepgram unreachable — a line with the reason and the script goes on to Groq (before, it stopped right there and Groq was never asked); no text from anyone — a reason for each service and exit 1, so the receiver says «transcription failed», not «empty».
 - Birth page (`install/birth-assets/page.html`): the «one tap» link carries the language of the page — `?start=birth_<en|ru|uz|zh>` instead of `?start=birth`; it follows the language switch. A parent bot that knows only `birth` must be updated first: it reads `birth_<lang>` as an unknown label.
+- New `install/mila-run.py` — Mila in the background, the way the container image runs her: the receiver, the feeder (`companion-feeder.py`) and a Claude Code session without a window (`claude -p`, input as a stream) in her own home folder `~/work`, never the folder a command was typed in; a session that ends is started again, the conversation goes on. Permissions are NOT switched off: the rules of `settings.json` and the guard hooks apply. With no Claude login in the home the sign-in helper (`docker/claude_login.py`, now also installed into `~/.claude/hooks`) runs before the receiver. Logs in `~/.local/state/mila/run` are capped and masked (bot tokens, provider keys).
+- `install.sh` writes the service file — `com.milagpt.session` (launchd: RunAtLoad, KeepAlive) or `mila-session.service` (systemd --user) — with the PATH of the install, and does not start it before birth. The launcher: `mila start | stop | restart | logs | open`; plain `mila` of a born Mila shows how she is and the link to her bot instead of opening a session in the current folder; `mila open` is a session in this terminal in her home folder (the background one is stopped for that time; the folder is marked as trusted in Claude Code's config).
 
 ## v1.7.10 · 12.11 — Mila is born in the browser; a calm install screen; connectors and the first chat; the words «skill, talent, connector»
 

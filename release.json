@@ -27,6 +27,12 @@
       ]
     },
     {
+      "what": "вход в Claude из Telegram (для фоновой службы)",
+      "src": "docker/claude_login.py",
+      "dst": "{claude}/hooks/*",
+      "kind": "file"
+    },
+    {
       "what": "переводы хуков (doctor)",
       "src": "install/locales/*.json",
       "dst": "{claude}/hooks/locales/*",

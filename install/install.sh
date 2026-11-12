@@ -220,7 +220,8 @@ note ""
 # like "nothing is due".
 note "Tools"
 for f in usage_collect.py turns_collect.py records.py tasks.py chats_index.py \
-         chat_note.py chat_locale.py doctor.py onboard.py birth.py birth_relay.py backup.py design_check.py mila_i18n.py tg_delivery.py; do
+         chat_note.py chat_locale.py doctor.py onboard.py birth.py birth_relay.py backup.py design_check.py mila_i18n.py tg_delivery.py \
+         mila-run.py companion-feeder.py envelope.py limit_watch.py; do
   if [[ -f "$HERE/$f" ]]; then
     install_file "$HERE/$f" "$HOOK_DIR/$f" "$f"
     run chmod 755 "$HOOK_DIR/$f"
@@ -230,6 +231,14 @@ for f in usage_collect.py turns_collect.py records.py tasks.py chats_index.py \
     problem "the kit is missing $f — reinstall the kit (run the install command again)"
   fi
 done
+# The sign-in from Telegram (a born Mila with no Claude login asks her owner in the chat): the same helper the container image
+# uses, beside the background service that starts it.
+if [[ -f "$HERE/../docker/claude_login.py" ]]; then
+  install_file "$HERE/../docker/claude_login.py" "$HOOK_DIR/claude_login.py" "claude_login.py"
+  run chmod 755 "$HOOK_DIR/claude_login.py"
+else
+  problem "the kit is missing docker/claude_login.py — reinstall the kit (run the install command again)"
+fi
 # the birth page: HTML and portrait next to birth.py
 run mkdir -p "$HOOK_DIR/birth-assets"
 for f in "$HERE"/birth-assets/*; do
@@ -456,6 +465,87 @@ UNITEOF
 else
   say "NOTE: neither launchd nor systemd found — jobs set with mila-cron will not fire until your own scheduler runs every minute: $PY_BIN -B $SCHED tick --home $HOME"
   NOTICES+=("Scheduler|Neither launchd nor systemd was found: reminders and jobs fire only if something runs this every minute:|$PY_BIN -B $SCHED tick --home $HOME")
+fi
+note ""
+
+# ── Mila in the background ────────────────────────────────────────────────
+# A born Mila does not need a terminal: one service (install/mila-run.py) keeps her receiver, the feeder and the Claude Code
+# session alive, in her own home folder, and brings her back after a reboot. Here the service file is only WRITTEN: she is not
+# born yet. The birth page starts it (`mila start` does the same by hand; `mila stop` stops it).
+# launchd and systemd start with a bare PATH, so the PATH of this install — where claude and bun were found — goes into the file.
+echo "Background service (starts after birth)"
+BG_RUN="$HOOK_DIR/mila-run.py"
+BG_LABEL="com.milagpt.session"
+BG_PLIST="$HOME/Library/LaunchAgents/$BG_LABEL.plist"
+BG_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/mila/run"
+BG_PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  if [[ $DRY -eq 1 ]]; then
+    say "would: write $BG_PLIST (not loaded until birth)"
+  else
+    mkdir -p "$HOME/Library/LaunchAgents" "$BG_STATE"; chmod 700 "$BG_STATE"
+    cat > "$BG_PLIST" <<PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$BG_LABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$PY_BIN</string>
+    <string>-B</string>
+    <string>$BG_RUN</string>
+    <string>run</string>
+  </array>
+  <key>WorkingDirectory</key><string>$HOME</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>$BG_PATH</string>
+    <key>MILA_RUN_SERVICE</key><string>1</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>ProcessType</key><string>Background</string>
+  <key>StandardOutPath</key><string>$BG_STATE/service.log</string>
+  <key>StandardErrorPath</key><string>$BG_STATE/service.log</string>
+</dict>
+</plist>
+PLISTEOF
+    chmod 644 "$BG_PLIST"
+    say "$BG_LABEL — written; starts when Mila is born (mila start / mila stop)"
+  fi
+elif command -v systemctl >/dev/null 2>&1; then
+  UNITS="$HOME/.config/systemd/user"
+  if [[ $DRY -eq 1 ]]; then
+    say "would: write $UNITS/mila-session.service (not enabled until birth)"
+  else
+    mkdir -p "$UNITS"
+    cat > "$UNITS/mila-session.service" <<UNITEOF
+[Unit]
+Description=Mila in the background: receiver, feeder and the Claude Code session in her home folder
+After=network-online.target
+
+[Service]
+ExecStart=$PY_BIN -B $BG_RUN run
+WorkingDirectory=$HOME
+Environment=PATH=$BG_PATH
+Environment=MILA_RUN_SERVICE=1
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+UNITEOF
+    chmod 644 "$UNITS/mila-session.service"
+    say "mila-session.service — written; starts when Mila is born (mila start / mila stop)"
+    # without lingering, a systemd --user service stops when the person logs out of the machine
+    if command -v loginctl >/dev/null 2>&1 && [[ "$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null)" != "yes" ]]; then
+      NOTICES+=("Background|On this Linux machine Mila stops when you log out. To keep her running:|loginctl enable-linger $(id -un)")
+    fi
+  fi
+else
+  say "NOTE: neither launchd nor systemd found — after birth  mila start  runs her as a plain background process (not restarted after a reboot)"
 fi
 note ""
 
