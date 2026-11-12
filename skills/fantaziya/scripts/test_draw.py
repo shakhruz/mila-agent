@@ -78,6 +78,19 @@ try:
     chk("потолок дня (10 картинок) — отказ без сети, вопрос хозяину", code == 1 and d.get("cap") is True and len(calls) == n_before, d)
     R.record_external("openrouter", "image", 0.01, request_id="old", ts=time.time() - 3 * 86400)
     code, d = run("кот"); chk("вчерашние и старые картинки в потолок дня не входят (счёт с полуночи)", d.get("today", {}).get("images") == 12, d)   # 4 answers above (each is paid, a failed one too) + 8 today; the old one is not counted
+    # учёт трат недоступен — потолок закрыт, а не открыт
+    keep_r = D.records; D.records = lambda: None; n_before = len(calls); code, d = run("кот"); D.records = keep_r
+    chk("учёта трат нет — отказ «не вижу счёт трат», в сеть не иду", code == 1 and "не вижу счёт трат" in d.get("why", "") and len(calls) == n_before, d)
+    keep_re = R.read_external
+    def broken(*a, **k): raise OSError("records cannot be read")
+    R.read_external = broken; n_before = len(calls); code, d = run("кот"); R.read_external = keep_re
+    chk("учёт трат не читается — тот же отказ, в сеть не иду", code == 1 and "не вижу счёт трат" in d.get("why", "") and len(calls) == n_before, d)
+    # ответ без id всё равно считается
+    shutil.rmtree(os.path.join(T, "records"))
+    noid = answer(b64(PNG)); noid.pop("id")
+    D.post_json = service(200, noid); code, d = run("кот")
+    rows = R.read_external(provider="openrouter", service="image")
+    chk("ответ без id — картинка всё равно в records (свой id noid-…) и в потолке дня", code == 0 and len(rows) == 1 and rows[0]["request_id"].startswith("noid-"), rows)
     # выключено
     shutil.rmtree(os.path.join(T, "records")); open(os.path.join(WORK, "connectors", "fantaziya.off"), "w").close()
     n_before = len(calls); code, d = run("кот"); chk("выключена (fantaziya.off) — отказ, в сеть не иду", code == 1 and len(calls) == n_before, d)

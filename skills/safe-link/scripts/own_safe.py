@@ -77,7 +77,7 @@ def main(argv):
     if not safe: out({"ok": False, "why": why}, 1)
     seif, why = kit_seif()
     if not seif: out({"ok": False, "why": why}, 1)
-    cmd = [sys.executable, "-B", seif, "own", safe["field"], "--name", safe["name"]]
+    cmd = [sys.executable, "-B", "-E", seif, "own", safe["field"], "--name", safe["name"]]
     if lang and lang.isalpha() and len(lang) <= 5: cmd += ["--lang", lang.lower()]
     r, w = os.pipe()
     env = {k: v for k, v in os.environ.items() if not k.startswith("SEIF_")}   # the page's folders are seif's own defaults, not the caller's

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""draw.py — фантазия: картинка по словам хозяина через OpenRouter, его ключом и с его счёта.
+"""draw.py — фантазия: картинка по описанию хозяина через OpenRouter, его ключом и с его счёта.
   draw.py --price [--lang ru]                         → {"ok": true, "usd": 0.04, "line": "≈ $0.04 за картинку …"} — без сети
   draw.py "<описание>" [--ratio 1:1|16:9|9:16|4:3|3:4] → {"ok": true, "file": "~/work/media/fantaziya/<время>.png", "usd": …}
 Перед картинкой Мила называет цену (--price) и ждёт «да» хозяина; эта команда — уже после «да».
@@ -67,11 +67,12 @@ def post_json(url, headers, body, timeout=120):
 
 
 def today_spend(R):
-    """→ (pictures today, dollars today) by the records; (0, 0.0) when there are none."""
-    if R is None: return 0, 0.0
+    """→ (pictures today, dollars today) by the records, or None when the records are missing or cannot be read —
+    then the cap is closed, not open: no count of spending, no picture without the owner's word."""
+    if R is None: return None
     start = datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
     try: rows = R.read_external(since=start, provider="openrouter", service="image")
-    except Exception: return 0, 0.0
+    except Exception: return None
     return len(rows), round(sum(float(r.get("usd") or 0) for r in rows), 4)
 
 
@@ -130,7 +131,10 @@ def main(argv):
     if C.state_of("fantaziya") != "active" or os.path.exists(os.path.join(C.DIR, "fantaziya.off")):
         out({"ok": False, "why": "фантазия не активирована или выключена — в сеть не иду; активировать: connectors.py offer fantaziya"}, 1)
     cap = d.get("daily_cap") or {}
-    n, usd = today_spend(R)
+    spent = today_spend(R)
+    if spent is None:
+        out({"ok": False, "cap": True, "why": "не вижу счёт трат (учёт расходов не читается) — рисую только по вашему слову; в сеть не иду"}, 1)
+    n, usd = spent
     if n >= int(cap.get("images") or 10) or usd >= float(cap.get("usd") or 1.0):
         out({"ok": False, "cap": True, "today": {"images": n, "usd": usd},
              "why": "потолок дня дошёл (%d картинок, $%s) — дальше только по вашему слову; в сеть не иду" % (n, usd)}, 1)
@@ -145,8 +149,8 @@ def main(argv):
     if code != 200: out({"ok": False, "why": "OpenRouter ответил %s — попробую позже" % (code or "молчанием")}, 1)
     data, why = picture(resp)   # on success «why» is the extension
     cost = float(((resp.get("usage") or {}).get("cost")) or 0) if isinstance(resp, dict) else 0.0
-    rid = str(resp.get("id") or "") if isinstance(resp, dict) else ""
-    if R is not None and rid:
+    rid = (str(resp.get("id") or "") if isinstance(resp, dict) else "") or "noid-" + secrets.token_hex(6)   # every paid answer is counted, with an id or without
+    if R is not None:
         try: R.record_external("openrouter", "image", cost, request_id=rid, model=MODEL, units=1 if data else 0, unit_kind="картинки")
         except Exception: pass
     if not data: out({"ok": False, "why": why, "usd": cost}, 1)
