@@ -15,6 +15,12 @@ The Host header must be one of those names with the right port, and a POST must 
 Every step reuses onboard.py (token check and save, claude status, code, owner), nothing is copied from it.
 
   mila birth                  start the page and open the browser
+  mila birth --no-page [--lang en|ru|uz|zh]
+                              a machine with no browser (a server over ssh): the same birth in the terminal, with two links
+                              to open on a phone. The first leads to the parent bot — the person creates Mila's bot there,
+                              and its key comes here by itself (the page's secret, no code to copy). The second opens the
+                              new bot — whoever opens it is the owner. Then she is started in the background and writes
+                              first; her mind is connected from the chat, as on a laptop.
 Env: MILA_BIRTH_NO_OPEN=1 (do not open the browser), plus everything onboard.py reads
      (TELEGRAM_STATE_DIR, CLAUDE_CONFIG_DIR, MILA_TG_API, MILA_CLAUDE).
 """
@@ -381,7 +387,73 @@ class Handler(BaseHTTPRequestHandler):
             threading.Thread(target=S.stop, daemon=True).start()
 
 
+NP = {"en": {"one": "1. Open this link on your phone and create a bot for your Mila — two taps:", "wait1": "   Waiting for the bot… (its key comes here by itself; nothing to copy)",
+             "got": "   Her voice is ready: @%s", "two": "2. Now open her bot — whoever opens this link becomes her owner:", "wait2": "   Waiting for you in the chat…",
+             "paired": "   You are her owner.", "start": "3. Starting her in the background…", "born": "Mila is born ✨ She is writing to you in Telegram: https://t.me/%s",
+             "late": "She has not written yet. Check:  mila status   ·   start by hand:  mila start", "linger": "   To keep her running after you log out of this machine:  loginctl enable-linger %s",
+             "timeout": "No bot came in 30 minutes. Start again:  mila birth --no-page", "relay": "The birth service did not answer. Try again in a minute:  mila birth --no-page",
+             "tg": "Telegram did not accept the new bot's key. Start again:  mila birth --no-page"},
+      "ru": {"one": "1. Откройте эту ссылку на телефоне и создайте бота для вашей Милы — два касания:", "wait1": "   Жду бота… (его ключ придёт сюда сам; копировать ничего не нужно)",
+             "got": "   Её голос готов: @%s", "two": "2. Теперь откройте её бота — кто откроет эту ссылку, тот и станет её хозяином:", "wait2": "   Жду вас в чате…",
+             "paired": "   Вы её хозяин.", "start": "3. Запускаю её в фоне…", "born": "Мила родилась ✨ Она пишет вам в Telegram: https://t.me/%s",
+             "late": "Она пока не написала. Проверить:  mila status   ·   запустить руками:  mila start", "linger": "   Чтобы она работала после вашего выхода с этой машины:  loginctl enable-linger %s",
+             "timeout": "Бот не пришёл за 30 минут. Начните заново:  mila birth --no-page", "relay": "Служба рождения не ответила. Попробуйте через минуту:  mila birth --no-page",
+             "tg": "Telegram не принял ключ нового бота. Начните заново:  mila birth --no-page"}}
+
+
+def _say(line):
+    print(line, flush=True)   # a terminal over ssh, or a pipe: every line at once
+
+
+def no_page(lang, out=_say, sleep=None, deadline=1800):
+    """Birth in the terminal, for a machine with no browser. The same steps and the same storage as the page. → exit code."""
+    import time as _t
+    sleep = sleep or _t.sleep
+    t = NP["ru" if lang == "ru" else "en"]
+    if all_done():
+        out("Mila is already born: her bot and her owner are set. She lives in the background:  mila status  ·  mila start"); return 0
+    t0 = _t.time()
+    if not token_state()["done"]:
+        out(t["one"]); out("   https://t.me/%s?start=birth_%s_%s" % (parent_bot(), lang, birth_relay.bind_of(S.secret))); out(t["wait1"])
+        while True:
+            code, r = api_collect()
+            if r.get("ok"): break
+            if r.get("error") == "telegram": out(t["tg"]); return 1
+            if _t.time() - t0 > deadline: out(t["timeout"] if r.get("error") == "wait" else t["relay"]); return 1
+            sleep(2 if _t.time() - t0 < 20 else 5)
+    out(t["got"] % token_state()["username"])
+    if not pair_state()["done"]:
+        code, r = api_pair_start()
+        out(t["two"]); out("   https://t.me/%s?start=%s" % (r.get("username") or token_state()["username"], r.get("code", ""))); out(t["wait2"])
+        while not pair_state()["done"]:
+            api_pair_poll()
+            if pair_state()["done"]: break
+            if _t.time() - t0 > deadline: out(t["timeout"]); return 1
+            sleep(2)
+    out(t["paired"]); out(t["start"])
+    code, r = api_born({"lang": lang})
+    if not r.get("ok"): out(t["late"]); return 1
+    for _ in range(45):
+        if api_awake()[1].get("greeted"): break
+        sleep(2)
+    greeted = api_awake()[1].get("greeted")
+    out((t["born"] % r["record"].get("bot_username", "")) if greeted else t["late"])
+    if sys.platform.startswith("linux"):
+        try:
+            import getpass
+            user = getpass.getuser()
+            lg = subprocess.run(["loginctl", "show-user", user, "-p", "Linger", "--value"], capture_output=True, text=True, timeout=10).stdout.strip()
+            if lg != "yes" and subprocess.run(["loginctl", "enable-linger", user], capture_output=True, timeout=10).returncode != 0:
+                out(t["linger"] % user)
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return 0 if greeted else 1
+
+
 def main():
+    if "--no-page" in sys.argv[1:]:
+        a = sys.argv[1:]; lang = a[a.index("--lang") + 1] if "--lang" in a and a.index("--lang") + 1 < len(a) else (os.environ.get("MILA_LANG") or "en")[:2].lower()
+        return no_page(lang if lang in LANGS else "en")
     if all_done():
         print("Mila is already born: her bot and her owner are set. She lives in the background:  mila status  ·  mila start")
         return 0

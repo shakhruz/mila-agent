@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """mila birth: the birth page's local server — on a fake Telegram and a fake `claude`, no network, no real home.
 python3 install/test_birth.py"""
-import base64, hashlib, http.client, json, os, re, socket, stat, subprocess, sys, tempfile, threading, time
+import shutil, base64, hashlib, http.client, json, os, re, socket, stat, subprocess, sys, tempfile, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -437,6 +437,39 @@ os.environ.pop("BIRTH_RELAY_INSECURE_TEST")
 chk("collect: relay по http без тестового флага → insecure, в relay не ходили", br.collect(SEC_OK, RC) == {"ok": False, "error": "insecure"} and len(COLLECTS) == c0)
 os.environ["BIRTH_RELAY_INSECURE_TEST"] = "1"
 chk("collect: relay недоступен (порт закрыт) → unreachable", br.collect(SEC_OK, "http://127.0.0.1:1/x") == {"ok": False, "error": "unreachable"})
+# --- birth with no page: a machine without a browser --------------------------------------
+reset_state(); shutil.rmtree(os.path.join(T, "run"), ignore_errors=True)
+try: os.remove(os.path.join(T, "mila.calls"))
+except OSError: pass
+S["collect_any"] = True; S["msg"] = "ещё не код"; S.pop("page_secret", None)
+np = subprocess.Popen([sys.executable, os.path.join(HERE, "birth.py"), "--no-page", "--lang", "ru"], env=dict(ENV, MILA_BIRTH_PARENT="my_parent_bot"), stdin=subprocess.DEVNULL,
+                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+seen = []
+def np_until(rx, sec=40):
+    end = time.time() + sec
+    while time.time() < end:
+        line = np.stdout.readline()
+        if not line: return None
+        seen.append(line.rstrip("\n")); m = re.search(rx, line)
+        if m: return m
+    return None
+m1 = np_until(r"https://t\.me/my_parent_bot\?start=birth_ru_([A-Za-z0-9_-]{32})$")
+chk("без страницы: первая строка-ссылка ведёт на бота-родителя с языком и отпечатком (birth_ru_<h>), ключ никуда вставлять не нужно", bool(m1))
+m2 = np_until(r"https://t\.me/test_birth_bot\?start=([A-Za-z0-9]{6})$")
+_want2 = base64.urlsafe_b64encode(_hl.sha256(S.get("page_secret", "").encode()).digest()).decode().rstrip("=")[:32]
+chk("…ключ бота пришёл сам по секрету процесса (отпечаток в ссылке — от него), сохранён; вторая ссылка открывает НОВОГО бота с кодом пары",
+    bool(m1) and bool(m2) and _want2 == m1.group(1) and open(envf).read().strip().endswith(TOKEN) and not os.path.exists(os.path.join(T, "tg", "access.json")))
+os.makedirs(os.path.join(T, "run"), exist_ok=True); open(os.path.join(T, "run", "greeted"), "w").close()
+S["msg"] = "/start " + (m2.group(1) if m2 else "x")
+m3 = np_until(r"Мила родилась ✨ .*https://t\.me/test_birth_bot$", 60)
+try: np.wait(timeout=30)
+except subprocess.TimeoutExpired: np.kill()
+_acc = json.load(open(os.path.join(T, "tg", "access.json"))) if os.path.exists(os.path.join(T, "tg", "access.json")) else {}
+chk("…кто открыл нового бота по второй ссылке — тот хозяин; она запущена в фоне (mila start); «родилась» сказано после её первых слов; код выхода 0",
+    bool(m3) and np.returncode == 0 and _acc.get("allowFrom") == [str(S["owner"])] and _calls() == ["start"] and json.load(open(rec_file)).get("lang") == "ru")
+_all = "\n".join(seen)
+chk("…в выводе терминала нет ни ключа бота, ни секрета; слов «Paired», «Claude Code» нет", TOKEN not in _all and S.get("page_secret", "-") not in _all and not re.search(r"Paired|Claude Code", _all))
+S["collect_any"] = False; S["msg"] = None
 chk("за весь проход страница не отправила хозяину ни одного сообщения — ни при коде пары, ни при коде рождения с хозяином: первые слова говорит Мила",
     not S["sent"] and not S["photos"])
 print("итог %d/%d" % (ok, n))
