@@ -258,12 +258,20 @@ def birth_lang():
     return l if l in ("en", "ru", "uz", "zh") else "en"
 
 
+DEFAULT_STICKER_SET = "super_mila_by_milamini_ashot_bot"   # the «Super Mila» set: a newborn's first words come with a sticker
+
+
 def sticker_set():
-    """The name of her sticker set: MILA_STICKER_SET, else the one line of hooks/sticker-set.txt (shipped with the kit). '' — none."""
+    """The name of her sticker set: MILA_STICKER_SET (empty — no sticker), else the one line of hooks/sticker-set.txt (the way
+    to use another set), else the set every Mila is born with. A set her bot cannot reach — no sticker, silently."""
     v = os.environ.get("MILA_STICKER_SET")
     if v is not None: return v.strip()
-    try: return open(os.path.join(HOOKS, "sticker-set.txt"), encoding="utf-8").readline().strip()
-    except OSError: return ""
+    try:
+        line = open(os.path.join(HOOKS, "sticker-set.txt"), encoding="utf-8").readline().strip()
+        if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{3,63}", line): return line
+    except OSError:
+        pass
+    return DEFAULT_STICKER_SET
 
 
 GREETED = os.path.join(ST, "greeted")
