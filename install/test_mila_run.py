@@ -179,6 +179,13 @@ try:
     p.send_signal(signal.SIGTERM); p.wait(timeout=25)
     rcv = read(os.path.join(TG, "receiver.pid")).strip()
     chk("остановка службы (SIGTERM): сеанс, приёмник и feeder остановлены", p.returncode == 0 and wait(lambda: not pid_alive(rcv), 10) and not status()[1]["running"], (p.returncode, status()[1]))
+    # a status check holds the lock for an instant; a start that lands in that instant waits instead of leaving with code 3
+    import fcntl
+    lk = os.open(os.path.join(ST, "lock"), os.O_WRONLY); fcntl.flock(lk, fcntl.LOCK_EX)
+    p = start(); procs.append(p); time.sleep(1.0); fcntl.flock(lk, fcntl.LOCK_UN); os.close(lk)
+    chk("замок на миг занят проверкой состояния (как у `mila status`) — служба дожидается и стартует, а не уходит с «already running»",
+        wait(lambda: status()[1]["session"]) and p.poll() is None, (p.poll(), status()[1]))
+    p.send_signal(signal.SIGTERM); p.wait(timeout=25)
     other = subprocess.Popen(["sleep", "300"]); procs.append(other); open(os.path.join(TG, "receiver.pid"), "w").write(str(other.pid)); bun_before = read(ENV["FAKE_LOG"] + ".bun").count("\n")
     p = start(); procs.append(p)
     chk("приёмник уже работает у другого хозяина процесса — второй не запускаю", wait(lambda: status()[1]["session"]) and read(ENV["FAKE_LOG"] + ".bun").count("\n") == bun_before and "already running" in read(os.path.join(ST, "run.log")), read(os.path.join(ST, "run.log"))[-300:])

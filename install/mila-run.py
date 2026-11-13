@@ -391,8 +391,12 @@ def run():
     os.umask(0o077)   # her logs, pid files and the children's files are hers alone, whatever umask the service manager gives
     os.makedirs(ST, mode=0o700, exist_ok=True); os.chmod(ST, 0o700)
     lock = os.open(os.path.join(ST, "lock"), os.O_WRONLY | os.O_CREAT, 0o600)
-    try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
+    # `mila status` holds this lock for an instant to see whether she is running; a start that lands in that instant must not
+    # take it for a second Mila and leave. A real second service holds the lock all the time — two seconds tell the two apart.
+    for _ in range(20):
+        try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB); break
+        except OSError: time.sleep(0.1)
+    else:
         sys.stderr.write("mila-run: already running for this home\n"); return 3
     signal.signal(signal.SIGTERM, stop_all); signal.signal(signal.SIGINT, stop_all)
     with open(os.path.join(ST, "run.pid"), "w") as f: f.write(str(os.getpid()))
