@@ -77,4 +77,22 @@ port = free(); r = subprocess.run([sys.executable, os.path.join(H, "key_page.py"
 u3 = r.stdout.strip(); wait_port(port)
 c, b = req(u3); check("--lang ru → ссылка с ?l=ru, страница по-русски", u3.endswith("?l=ru") and "Чтобы я слышала" in b, (u3, b[:200]))
 c, b = req(u3, {"k": "x"}); check("…и ответ на неверный ключ тоже по-русски", "Сервис не принял" in b)
+# a page lives in the background until a key is saved, the tries run out or its time is up: the last one above is still alive here —
+# the test stops what it started (found by its own secrets folder, nobody else's page) and looks that nothing is left
+def pages():
+    out = []
+    for p in os.listdir("/proc"):
+        if p.isdigit() and int(p) != os.getpid():
+            try:
+                if (("MILA_SECRETS=" + SEC).encode() in open("/proc/%s/environ" % p, "rb").read().split(b"\0")
+                        and b"key_page.py" in open("/proc/%s/cmdline" % p, "rb").read()): out.append(int(p))
+            except OSError: pass
+    return out
+for p in pages():
+    try: os.kill(p, 15)
+    except OSError: pass
+for _ in range(30):
+    if not pages(): break
+    time.sleep(0.1)
+check("после теста не осталось ни одной страницы в фоне", not pages(), pages())
 api.shutdown(); shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
