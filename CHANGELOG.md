@@ -1,5 +1,38 @@
 # CHANGELOG · Mila
 
+## Unreleased — a start that no longer slips; the account's email stays home; pages of memory by day, week and month; a skill saved only by your press
+
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
+**Для хозяина**
+- Если набрать `mila` сразу после `mila start`, я больше не остаюсь выключенной: служба дожидается, пока закончится проверка состояния, и стартует.
+- Почту вашего аккаунта Claude я не отправляю сайтам и сервисам: команда или адрес, который несёт её в сеть, получает отказ. Сайту нужен контакт — спрошу вас, какой адрес дать.
+- Пароль, вписанный прямо в команду, я не отправлю в чат: сообщение с ним останавливается, как и сообщение с ключом.
+- Память по страницам: день, неделя и месяц — короткие сводки дел с уликами, без пересказа чатов. Включается задачей расписания.
+- Удачный ход я могу предложить сохранить как навык: показываю черновик карточкой и сохраняю только по вашему нажатию «Сохранить».
+- В справочнике появился раздел о команде `mila`: `start`, `stop`, `restart`, `logs`, `open`, `uninstall` — что делает каждая.
+
+</details>
+
+**For the owner**
+- Typing `mila` right after `mila start` no longer leaves me switched off: the service waits until the status check is over and starts.
+- I do not send the email of your Claude account to sites and services: a command or an address that carries it to the network is refused. If a site needs a contact, I ask you which address to give.
+- A password typed straight into a command does not go to a chat: a message with it is stopped, like a message with a key.
+- Memory by pages: a day, a week and a month — short summaries of deeds with evidence, no retelling of chats. Turned on by a scheduled job.
+- A move that worked I can offer to keep as a skill: I show the draft on a card and save it only after your press on «Save».
+- The reference has a section on the `mila` command: `start`, `stop`, `restart`, `logs`, `open`, `uninstall` — what each does.
+
+**For Milas**
+- `install/mila-run.py run`: the lock is tried 20 times, 0.1 s apart, before «already running for this home» (code 3) — `status` holds the same lock for an instant. A second service still gets code 3.
+- `secret-guard.py`: the account's email (from `.claude.json`) in a Bash or Monitor command or a WebFetch address that goes to the network is refused, rule `email` in the journal without the address; Monitor follows the Bash rules; the environment-dump rule sees a dump on any line, inside a loop or a branch (`do env`, `then printenv`, `{ env; }`) and skips the body of a quoted heredoc that is not fed to a shell; past 5000 files in a place of keys a file with a second name is not opened. `hooks_sync.py --guards` adds WebFetch and Monitor to the matcher of older homes.
+- `send-guard.py`: a password in a command (`PGPASS`+`WORD=`, `sshpass -p`, `mysql -p…`, a bearer header) is stopped; a reference to a variable passes. In the container the key keeper refuses an outgoing Telegram call with a key in its text, captions, buttons or query string — the keys it holds by value, the rest by shape (403, the rule in the journal without the value).
+- `done-guard.py` keeps a journal of refusals (`~/.claude/mila-guard/done-guard.jsonl`, 600): the kind and the tools' names, never the text.
+- The envelope carries the receiver's flags (`hidden-chars`, `instruction-like`) and nothing else from it.
+- `skills/memory-audit/scripts`: `day_digest.py`, `week_digest.py`, `month_digest.py` — pages in `work/memory/days|weeks|months`, no model, 2–3 KB each, a second run gives the same file.
+- `skills/mila-uchitsya`: a lesson of a turn → a draft of a skill → a card to the owner; saved only on the owner's «Save» press found in the receiver's journal (their private chat, a card with that name, not older than two days, once).
+- `docs/ISOLATION.md` — the map of isolation in the container; `docs/REFERENCE.md` — «The `mila` command», kept in step with `mila help` by `tests/test_docs_mila_commands.py`; `mila help` names `restart`.
+- `tools/check_install_link.py` reads the get.sh behind `releases/latest`: a PIN_REF older than this repository's tag, or none, is a failure. Tests remove what they leave: temporary homes, a key page left in the background.
+
 ## v1.7.13 · 12.11 — talents after birth; the word «talent»; a shelf for courses; `mila` taken by another program
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
