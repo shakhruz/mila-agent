@@ -4,6 +4,8 @@
 
 *Iliqlik uchun yaratilgan.*
 
+**[Milani menga sozlab bering →](https://t.me/mila_gpt_bot)** · **[Men dasturchiman: o‘zim o‘rnataman ↓](#tez-boshlash)**
+
 [![tests](https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml) [![Latest version](https://img.shields.io/github/v/tag/shakhruz/mila-agent?sort=semver&label=version)](https://github.com/shakhruz/mila-agent/tags) [![License](https://img.shields.io/github/license/shakhruz/mila-agent)](LICENSE)
 
 [English](README.md) · [中文](README.zh-CN.md) · [Русский](README.ru.md) · **Oʻzbekcha**
@@ -14,14 +16,7 @@ Mila — kattaroq narsaning bir qismi. Manifestimizni o‘qing (rus va ingliz ti
 
 Mila — biznesingiz uchun hamkasb: Telegramda siz va jamoangiz bilan ishlaydi, va’dalaringizni eslab qoladi, har bir suhbatni yodda tutadi, postlar yozadi, uchrashuvlarni eslatadi va har tong nima «yonayotganini» aytadi. U bilan telefoningizdan — matn yoki ovoz orqali, xuddi jamoangizdagi odam bilan gaplashgandek gaplashasiz.
 
-### Claude — Anthropic qoidalari bo‘yicha
-
-- Mila oddiy, o‘zgartirilmagan Claude Code’da ishlaydi — Anthropic chiqargan holida.
-- Siz o‘zingiz, faqat Anthropic sahifasida kirasiz: o‘z Claude rejangiz yoki o‘z Anthropic API kalitingiz bilan. Mila kirish ma’lumotlari va tokenni nusxalamaydi va saqlamaydi; OAuth-tokenni o‘zingiz ham hech qayerga nusxalamang.
-- Rejangiz — o‘zingiz uchun. Botingizga yozgan mijoz va mehmonlarga faqat API kalit orqali, kalit egasi hisobidan javob berish mumkin. Bu versiyada bot begonalarga shaxsiy yozishmada hozircha javob bermaydi.
-- Milani sizga sozlab beradigan hamkor sizni o‘z obunasida yuritmaydi, Claude uchun to‘lamaydi, uni qayta sotmaydi va kirish ma’lumotlarini yig‘maydi.
-
-Manba: [Claude Code — legal and compliance](https://code.claude.com/docs/en/legal-and-compliance).
+Mila sizning Claude’ingizda va Anthropic qoidalari bo‘yicha ishlaydi — [batafsil](#claude--anthropic-qoidalari-boyicha).
 
 - **Raqamli xodim, universal agent emas.** Mijoz suhbatlari, va’dalar va vazifalar, egasining «ha»si uchun kartochkalar, haftalik ritm, xarajat limitlari.
 - **Telegramda yashaydi.** Yangi ilova o‘rnatish shart emas.
@@ -55,7 +50,16 @@ mila onboard
 
 Keyin — `mila`. `mila onboard --check` hech narsani o‘zgartirmasdan uch qadamni ko‘rsatadi. Bot jim bo‘lsa — `mila doctor`.
 
-**Milaga nima kerak.** Telegram bot: Mila Telegram’da yashaydi — shaxsiy xabarlar, guruhlar va sizning ochiq botingiz. Claude Code va o‘z Claude obunangiz yoki API kalitingiz: Mila Claude bilan yaratilgan. O‘chmaydigan kompyuter yoki server: Mila u ishlab turganda ishlaydi, bulutda esa birinchi 30 kunlik hosting bepul. macOS va Linux; Windows’da — WSL orqali. Claude Code’dagi kanallar — yangilik, shuning uchun ishga tushirgich hozircha ularni ishlab chiqish bayrog‘i bilan yoqadi.
+**Milaga nima kerak.** Telegram bot: Mila Telegram’da yashaydi — shaxsiy xabarlar, guruhlar va sizning ochiq botingiz. Claude Code va o‘z Claude obunangiz yoki API kalitingiz: Mila Claude bilan yaratilgan. O‘chmaydigan kompyuter yoki server: Mila u ishlab turganda ishlaydi. macOS va Linux; Windows’da — WSL orqali. Claude Code’dagi kanallar — yangilik, shuning uchun ishga tushirgich hozircha ularni ishlab chiqish bayrog‘i bilan yoqadi.
+
+## Claude — Anthropic qoidalari bo‘yicha
+
+- Mila oddiy, o‘zgartirilmagan Claude Code’da ishlaydi — Anthropic chiqargan holida.
+- Siz o‘zingiz, faqat Anthropic sahifasida kirasiz: o‘z Claude rejangiz yoki o‘z Anthropic API kalitingiz bilan. Mila kirish ma’lumotlari va tokenni nusxalamaydi va saqlamaydi; OAuth-tokenni o‘zingiz ham hech qayerga nusxalamang.
+- Rejangiz — o‘zingiz uchun. Botingizga yozgan mijoz va mehmonlarga faqat API kalit orqali, kalit egasi hisobidan javob berish mumkin. Bu versiyada bot begonalarga shaxsiy yozishmada hozircha javob bermaydi.
+- Milani sizga sozlab beradigan hamkor sizni o‘z obunasida yuritmaydi, Claude uchun to‘lamaydi, uni qayta sotmaydi va kirish ma’lumotlarini yig‘maydi.
+
+Manba: [Claude Code — legal and compliance](https://code.claude.com/docs/en/legal-and-compliance).
 
 ## Hamjamiyat
 
@@ -63,3 +67,5 @@ Keyin — `mila`. `mila onboard --check` hech narsani o‘zgartirmasdan uch qada
 Savollar, g‘oyalar, Milangiz nima qilayotganini ko‘rsating: [GitHub Discussions](https://github.com/shakhruz/mila-agent/discussions). Xatolar — [Issues](https://github.com/shakhruz/mila-agent/issues).
 
 To‘liq ma’lumot — [English README](README.md), [docs/README.md](docs/README.md) va [docs/REFERENCE.md](docs/REFERENCE.md).
+
+Mila Agentni MILAGPT yaratadi — [milagpt.io](https://milagpt.io)

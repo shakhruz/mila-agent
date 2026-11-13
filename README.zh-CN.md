@@ -4,6 +4,8 @@
 
 *Warm by design.*
 
+**[请帮我配置 Mila →（英文）](https://www.skool.com/mila-academy-life-with-ai-4888/about)** · **[我是开发者：自己安装 ↓](#快速开始)**
+
 [English](README.md) · **中文** · [Русский](README.ru.md) · [Oʻzbekcha](README.uz.md)
 
 [![tests](https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml) [![Latest version](https://img.shields.io/github/v/tag/shakhruz/mila-agent?sort=semver&label=version)](https://github.com/shakhruz/mila-agent/tags) [![License](https://img.shields.io/github/license/shakhruz/mila-agent)](LICENSE)
@@ -12,14 +14,7 @@
 
 Mila 是更大愿景的一部分 —— 阅读我们的宣言（英文）：[milagpt.io/en/manifest](https://milagpt.io/en/manifest/)
 
-### Claude —— 遵守 Anthropic 的规则
-
-- Mila 运行在普通、未经修改的 Claude Code 上，与 Anthropic 发布的版本完全一致。
-- 由你本人登录，且只在 Anthropic 的页面登录：使用你自己的 Claude 套餐或你自己的 Anthropic API 密钥。Mila 不复制、不保存你的登录信息和 token；你自己也不要把 OAuth token 复制到任何地方。
-- 你的套餐只供你本人使用。给你的机器人写消息的客户和访客，通过 API 密钥服务，费用由密钥所有者承担。
-- 为你配置 Mila 的合作伙伴不会用自己的订阅为你服务，不为你的 Claude 付费、不转售、不代为中转，也不收集登录信息。
-
-来源：[Claude Code — legal and compliance](https://code.claude.com/docs/en/legal-and-compliance)。
+Mila 运行在你自己的 Claude 上，并遵守 Anthropic 的规则 —— [详情](#claude--遵守-anthropic-的规则)。
 
 - **记住你的业务** —— 每一位客户、每一次对话、每一个承诺；每天早上给你一份简短汇总。
 - **只用 Claude** —— 本仓库只运行在 Claude 上：你自己的 Claude 订阅（或你自己的 Anthropic API 密钥）为你本人服务，由你本人登录；给你的机器人写信的人，由密钥所有者付费的 Anthropic API 密钥服务。使用其他模型的访客通道只在托管版中提供。
@@ -47,7 +42,16 @@ mila onboard
 
 之后运行 `mila` 启动。`mila onboard --check` 只显示三步状态，不做任何更改。机器人没有反应时，运行 `mila doctor`。
 
-**Mila 需要什么。** 一个 Telegram 机器人：Mila 住在 Telegram 里——私信、群组和你的公开机器人。Claude Code 加上你自己的 Claude 套餐或 API 密钥：Mila 基于 Claude 打造。一台常开的电脑或服务器：它运行时 Mila 就在工作；云端方案前 30 天托管免费。支持 macOS 和 Linux；Windows 通过 WSL。Claude Code 的频道功能是新功能，所以启动器目前用开发标志开启它（见快速开始）。
+**Mila 需要什么。** 一个 Telegram 机器人：Mila 住在 Telegram 里——私信、群组和你的公开机器人。Claude Code 加上你自己的 Claude 套餐或 API 密钥：Mila 基于 Claude 打造。一台常开的电脑或服务器：它运行时 Mila 就在工作。支持 macOS 和 Linux；Windows 通过 WSL。Claude Code 的频道功能是新功能，所以启动器目前用开发标志开启它（见快速开始）。
+
+## Claude —— 遵守 Anthropic 的规则
+
+- Mila 运行在普通、未经修改的 Claude Code 上，与 Anthropic 发布的版本完全一致。
+- 由你本人登录，且只在 Anthropic 的页面登录：使用你自己的 Claude 套餐或你自己的 Anthropic API 密钥。Mila 不复制、不保存你的登录信息和 token；你自己也不要把 OAuth token 复制到任何地方。
+- 你的套餐只供你本人使用。给你的机器人写消息的客户和访客，通过 API 密钥服务，费用由密钥所有者承担。
+- 为你配置 Mila 的合作伙伴不会用自己的订阅为你服务，不为你的 Claude 付费、不转售、不代为中转，也不收集登录信息。
+
+来源：[Claude Code — legal and compliance](https://code.claude.com/docs/en/legal-and-compliance)。
 
 ## 社区
 
@@ -55,3 +59,5 @@ mila onboard
 提问、分享想法、展示你的 Mila 在做什么：[GitHub Discussions](https://github.com/shakhruz/mila-agent/discussions)。问题反馈：[Issues](https://github.com/shakhruz/mila-agent/issues)。
 
 完整说明见 [English README](README.md)（英文）、[docs/README.md](docs/README.md)（英文）和 [docs/REFERENCE.md](docs/REFERENCE.md)（英文）。
+
+Mila Agent 由 MILAGPT 打造 —— [milagpt.io](https://milagpt.io)
