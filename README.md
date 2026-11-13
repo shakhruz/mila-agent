@@ -4,19 +4,24 @@
 
 <h1 align="center">Mila Agent</h1>
 
-<p align="center"><b>Turn Claude Code into an employee that lives in Telegram.</b><br>
-Free, open source, Apache-2.0. Made with ❤️ in Uzbekistan.</p>
-
-<p align="center">She works with you and your team in Telegram — your DMs and the groups you connect — and remembers every promise. A send-guard stops accidental leaks; in the container (Mila Agent) your keys stay with a key keeper she uses but cannot read. Ordinary replies in chats you connected go without asking.</p>
+<p align="center"><b>Mila is a colleague with a job.</b> She lives in your Telegram, remembers every promise,<br>
+and each morning tells you what matters today. Open source, set up in about 5 minutes.</p>
 
 <p align="center">
-  <a href="#quick-start"><b>Install</b></a> ·
-  <a href="docs/THREAT-MODEL.md"><b>Threat model</b></a> ·
+  <a href="https://t.me/mila_gpt_bot"><b>Set a Mila up for me →</b></a> &nbsp;·&nbsp;
+  <a href="#quick-start"><b>I'm a developer: install it myself ↓</b></a>
+</p>
+
+<p align="center">Free, Apache-2.0, built on Claude Code. Made with ❤️ in Uzbekistan.<br>
+Every outgoing message passes a guard that stops accidental leaks, and in the container your keys stay with a keeper she uses but cannot read — details in <a href="#safety">Safety</a>.</p>
+
+<p align="center"><i>One project, three doors — meet Mila, choose talents, launch:</i><br>
+  <a href="https://milagpt.io">milagpt.io</a> (the site, a Mila set up with you) ·
+  <a href="https://mila.market">mila.market</a> (the talent store) ·
+  <a href="https://milaagent.com">milaagent.com</a> (code and cloud)<br>
   <a href="docs/README.md"><b>Docs</b></a> ·
-  <a href="https://github.com/shakhruz/mila-agent/discussions"><b>Community</b></a> ·
-  <a href="https://milaagent.com">milaagent.com</a> ·
-  <a href="https://mila.market">Mila Market</a> ·
-  <a href="https://milagpt.io/akselerator/">MilaGPT Studio</a>
+  <a href="docs/THREAT-MODEL.md"><b>Threat model</b></a> ·
+  <a href="https://github.com/shakhruz/mila-agent/discussions"><b>Community</b></a>
 </p>
 
 <p align="center">
