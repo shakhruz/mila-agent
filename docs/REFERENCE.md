@@ -90,7 +90,7 @@ Two things are deliberately separate from this repository:
 | `packs/kartinki/spend` | Spending the owner's money on paid generation (images, models, video, voice) consciously: a forecast before every paid call, an approve/change/cancel card above a configurable threshold, the actual cost after, a monthly summary. |
 | `skills/mila-update` | Which core version is installed, whether a release is out and what it brings; updating only after the owner's yes, with a backup and a rollback. |
 | `skills/mila-export` | `mila export` / `mila restore`: the Mila's whole memory in one archive without secrets (scanner on every file, manifest with sha256, format 1); restore never overwrites and prints what to re-enter. History only with `--with-history`. |
-| `install/mila` | One-word launcher: `mila` resumes, `mila new` starts fresh, `mila status` checks the channel, `mila inbox` shows unread messages. |
+| `install/mila` | One-word launcher: until Mila is born `mila` opens the birth page; after that she lives in the background and `mila` shows how she is. `mila start`, `mila stop`, `mila logs`, `mila open` — see [The `mila` command](#the-mila-command). |
 | `install/reply-required.py` | Stop hook: if the last inbound was a Telegram `<channel>` message and the session has not called the plugin `reply` tool since, the stop is blocked with a reason — the owner reads Telegram, not the transcript. Born from a client companion launch (12.09.2026): the first replies were plain text and never reached the owner. |
 | `install/telegram-inbox-feed.py` | Hook that surfaces incoming Telegram messages in the terminal — and any promise whose deadline is today or past. |
 | `install/crons-keeper.py` | Scheduled reminders survive a session restart: every CronCreate/CronDelete is mirrored to `~/work/state/crons.json`, and at session start the assistant is asked to recreate whatever is missing (repeating jobs expire after 7 days — it renews them). |
@@ -165,7 +165,7 @@ By hand, the same in a Claude Code session:
 /mila-telegram:configure <bot token from @BotFather>
 ```
 
-Restart with `mila`, message your bot, and pair:
+Start a session in this terminal with `mila open`, message your bot, and pair:
 
 ```
 /mila-telegram:access pair <the code the bot replies with>
@@ -174,6 +174,31 @@ Restart with `mila`, message your bot, and pair:
 
 That last line matters. Pairing exists to capture your own ID; leave it on and
 strangers who guess the bot's username keep getting pairing codes.
+
+### The `mila` command
+
+After the birth Mila lives in the background: a service of your own user (launchd `com.milagpt.session` on macOS, a systemd
+user unit `mila-session.service` on Linux) keeps one session running and starts it again after a reboot. You do not keep a
+terminal open for her.
+
+| Command | What it does |
+|---|---|
+| `mila` | Not born yet — opens the birth page. Born — starts her in the background if she is not running and shows how she is. It does not open a session in the folder you typed it in. |
+| `mila start` | Starts her in the background; she also starts after a reboot. |
+| `mila stop` | Stops her; she does not answer until `mila start`. |
+| `mila status` | The background service and the channel: receiver, bridge, journal. |
+| `mila logs` | The last lines of her logs (`mila logs 50` for more). |
+| `mila open` | A session in this terminal, in her home folder. The background one is stopped for that time — two sessions would both answer; afterwards run `mila start`. |
+| `mila new`, `mila pick` | A fresh session in this folder; choose a session from the list. |
+| `mila birth` | First setup on a local web page: the bot, the Claude sign-in, pairing. |
+| `mila onboard` | The same three checked steps in the terminal; `--check` only reports. |
+| `mila doctor` | Full diagnosis: token, privacy mode, access, daemon, permissions. |
+| `mila inbox` | Unread inbound messages, marked as seen once shown. |
+| `mila fix` | Restarts the receiver and leaves the session alone. |
+| `mila uninstall` | Takes her off this machine: stops her, removes the service, moves her token, sign-in and birth record to `~/.mila-removed/<date-time>/`. Nothing is deleted. `--all` moves her home folder too, for a birth from an empty page. |
+
+The rest — `mila usage`, `mila turns`, `mila records`, `mila tasks`, `mila chats`, `mila owe`, `mila when`, `mila backup`,
+`mila export`, `mila restore`, `mila note` — is in the sections below and in `mila help`.
 
 ---
 
