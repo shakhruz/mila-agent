@@ -25,6 +25,9 @@ def onfail_ok():
     return bool(m) and tuple(int(x) for x in m.groups()) >= (2, 1, 295)
 
 
+SECRET_RE = "Bash|Read|Grep|Glob|Edit|Write|MultiEdit|WebFetch|Monitor"
+
+
 def guards(home, cfg, hooks, has, added):
     """The hooks mila-update delivers into ~/.claude/hooks, registered the way install.sh does it."""
     hd = os.path.join(home, ".claude", "hooks")
@@ -42,7 +45,11 @@ def guards(home, cfg, hooks, has, added):
             add("PostToolUseFailure", {"hooks": [{"type": "command", "command": cmd("done-guard.py")}]}, "PostToolUseFailure: done-guard.py")
     if here("secret-guard.py"):
         if not has("PreToolUse", "secret-guard.py"):
-            add("PreToolUse", {"matcher": "Bash|Read|Grep|Glob|Edit|Write|MultiEdit", "hooks": [{"type": "command", "command": cmd("secret-guard.py")}]}, "PreToolUse(tools): secret-guard.py")
+            add("PreToolUse", {"matcher": SECRET_RE, "hooks": [{"type": "command", "command": cmd("secret-guard.py")}]}, "PreToolUse(tools): secret-guard.py")
+        for e in hooks.get("PreToolUse", []):   # older homes: the account-email rule needs WebFetch and Monitor too
+            if "secret-guard.py" in json.dumps(e) and isinstance(e.get("matcher"), str):
+                miss = [t for t in ("WebFetch", "Monitor") if t not in e["matcher"].split("|")]
+                if miss: e["matcher"] += "|" + "|".join(miss); added.append("secret-guard matcher +" + "+".join(miss))
         deny = cfg.setdefault("permissions", {}).setdefault("deny", [])
         for r in DENY:
             if r not in deny: deny.append(r); added.append("deny: " + r)

@@ -52,7 +52,7 @@
         ]
       },
       {
-        "matcher": "Bash|Read|Grep|Glob|Edit|Write|MultiEdit",
+        "matcher": "Bash|Read|Grep|Glob|Edit|Write|MultiEdit|WebFetch|Monitor",
         "hooks": [
           {
             "type": "command",

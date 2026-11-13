@@ -18,7 +18,7 @@ import fnmatch, json, os, re, stat, sys, time
 PLACES = re.compile(r"\.mila-auth|work/secrets|/proc/[^/\s]*/environ|\.credentials\.json|channels/[^/\s\"']+/\.env", re.I)
 NAMES = re.compile(r"CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY|OPENROUTER_API_KEY|DEEPGRAM_API_KEY|GROQ_API_KEY|TELEGRAM_BOT_TOKEN", re.I)
 # the whole environment: env / printenv / export -p / set / declare -x on their own (or piped)
-DUMP = re.compile(r"(^|[;&|(`]\s*|\$\(\s*)(env|printenv|export\s+-p|declare\s+-[a-z]*x[a-z]*|set)\s*($|[;&|)`>])", re.I | re.M)   # per line: «…⏎env»
+DUMP = re.compile(r"(^|[;&|(`{]\s*|\$\(\s*|\b(?:do|then|else)\s+)(env|printenv|export\s+-p|declare\s+-[a-z]*x[a-z]*|set)\s*($|[;&|)`>}])", re.I | re.M)   # per line: «…⏎env»; inside a loop or a branch too: «do env; done»
 # helpers that legitimately read a key at the moment of the action
 ALLOWED = re.compile(r"(transcribe-voice\.sh|safe_read\.py|key_page\.py|seif\.py|vault\.py)\b")
 # A quoted heredoc (<<'EOF' … EOF) is literal text for the shell: a note or a file with `env` in markdown is not a dump.
@@ -116,10 +116,39 @@ def by_real_path(tool, args, cwd):
     return None
 
 
+# The account's email sits in the model's context every session; a site that asks for a contact (User-Agent, form, API) gets
+# it inside a curl the model writes. A command or address that goes to the network with that email is denied.
+NET = re.compile(r"\b(curl|wget|https?|httpie|nc|ncat|telnet|ssh|scp|rsync|sendmail|swaks|urllib|requests|aiohttp|fetch)\b|://", re.I)
+
+
+def account_email():
+    """The signed-in account's email from Claude Code's own state file; none → '' (rule off)."""
+    for d in (os.environ.get("CLAUDE_CONFIG_DIR"), os.path.expanduser("~")):
+        try:
+            v = json.load(open(os.path.join(d, ".claude.json"), encoding="utf-8")).get("oauthAccount", {}).get("emailAddress")
+            if v and "@" in v:
+                return v.strip().lower()
+        except Exception:
+            continue
+    return ""
+
+
+def email_out(text):
+    e = account_email()
+    return bool(e) and e in text.lower() and bool(NET.search(text))
+
+
 def check(tool, args, cwd=None):
     """(reason, rule, what matched) or None."""
-    if tool == "Bash":
+    if tool == "WebFetch":
+        if email_out("https:// " + str(args.get("url") or "")):
+            return "в адресе запроса почта аккаунта — наружу её не отправляю", "email", "account-email"
+        return None
+    if tool in ("Bash", "Monitor"):
         cmd = str(args.get("command") or "")
+        if email_out(cmd):
+            return "команда отправляет почту аккаунта в сеть — наружу её не отправляю", "email", "account-email"
+    if tool in ("Bash", "Monitor"):   # Monitor runs a shell command too: the same rules
         if ALLOWED.search(cmd) and not DUMP.search(cmd):
             return None
         m = PLACES.search(cmd)
@@ -165,7 +194,8 @@ def main():
         journal(p.get("tool_name") or "", c[1], c[2])
     if r:
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
-              "permissionDecisionReason": "Не делаю: %s. Ключи хозяина я не читаю сама — их берут нужные инструменты." % r}}, ensure_ascii=False))
+              "permissionDecisionReason": ("Не делаю: %s. Сайту, которому нужен контакт, — спрошу хозяина, какой адрес дать." % r) if c[1] == "email"
+              else ("Не делаю: %s. Ключи хозяина я не читаю сама — их берут нужные инструменты." % r)}}, ensure_ascii=False))
     return 0
 
 

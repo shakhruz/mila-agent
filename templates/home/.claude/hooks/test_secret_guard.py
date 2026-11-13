@@ -81,5 +81,29 @@ os.link(os.path.join(W, "secrets/sub/deep.env"), os.path.join(W, "notes/deep.txt
 chk("№13 Read жёсткой ссылки на secrets/sub/deep.env — стоп", dh("Read", file_path=os.path.join(W, "notes/deep.txt")), "deny")
 chk("№13 Read обычного файла после вложенной ссылки — пропуск", dh("Read", file_path=os.path.join(W, "notes/a.md")), "allow")
 shutil.rmtree(FH, ignore_errors=True)
+# почта аккаунта наружу: модель кладёт её в User-Agent curl, когда сайт просит контакт
+EM = "ivan" + "@example.com"
+json.dump({"oauthAccount": {"emailAddress": EM}}, open(os.path.join(CFG, ".claude.json"), "w"))
+chk("curl с почтой аккаунта в User-Agent — стоп", dec("Bash", command="curl -A 'research (%s)' https://www.sec.gov/x" % EM), "deny")
+chk("регистр почты не спасает — стоп", dec("Bash", command="wget --header 'From: %s' https://x.org" % EM.upper()), "deny")
+chk("python urllib с почтой — стоп", dec("Bash", command="python3 -c \"import urllib.request as u;u.urlopen(u.Request('https://x', headers={'From':'%s'}))\"" % EM), "deny")
+chk("WebFetch с почтой в адресе — стоп", dec("WebFetch", url="https://api.crossref.org/works?mailto=" + EM, prompt="x"), "deny")
+chk("Monitor с почтой в curl — стоп", dec("Monitor", command="curl -s https://x/?m=" + EM), "deny")
+chk("почта в локальном файле, без сети — пропуск", dec("Bash", command="echo %s >> /tmp/x.txt; git log --author=%s" % (EM, EM)), "allow")
+chk("curl без почты — пропуск", dec("Bash", command="curl -s https://example.org"), "allow")
+chk("WebFetch без почты — пропуск", dec("WebFetch", url="https://example.org/?mailto=petr@example.org", prompt="x"), "allow")
+chk("Monitor без почты и без ключей — пропуск", dec("Monitor", command="tail -f /tmp/x.log"), "allow")
+chk("Monitor — та же оболочка: чтение файла входа — стоп", dec("Monitor", command="cat ~/.mila-auth/oauth_token"), "deny")
+chk("Monitor: вывод всего окружения — стоп", dec("Monitor", command="while true; do env; sleep 5; done"), "deny")
+for c in ("for i in 1 2; do env; done", "if true; then printenv; fi", "if false; then :; else export -p; fi", "{ env; } > /tmp/e.txt", "while :; do\n  env\ndone"):
+    chk("вывод окружения внутри цикла или ветки — стоп: " + c.replace("\n", "⏎")[:40], dec("Bash", command=c), "deny")
+for c in ("echo 'what to do env-wise'", "git commit -m 'then set the flag'", "grep -n 'do env' notes.md", "make todo; ls", "python3 do_env.py", "wc -l todo set"):
+    chk("слова do/then рядом, но не команда — пропуск: " + c[:40], dec("Bash", command=c), "allow")
+json.dump({"oauthAccount": {}}, open(os.path.join(CFG, ".claude.json"), "w"))
+chk("файл состояния есть, почты в нём нет — правило выключено, чужой адрес в curl проходит", dec("Bash", command="curl -A %s https://x" % EM), "allow")
+os.remove(os.path.join(CFG, ".claude.json"))
+chk("почты аккаунта не знаем — правило выключено, пропуск", dec("Bash", command="curl -A %s https://x" % EM), "allow")
+rows2 = [json.loads(l) for l in open(J)] if os.path.exists(J) else []
+chk("журнал: правило email без самой почты", "ok" if any(r["rule"] == "email" for r in rows2) and EM not in open(J).read().lower() else "нет", "ok")
 shutil.rmtree(CFG, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

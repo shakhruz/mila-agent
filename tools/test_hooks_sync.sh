@@ -33,5 +33,11 @@ chk "--guards: уже записанные send-guard и reply-required не д�
 chk "--guards: deny-правила входа и сейфа, без повтора" "python3 -c \"import json;d=json.load(open('$G/.claude/settings.json'))['permissions']['deny'];assert len(d)==4 and len(set(d))==4\""
 chk "--guards на старой Claude Code — без PostToolUseFailure" "(G2=\$(mktemp -d); mkdir -p \$G2/.claude/hooks; touch \$G2/.claude/hooks/done-guard.py; echo '{}' > \$G2/.claude/settings.json; MILA_CC_VERSION=2.1.200 python3 -I $H/hooks_sync.py --home \$G2 --guards >/dev/null && python3 -c \"import json,sys;d=json.load(open(sys.argv[1]))['hooks'];assert 'PostToolUseFailure' not in d and 'done-guard' in json.dumps(d['PreToolUse'])\" \$G2/.claude/settings.json; r=\$?; rm -rf \$G2; exit \$r)"
 chk "--guards: повтор ничего не добавляет" "MILA_CC_VERSION=2.1.310 $GS --guards | grep -q '\"added\": \[\]'"
+G3=$(mktemp -d); mkdir -p $G3/.claude/hooks; touch $G3/.claude/hooks/secret-guard.py
+echo '{"hooks": {"PreToolUse": [{"matcher": "Bash|Read|Grep|Glob|Edit|Write|MultiEdit", "hooks": [{"type": "command", "command": "python3 h/secret-guard.py"}]}]}}' > $G3/.claude/settings.json
+MILA_CC_VERSION=2.1.310 python3 -I $H/hooks_sync.py --home $G3 --guards >/dev/null
+chk "--guards: старый дом — secret-guard получает WebFetch и Monitor (почта аккаунта), без второй записи" "python3 -c \"import json;d=json.load(open('$G3/.claude/settings.json'))['hooks']['PreToolUse'];assert len(d)==1 and d[0]['matcher'].split('|')[-2:]==['WebFetch','Monitor']\""
+chk "--guards: повтор на старом доме — без изменений" "MILA_CC_VERSION=2.1.310 python3 -I $H/hooks_sync.py --home $G3 --guards | grep -q '\"added\": \[\]'"
+rm -rf $G3
 rm -rf $G
 echo "итог $ok/$n"; rm -rf $T; [ $ok -eq $n ]
