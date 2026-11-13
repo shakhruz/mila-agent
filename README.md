@@ -1,110 +1,130 @@
 <p align="center">
-  <a href="https://milaagent.com"><img src="docs/assets/mila-agent-hero.png" alt="Mila Agent — a superheroine in headphones with a cape, one fist raised, chat and Telegram icons around her, in a round frame" width="280"></a>
+  <a href="https://milaagent.com"><img src="assets/readme/hero.png" alt="Your own AI employee on Telegram. Mila Agent: she works in your chats, remembers every promise and sums up your day each morning. Free, open source, about 5 minutes to set up." width="830"></a>
 </p>
 
 <h1 align="center">Mila Agent</h1>
 
-<p align="center"><b>Mila is a colleague with a job.</b> She lives in your Telegram, remembers every promise,<br>
-and each morning tells you what matters today. Open source, set up in about 5 minutes.</p>
+<p align="center"><b>Mila is an AI employee that lives in your Telegram.</b><br>
+She works in the chats you connect, remembers every promise, and sends you one short summary each morning.<br>
+Free, open source, about 5 minutes to set up.</p>
 
 <p align="center">
-  <a href="https://t.me/mila_gpt_bot"><b>Set a Mila up for me →</b></a> &nbsp;·&nbsp;
-  <a href="#quick-start"><b>I'm a developer: install it myself ↓</b></a>
+  <a href="#quick-start"><b>▶ Install it yourself</b></a> &nbsp;·&nbsp;
+  <a href="https://www.skool.com/mila-academy-life-with-ai-4888/about"><b>Want it set up for you? → Mila Academy</b></a>
 </p>
 
-<p align="center">Free, Apache-2.0, built on Claude Code. Made with ❤️ in Uzbekistan.<br>
-Every outgoing message passes a guard that stops accidental leaks, and in the container your keys stay with a keeper she uses but cannot read — details in <a href="#safety">Safety</a>.</p>
-
-<p align="center"><i>One project, three doors — meet Mila, choose talents, launch:</i><br>
-  <a href="https://milagpt.io">milagpt.io</a> (the site, a Mila set up with you) ·
-  <a href="https://mila.market">mila.market</a> (the talent store) ·
-  <a href="https://milaagent.com">milaagent.com</a> (code and cloud)<br>
-  <a href="docs/README.md"><b>Docs</b></a> ·
+<p align="center">
+  <a href="#quick-start"><b>Install</b></a> ·
   <a href="docs/THREAT-MODEL.md"><b>Threat model</b></a> ·
-  <a href="https://github.com/shakhruz/mila-agent/discussions"><b>Community</b></a>
+  <a href="docs/README.md"><b>Docs</b></a> ·
+  <a href="https://github.com/shakhruz/mila-agent/discussions"><b>Community</b></a> ·
+  <a href="https://milaagent.com">milaagent.com</a> ·
+  <a href="https://mila.market">Mila Market</a> ·
+  <a href="https://www.skool.com/mila-academy-life-with-ai-4888/about">Mila Academy</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/shakhruz/mila-agent/tags"><img src="https://img.shields.io/github/v/tag/shakhruz/mila-agent?sort=semver&label=version" alt="Latest version"></a>
   <a href="https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml"><img src="https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0"></a>
-  <img src="https://img.shields.io/badge/built%20on-Claude%20Code-555" alt="Built on Claude Code">
 </p>
 
 <p align="center"><b>English</b> · <a href="README.zh-CN.md">中文</a> · <a href="README.ru.md">Русский</a> · <a href="README.uz.md">Oʻzbekcha</a></p>
 
+---
+
+## Quick start
+
+<p align="center"><img src="assets/readme/install.png" alt="Three steps: paste one command, run mila, open Telegram. The command: curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh | bash" width="830"></p>
+
+**1. Paste one command.** macOS or Linux (Windows through [WSL](https://learn.microsoft.com/windows/wsl/install)).
+
 ```sh
 curl -fsSL https://github.com/shakhruz/mila-agent/releases/latest/download/get.sh | bash
 ```
-<p align="center">Installs the latest release tag, not <code>main</code>. Runs as a Claude Code development channel (research preview) — see <a href="SECURITY.md#the-development-channels-flag">why</a>.</p>
-<p align="center">≈ 5 minutes · macOS, Linux (Windows via WSL) · bring your own Claude plan or Anthropic API key<br>
-<a href="https://github.com/shakhruz/mila-agent/releases/latest">Latest release</a> · the install link is checked daily by CI</p>
 
-<p align="center">Questions and ideas: <a href="https://github.com/shakhruz/mila-agent/discussions">GitHub Discussions</a>.</p>
+It installs the latest release tag, not `main`. Want to look first? Run it with `MILA_INSTALL_ARGS=--dry-run`: it shows every file it would touch ([details below](#under-the-hood)).
 
-<p align="center"><img src="docs/preview.png" alt="Mila answering a customer in Telegram" width="720"></p>
+**2. Run `mila`.** A setup page opens on your own computer. Create her Telegram bot in one tap, sign in to Claude on Anthropic's page, open your bot to pair. Prefer the terminal? `mila onboard` does the same.
 
----
+**3. Say hi in Telegram.** Send your bot a message. She answers. Quiet bot? Run `mila doctor`.
 
-## Why Mila
+≈ 5 minutes · bring your own Claude plan or Anthropic API key · no computer to keep on? Mila runs in the cloud too: [Railway or Hostinger, one page](docs/CLOUD.md) · [Latest release](https://github.com/shakhruz/mila-agent/releases/latest)
 
-Most open agents are universal assistants: powerful, if you tell them exactly what to do.
-Mila is built the other way round — **a colleague with a job.**
+`mila` starts Claude Code with a development flag for channels, because Telegram channels in Claude Code are a research preview. It lets this one plugin push messages into your session, and nothing else: [why](SECURITY.md#the-development-channels-flag).
 
-- **Works in your Telegram** — your DMs and the groups you connect, day and night, in the language people write in. Strangers who write to your bot in a DM get no answer yet — see [what Mila can and cannot do](docs/WHAT-MILA-CAN.md).
-- **Remembers your business** — every client, conversation and promise; one short summary for you every morning.
-- **Asks before the big steps** — a send-guard stops leaks between chats and messages to a chat you have not connected; with the Manager and Images talents, broadcasts and paid generations ask for your ✅ (a skill rule, not a lock — see SECURITY).
-- **Yours, 100%** — your files stay in your home folder; `mila export` / `mila restore` moves her to any machine.
+## What Mila does
 
-```
-Customer: Hi! Is the two-bedroom by the sea still free? Can I see it on Saturday?
-Mila:     Hi! Yes, it's free 🙂 Saturday at 11:00 or 15:00 — which suits you? I'll book it and remind you an hour before.
-Customer: 11, please.
-Mila:     Done ✅ I'll send the address and remind you on Saturday morning.
-```
-*Next morning the owner gets one line: new client · viewing Saturday 11:00 · reminder set.*
+<p align="center"><img src="assets/readme/chat.png" alt="A connected chat: a customer asks if the two-bedroom by the sea is free on Saturday, Mila books 11:00 and promises a reminder. Next morning the owner gets one line: new client, viewing Saturday 11:00, reminder set." width="830"></p>
 
-## How Mila compares
+- **Talks in your chats.** Your DMs and the groups you connect, day and night, in the language people write in. Strangers who write to your bot in a DM are not answered yet: see [what Mila can and cannot do](docs/WHAT-MILA-CAN.md).
+- **Remembers every promise.** She opens a task when she promises something and closes it only with proof.
+- **Sums up your morning.** One short summary for you every day.
+- **Runs on a schedule.** «Remind me on Mondays» fires even when the session is closed.
+- **Asks you for decisions.** A card with buttons, so you answer with one tap.
+- **Stays yours.** Your files live in your home folder. `mila export` and `mila restore` move her to any machine.
 
-OpenClaw, NanoClaw and Hermes Agent are excellent open agents — universal assistants for a person. Mila takes a narrower job: a digital employee for a business, on Telegram.
+## How it works
 
-| | **Mila** | [OpenClaw](https://github.com/openclaw/openclaw) | [NanoClaw](https://github.com/nanocoai/nanoclaw) | [Hermes Agent](https://github.com/NousResearch/hermes-agent) |
-|---|---|---|---|---|
-| What it is | [digital employee for a business](#why-mila) | [universal personal agent](https://github.com/openclaw/openclaw) | [personal agent in containers](https://github.com/nanocoai/nanoclaw) | [personal agent that grows with you](https://hermes-agent.nousresearch.com/docs) |
-| Engine | [Claude Code](https://code.claude.com/docs/en/overview) | [own agent loop, models as plugins](https://github.com/openclaw/openclaw) | [Claude Agent SDK](https://github.com/nanocoai/nanoclaw) | [own agent loop, any model](https://hermes-agent.nousresearch.com/docs) |
-| Channels | Telegram: DMs, groups, your public bot ([mila-telegram](https://github.com/shakhruz/mila-telegram)) | [20+ (WhatsApp, Telegram, Slack...)](https://docs.openclaw.ai/channels) | [many, each added by a skill](https://github.com/nanocoai/nanoclaw) | [Telegram, Discord, Slack, WhatsApp...](https://hermes-agent.nousresearch.com/docs) |
-| Business skills | in the core: [promises and tasks](skills/tasks-discipline/SKILL.md), [owner cards](skills/cards/SKILL.md), [weekly rhythm](canon/WEEK-RHYTHM.md); as [talents](skills/packs/SKILL.md) by the owner's «yes»: [CRM of dialogs](packs/manager/crm-dialogs/SKILL.md), [mailings](packs/manager/bot-send/SKILL.md) | [general skills (ClawHub)](https://clawhub.ai) | [general skills](https://github.com/nanocoai/nanoclaw) | [self-written skills](https://hermes-agent.nousresearch.com/docs) |
-| What waits for the owner's yes | partly: [send-guard](templates/home/.claude/hooks/send-guard.py) stops messages to chats the owner didn't connect, keys and internals; with talents, broadcasts and paid generations ask for the owner's ✅ by skill rule ([`bot-send`](packs/manager/bot-send/SKILL.md), [`spend`](packs/kartinki/spend/SKILL.md)); ordinary replies in connected chats are not gated | [exec approvals, Team preset](https://docs.openclaw.ai/tools/exec-approvals) | [approval for credential use, self-modification and new chats; ordinary messages are not gated](https://docs.nanoclaw.dev/concepts/security) | [approval for dangerous shell commands (fail-closed); no approval step for sending messages](https://hermes-agent.nousresearch.com/docs/user-guide/security) |
-| License | [Apache-2.0](LICENSE) | [MIT](https://github.com/openclaw/openclaw/blob/main/LICENSE) | [MIT](https://github.com/nanocoai/nanoclaw/blob/main/LICENSE) | [MIT](https://github.com/NousResearch/hermes-agent/blob/main/LICENSE) |
+<p align="center"><img src="assets/readme/how.png" alt="You talk to Mila through Telegram. Mila is Claude Code with the mila-telegram plugin on your computer or server, and uses skills and talents. Your OK is needed before the big steps." width="830"></p>
 
-**What Mila needs.** A Telegram bot: Mila lives in Telegram — direct messages, groups and your public bot. Claude Code with your own Claude plan or API key: Mila is built with Claude. A computer that stays on, or a server: Mila works while it runs, and the cloud option starts with 30 days of free hosting. macOS and Linux; on Windows, through WSL. Channels in Claude Code are new, so the launcher turns them on with a development flag for now (see Quick start).
+You write in Telegram. Mila is Claude Code with the [mila-telegram](docs/mila-telegram.md) plugin, hooks and core skills, running on your computer or a server. She uses her skills and talents to do the work.
 
-Facts about other projects: their READMEs and docs, checked 17.10.2026; approvals row re-checked 21.10.2026 against [NanoClaw security](https://docs.nanoclaw.dev/concepts/security) and [Hermes security](https://hermes-agent.nousresearch.com/docs/user-guide/security) -
-[OpenClaw](https://github.com/openclaw/openclaw),
-[NanoClaw](https://github.com/nanocoai/nanoclaw), [Hermes Agent](https://github.com/NousResearch/hermes-agent).
-Something wrong or out of date? Open an issue - we fix it the same day.
+**You stay in charge.** A send-guard stops replies that would leak one conversation into another, or go to a chat you have not connected. With the talents that send broadcasts or run paid generations, those steps wait for your ✅ (a skill rule, not a lock: see [SECURITY](SECURITY.md)). In the container, your keys stay with a key keeper she uses but cannot read. More: [threat model](docs/THREAT-MODEL.md).
 
+## What you need
 
-## Mila's values
+- **A Telegram bot.** Mila lives in Telegram: direct messages, groups and your public bot.
+- **Claude Code** with your own Claude plan or Anthropic API key. Mila is built with Claude. Mila works all day, so watch your usage ([costs](https://code.claude.com/docs/en/costs)).
+- **A computer that stays on, or a server.** Mila works while it runs.
+- **macOS or Linux.** On Windows, through WSL.
+- **[Bun](https://bun.sh) and git.** The installer checks both.
+- **`~/.local/bin` on your `PATH`.** The `mila` launcher goes there.
 
-Every Mila reads one short constitution first: a person's secret stays theirs, «done» only with evidence, nothing goes out on
-someone's behalf without their «yes» for this step, money and the irreversible only with the owner's consent, no apologies —
-fact, conclusion, next step. The approved text is in Russian ([CONSTITUTION.md](CONSTITUTION.md)), with an English translation
-next to it ([CONSTITUTION.en.md](CONSTITUTION.en.md)). How she works day to day is a list of qualities, each a rule and a check by deed
-([canon/QUALITIES.md](canon/QUALITIES.md), in Russian) — for example, «I raise the spirit»: words that add confidence and strength, every
-fact true, a risk named together with the step through it.
+Which login for which Mila, and Anthropic's rules: [open the details](#under-the-hood).
 
-## Claude — by Anthropic's rules
+## Talents
 
-- Mila runs on the ordinary, unmodified Claude Code, installed as Anthropic publishes it.
-- You sign in yourself, only on Anthropic's page, with your own Claude plan or your own Anthropic API key. Mila never copies or stores your login or token; don't copy an OAuth token anywhere yourself.
-- Your plan is for your own use. Customers and guests who write to your bot are served through an API key, billed to the key's owner.
-- A partner who sets Mila up for you does not run you on the partner's subscription, does not pay for, resell or intermediate your Claude usage, and does not collect logins.
+<p align="center"><img src="assets/readme/talents.png" alt="Talents: skills (what she can do), knowledge (what she knows about you), services (keys you add when you want them). Installed by your press, never silently." width="830"></p>
 
-Source: [Claude Code — legal and compliance](https://code.claude.com/docs/en/legal-and-compliance).
+Start with the core, then give her a job. A talent is a role with its own skills: a first manager for customer chats and polite refusals, a content expert, images, ads, mail, living Uzbek. You install one with a press on a card, never silently. Voice and images need keys of your own, entered through the safe page ([how the safe works](docs/SAFE.md)).
 
+- [What Mila can do, and what each talent needs](docs/WHAT-MILA-CAN.md)
+- [Mila Library: free talents on GitHub](https://github.com/shakhruz/mila-library)
+- Already run another agent? [Bring its persona, memory and skills over](#under-the-hood)
 
-## Quick start
+## Learn
+
+<p align="center"><a href="https://www.skool.com/mila-academy-life-with-ai-4888/about"><img src="assets/readme/learn.png" alt="Learn free: the book Artificial Intelligence: A User's Guide, a free 7-day course and Mila Academy." width="830"></a></p>
+
+New to AI agents? Start here, it is free:
+
+- **The book:** [«Artificial Intelligence: A User's Guide»](https://tv.milagpt.io/books/ai-users-guide-en-6DbwYqFa.pdf), by Ashot Ashirov & Mila (PDF, 22 MB).
+- **A 7-day course:** one short step a day, up to your own Mila. It lives in **[Mila Academy → join free](https://www.skool.com/mila-academy-life-with-ai-4888/about)**.
+
+## Getting a Mila
+
+| | | |
+|---|---|---|
+| **Build one**, free | Install Mila Agent yourself, on your computer or a server. | [Quick start ↑](#quick-start) |
+| **Hire one** | Ready-made Milas for a job: moderator, manager, SMM and more. The first one is free. | [mila.market](https://mila.market) |
+| **Launch your own** | MilaGPT Studio sets your Mila up with you and helps turn your expertise into a product. | [milagpt.io/akselerator](https://milagpt.io/akselerator/) |
+
+Built a skill or a role? Send a pull request, or publish your Mila on [Mila Market](https://mila.market) and earn 75% of every sale.
+
+## Community & support
+
+Questions, ideas, show what your Mila does: [GitHub Discussions](https://github.com/shakhruz/mila-agent/discussions) ·
+Bugs: [Issues](https://github.com/shakhruz/mila-agent/issues) · Security: [SECURITY.md](SECURITY.md) · Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
+
+**Developers, join us.** Build a skill, fix a hook, translate a skill to your language, tell us what broke. Every pull request is read by a person and by Mila Quality. Good contributors are invited to the core team. Start with [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Under the hood
+
+Mila Agent is **built with Claude Code**: Claude Code, the Telegram plugin [mila-telegram](docs/mila-telegram.md), hooks and core skills, installed as Anthropic publishes Claude Code. Most commits here are written by one of our own Milas, Mila Development (an agent), and reviewed by Mila Quality and the owner before they land. Every Mila reads one short [constitution](CONSTITUTION.en.md) first.
+
+<details>
+<summary><b>Install in detail: requirements, verification, what changes on your machine</b></summary>
 
 
 ≈ 5 minutes.
@@ -202,7 +222,59 @@ Server install: see [deploy/README.md](deploy/README.md).
 One container instead (Docker, no open ports): fill the variables of [docker-compose.yml](docker-compose.yml) and run `docker compose up -d`. Everything Mila keeps lives on one volume at `/var/lib/mila`. Mila silent after an update? Look in the container log for lines with `mila-state` — they say what stopped the start. You paste the bot token from @BotFather; the pairing code from the container log and the Claude sign-in go through the chat. A paid Claude plan of your own is still needed.
 
 
-## Moving from OpenClaw or Hermes
+</details>
+
+<a id="how-mila-compares"></a>
+<details>
+<summary><b>How Mila compares with OpenClaw, NanoClaw and Hermes Agent</b></summary>
+
+OpenClaw, NanoClaw and Hermes Agent are excellent open agents — universal assistants for a person. Mila takes a narrower job: a digital employee for a business, on Telegram.
+
+| | **Mila** | [OpenClaw](https://github.com/openclaw/openclaw) | [NanoClaw](https://github.com/nanocoai/nanoclaw) | [Hermes Agent](https://github.com/NousResearch/hermes-agent) |
+|---|---|---|---|---|
+| What it is | [digital employee for a business](#what-mila-does) | [universal personal agent](https://github.com/openclaw/openclaw) | [personal agent in containers](https://github.com/nanocoai/nanoclaw) | [personal agent that grows with you](https://hermes-agent.nousresearch.com/docs) |
+| Engine | [Claude Code](https://code.claude.com/docs/en/overview) | [own agent loop, models as plugins](https://github.com/openclaw/openclaw) | [Claude Agent SDK](https://github.com/nanocoai/nanoclaw) | [own agent loop, any model](https://hermes-agent.nousresearch.com/docs) |
+| Channels | Telegram: DMs, groups, your public bot ([mila-telegram](https://github.com/shakhruz/mila-telegram)) | [20+ (WhatsApp, Telegram, Slack...)](https://docs.openclaw.ai/channels) | [many, each added by a skill](https://github.com/nanocoai/nanoclaw) | [Telegram, Discord, Slack, WhatsApp...](https://hermes-agent.nousresearch.com/docs) |
+| Business skills | in the core: [promises and tasks](skills/tasks-discipline/SKILL.md), [owner cards](skills/cards/SKILL.md), [weekly rhythm](canon/WEEK-RHYTHM.md); as [talents](skills/packs/SKILL.md) by the owner's «yes»: [CRM of dialogs](packs/manager/crm-dialogs/SKILL.md), [mailings](packs/manager/bot-send/SKILL.md) | [general skills (ClawHub)](https://clawhub.ai) | [general skills](https://github.com/nanocoai/nanoclaw) | [self-written skills](https://hermes-agent.nousresearch.com/docs) |
+| What waits for the owner's yes | partly: [send-guard](templates/home/.claude/hooks/send-guard.py) stops messages to chats the owner didn't connect, keys and internals; with talents, broadcasts and paid generations ask for the owner's ✅ by skill rule ([`bot-send`](packs/manager/bot-send/SKILL.md), [`spend`](packs/kartinki/spend/SKILL.md)); ordinary replies in connected chats are not gated | [exec approvals, Team preset](https://docs.openclaw.ai/tools/exec-approvals) | [approval for credential use, self-modification and new chats; ordinary messages are not gated](https://docs.nanoclaw.dev/concepts/security) | [approval for dangerous shell commands (fail-closed); no approval step for sending messages](https://hermes-agent.nousresearch.com/docs/user-guide/security) |
+| License | [Apache-2.0](LICENSE) | [MIT](https://github.com/openclaw/openclaw/blob/main/LICENSE) | [MIT](https://github.com/nanocoai/nanoclaw/blob/main/LICENSE) | [MIT](https://github.com/NousResearch/hermes-agent/blob/main/LICENSE) |
+
+
+Facts about other projects: their READMEs and docs, checked 17.10.2026; approvals row re-checked 21.10.2026 against [NanoClaw security](https://docs.nanoclaw.dev/concepts/security) and [Hermes security](https://hermes-agent.nousresearch.com/docs/user-guide/security) -
+[OpenClaw](https://github.com/openclaw/openclaw),
+[NanoClaw](https://github.com/nanocoai/nanoclaw), [Hermes Agent](https://github.com/NousResearch/hermes-agent).
+Something wrong or out of date? Open an issue - we fix it the same day.
+
+
+</details>
+
+<details>
+<summary><b>Mila's values</b></summary>
+
+Every Mila reads one short constitution first: a person's secret stays theirs, «done» only with evidence, nothing goes out on
+someone's behalf without their «yes» for this step, money and the irreversible only with the owner's consent, no apologies —
+fact, conclusion, next step. The approved text is in Russian ([CONSTITUTION.md](CONSTITUTION.md)), with an English translation
+next to it ([CONSTITUTION.en.md](CONSTITUTION.en.md)). How she works day to day is a list of qualities, each a rule and a check by deed
+([canon/QUALITIES.md](canon/QUALITIES.md), in Russian) — for example, «I raise the spirit»: words that add confidence and strength, every
+fact true, a risk named together with the step through it.
+
+</details>
+
+<details>
+<summary><b>Claude, by Anthropic's rules</b></summary>
+
+- Mila runs on the ordinary, unmodified Claude Code, installed as Anthropic publishes it.
+- You sign in yourself, only on Anthropic's page, with your own Claude plan or your own Anthropic API key. Mila never copies or stores your login or token; don't copy an OAuth token anywhere yourself.
+- Your plan is for your own use. Customers and guests who write to your bot are served through an API key, billed to the key's owner.
+- A partner who sets Mila up for you does not run you on the partner's subscription, does not pay for, resell or intermediate your Claude usage, and does not collect logins.
+
+Source: [Claude Code — legal and compliance](https://code.claude.com/docs/en/legal-and-compliance).
+
+
+</details>
+
+<details>
+<summary><b>Moving from OpenClaw or Hermes</b></summary>
 
 Bring what your agent already knows — its persona, what it knows about you, its memory and skills. Keys and sessions stay
 behind: you enter keys again through the safe page ([how the safe works](docs/SAFE.md)).
@@ -217,7 +289,10 @@ inside, not text, too large) and which lines tried to give orders — those stay
 through it with Mila, one piece at a time: the persona into her role, memory one fact per file, each skill only after your
 «yes» (read a skill's scripts first). Changed your mind: `python3 ~/mila/tools/import_agent.py undo <date>-openclaw`.
 
-## Revive your Mila from an archive
+</details>
+
+<details>
+<summary><b>Revive your Mila from an archive</b></summary>
 
 A Mila belongs to her owner, 100%. Everything you taught her - instructions, skills, memory, crons, settings - exports to one
 archive, and this open core plus that archive brings her back on any machine.
@@ -235,7 +310,10 @@ After the restore you re-enter by hand: the bot token, your Claude login, servic
 Chat history and transcripts are exported only with `--with-history` (other people's data - keep it closed).
 Details: [skills/mila-export](skills/mila-export/SKILL.md). To save the memory on a schedule, use `mila backup` (see above in the reference).
 
-## Safety
+</details>
+
+<details>
+<summary><b>Safety</b></summary>
 
 The send-guard hook catches the model's mistakes — a message that would leak one conversation into another or expose
 server paths; if the guard itself fails, nothing is sent. It is a safety net, not a security boundary: who may write to
@@ -246,36 +324,22 @@ to Mila, what she can do, where the limits are.
 In the container your Claude token, bot token and voice keys are with the key keeper — a separate user Mila goes through but
 cannot read (checked by an attack probe in the image build; a live run on Railway is still ahead).
 
-## Who builds Mila
+</details>
+
+<details>
+<summary><b>Who builds Mila</b></summary>
 
 MILAGPT is a small team led by **Shakhruz Ashot Ashirov** - founder of MILAGPT and AshotAI, 40 years in software,
 28 of them in commercial development and online marketing (Disney, Apple, AT&T), and **Farangiz Sharapova** -
 co-founder of MILAGPT. A fleet of Milas works next to us every day: development, quality, content, clients -
-this repository is the core they run on. Most commits here are written by one of them, Mila Development (an agent),
-and reviewed by Mila Quality and the owner before they land.
+this repository is the core they run on.
 
-**Developers, join us.** Build a skill, fix a hook, translate a skill to your language, tell us what broke.
-Every pull request is read by a person and by Mila Quality. Good contributors are invited to the core team.
-Start with [CONTRIBUTING.md](CONTRIBUTING.md).
+</details>
 
-## Getting a Mila
-
-| | | |
-|---|---|---|
-| **Build one** — free | Install Mila Agent yourself, on your computer or a server. | [Quick start ↓](#quick-start) |
-| **Hire one** | Ready-made Milas for a job — moderator, manager, SMM and more. The first one is free. | [mila.market](https://mila.market) |
-| **Launch your own** | MilaGPT Studio sets your Mila up with you and helps turn your expertise into a product. | [milagpt.io/akselerator](https://milagpt.io/akselerator/) |
-
-## Built a skill or a role?
-
-Send a pull request, or publish your Mila on [Mila Market](https://mila.market) and earn 75% of every sale.
-
-## Community
-
-Questions, ideas, show what your Mila does: [GitHub Discussions](https://github.com/shakhruz/mila-agent/discussions) ·
-Bugs: [Issues](https://github.com/shakhruz/mila-agent/issues) · Security: [SECURITY.md](SECURITY.md) · Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
 
 Apache-2.0 · © 2026 MILAGPT Coop, Tashkent · "Mila", "MILAGPT" and the logo are trademarks — see [TRADEMARKS.md](TRADEMARKS.md).
 *Claude and Claude Code are trademarks of Anthropic, PBC. Mila is an independent open-source project, not affiliated with, endorsed or sponsored by Anthropic.*
+
+<p align="center"><sub>Mila Agent is built by MILAGPT — <a href="https://milagpt.io">milagpt.io</a></sub></p>
