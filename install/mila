@@ -309,6 +309,7 @@ case "${1:-continue}" in
 mila            how she is: Mila lives in the background and answers in Telegram (not born yet — opens the birth page)
 mila start      start her in the background (launchd on macOS, systemd --user on Linux); she also starts after a reboot
 mila stop       stop her; she will not answer until `mila start`
+mila restart    stop her and start her again
 mila uninstall  take her off this machine: stop, remove the service, move her token, sign-in and birth record aside
                 (nothing is deleted — ~/.mila-removed/); --all moves her home folder too, for a birth from an empty page
 mila logs       the last lines of her logs (mila logs 50)

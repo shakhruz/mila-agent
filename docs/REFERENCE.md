@@ -186,6 +186,7 @@ terminal open for her.
 | `mila` | Not born yet — opens the birth page. Born — starts her in the background if she is not running and shows how she is. It does not open a session in the folder you typed it in. |
 | `mila start` | Starts her in the background; she also starts after a reboot. |
 | `mila stop` | Stops her; she does not answer until `mila start`. |
+| `mila restart` | Stops her and starts her again. |
 | `mila status` | The background service and the channel: receiver, bridge, journal. |
 | `mila logs` | The last lines of her logs (`mila logs 50` for more). |
 | `mila open` | A session in this terminal, in her home folder. The background one is stopped for that time — two sessions would both answer; afterwards run `mila start`. |
