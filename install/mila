@@ -311,7 +311,8 @@ mila start      start her in the background (launchd on macOS, systemd --user on
 mila stop       stop her; she will not answer until `mila start`
 mila restart    stop her and start her again
 mila uninstall  take her off this machine: stop, remove the service, move her token, sign-in and birth record aside
-                (nothing is deleted — ~/.mila-removed/); --all moves her home folder too, for a birth from an empty page
+                (her files are not deleted — ~/.mila-removed/); --all moves her home folder and her conversation
+                history too, for a birth from an empty page
 mila logs       the last lines of her logs (mila logs 50)
 mila open       a session in this terminal, in her home folder (stops the background one for that time)
 mila new        start a fresh session in this folder

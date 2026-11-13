@@ -196,7 +196,7 @@ terminal open for her.
 | `mila doctor` | Full diagnosis: token, privacy mode, access, daemon, permissions. |
 | `mila inbox` | Unread inbound messages, marked as seen once shown. |
 | `mila fix` | Restarts the receiver and leaves the session alone. |
-| `mila uninstall` | Takes her off this machine: stops her, removes the service, moves her token, sign-in and birth record to `~/.mila-removed/<date-time>/`. Nothing is deleted. `--all` moves her home folder too, for a birth from an empty page. |
+| `mila uninstall` | Takes her off this machine: stops her, removes the service, moves her token, sign-in and birth record to `~/.mila-removed/<date-time>/`. Her files are not deleted (the service file itself is removed; the install command writes it again). `--all` moves her home folder and her conversation history too, for a birth from an empty page. |
 
 The rest — `mila usage`, `mila turns`, `mila records`, `mila tasks`, `mila chats`, `mila owe`, `mila when`, `mila backup`,
 `mila export`, `mila restore`, `mila note` — is in the sections below and in `mila help`.
