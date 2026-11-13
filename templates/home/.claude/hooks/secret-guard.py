@@ -66,7 +66,7 @@ DEEP_CAP = 5000
 
 
 def key_inodes(real):
-    """(device, inode) of every file of one place, sub-folders too (os.walk, links not followed); (set, linked). Past DEEP_CAP
+    """(device, inode) of every file of one place, sub-folders too (os.walk, links not followed); (set, linked, over). Past DEEP_CAP
     files the place counts as linked — lines-search closes rather than a key going unseen (Quality 10.11: secrets/sub/deep)."""
     keys, linked, seen = set(), False, 0
     if os.path.isdir(real) and not os.path.islink(real):
@@ -76,11 +76,11 @@ def key_inodes(real):
     for dp, fns in walk:
         for f in fns:
             seen += 1
-            if seen > DEEP_CAP: return keys, True
+            if seen > DEEP_CAP: return keys, True, True
             try: st = os.lstat(os.path.join(dp, f))
             except OSError: continue
             if stat.S_ISREG(st.st_mode): keys.add((st.st_dev, st.st_ino)); linked = linked or st.st_nlink > 1
-    return keys, linked
+    return keys, linked, False
 
 
 def by_real_path(tool, args, cwd):
@@ -94,13 +94,16 @@ def by_real_path(tool, args, cwd):
         if inside(real, rp):
             return "это файлы входа или сейфа (по настоящему пути) — ключи читают только инструменты в момент действия", "place", "~/" + os.path.relpath(p, home)
     # a hard link has no other real path: the same file is told by (device, inode); a second link anywhere closes lines-search
-    keys, linked = set(), False
+    keys, linked, over = set(), False, False
     for p, rp in places:
-        k, l = key_inodes(rp); keys |= k; linked = linked or l
+        k, l, o = key_inodes(rp); keys |= k; linked = linked or l; over = over or o
     try: st = os.stat(real)
     except OSError: st = None
     if st is not None and stat.S_ISREG(st.st_mode) and (st.st_dev, st.st_ino) in keys:
         return "это файл ключа под другим именем (жёсткая ссылка)", "hardlink", "inode"
+    if over and st is not None and stat.S_ISREG(st.st_mode) and st.st_nlink > 1:
+        # the walk stopped at DEEP_CAP: the set of key files is not whole, so a file with a second name may be one of them
+        return "в сейфе слишком много файлов, чтобы сверить все; у этого файла есть второе имя — не открываю, скажите хозяину", "hardlink", "overflow"
     if tool != "Grep" or (args.get("output_mode") or "files_with_matches") != "content":
         return None   # names and counts of files, not their lines
     if linked:

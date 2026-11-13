@@ -80,6 +80,16 @@ os.makedirs(os.path.join(W, "secrets/sub")); open(os.path.join(W, "secrets/sub/d
 os.link(os.path.join(W, "secrets/sub/deep.env"), os.path.join(W, "notes/deep.txt"))
 chk("№13 Read жёсткой ссылки на secrets/sub/deep.env — стоп", dh("Read", file_path=os.path.join(W, "notes/deep.txt")), "deny")
 chk("№13 Read обычного файла после вложенной ссылки — пропуск", dh("Read", file_path=os.path.join(W, "notes/a.md")), "allow")
+# the walk has a cap: past it the set of key files is not whole — a file with a second name is not opened, an ordinary one is
+MANY = os.path.join(W, "secrets", "many"); os.makedirs(MANY)
+for i in range(5005): open(os.path.join(MANY, "f%04d.env" % i), "w").close()
+open(os.path.join(MANY, "zz-last.env"), "w").write("K=last\n"); os.link(os.path.join(MANY, "zz-last.env"), os.path.join(W, "notes/last.txt"))
+open(os.path.join(W, "notes/twin-a.md"), "w").write("заметка\n"); os.link(os.path.join(W, "notes/twin-a.md"), os.path.join(W, "notes/twin-b.md"))
+chk("сейф больше предела обхода: Read жёсткой ссылки на ключ — стоп", dh("Read", file_path=os.path.join(W, "notes/last.txt")), "deny")
+chk("…любой файл со вторым именем — стоп (сверить не с чем)", dh("Read", file_path=os.path.join(W, "notes/twin-a.md")), "deny")
+chk("…обычный файл с одним именем — пропуск", dh("Read", file_path=os.path.join(W, "notes/a.md")), "allow")
+shutil.rmtree(MANY, ignore_errors=True); os.remove(os.path.join(W, "notes/last.txt"))
+chk("сейф снова мал: файл со вторым именем, не ключ, — пропуск", dh("Read", file_path=os.path.join(W, "notes/twin-a.md")), "allow")
 shutil.rmtree(FH, ignore_errors=True)
 # почта аккаунта наружу: модель кладёт её в User-Agent curl, когда сайт просит контакт
 EM = "ivan" + "@example.com"
