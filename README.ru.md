@@ -12,6 +12,8 @@
 
 [English](README.md) · [中文](README.zh-CN.md) · **Русский** · [Oʻzbekcha](README.uz.md)
 
+<p align="center"><a href="https://www.skool.com/mila-academy-life-with-ai-4888/about"><img src="assets/readme/academy.png" alt="Mila Academy, вход свободный: свой ИИ-агент за 7 дней — бесплатная книга и один короткий урок в день (на английском, с русским переводом)" width="720"></a></p>
+
 [![tests](https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml) [![Latest version](https://img.shields.io/github/v/tag/shakhruz/mila-agent?sort=semver&label=version)](https://github.com/shakhruz/mila-agent/tags) [![License](https://img.shields.io/github/license/shakhruz/mila-agent)](LICENSE)
 
 Мила — часть большего. Прочитайте наш Манифест: [milagpt.io/manifest](https://milagpt.io/manifest/)

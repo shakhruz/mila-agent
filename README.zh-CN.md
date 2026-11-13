@@ -8,6 +8,8 @@
 
 [English](README.md) · **中文** · [Русский](README.ru.md) · [Oʻzbekcha](README.uz.md)
 
+<p align="center"><a href="https://www.skool.com/mila-academy-life-with-ai-4888/about"><img src="assets/readme/academy.png" alt="Mila Academy，免费加入：7 天拥有你自己的 AI 智能体——免费图书，每天一节短课（英文）" width="720"></a></p>
+
 [![tests](https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/shakhruz/mila-agent/actions/workflows/tests.yml) [![Latest version](https://img.shields.io/github/v/tag/shakhruz/mila-agent?sort=semver&label=version)](https://github.com/shakhruz/mila-agent/tags) [![License](https://img.shields.io/github/license/shakhruz/mila-agent)](LICENSE)
 
 **[当前版本](https://github.com/shakhruz/mila-agent/releases/latest)** · [更新内容](CHANGELOG.md)

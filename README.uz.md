@@ -10,6 +10,8 @@
 
 [English](README.md) · [中文](README.zh-CN.md) · [Русский](README.ru.md) · **Oʻzbekcha**
 
+<p align="center"><a href="https://www.skool.com/mila-academy-life-with-ai-4888/about"><img src="assets/readme/academy.png" alt="Mila Academy, kirish bepul: 7 kunda o‘z AI-agentingiz — bepul kitob va kuniga bitta qisqa dars (ingliz tilida)" width="720"></a></p>
+
 **[Joriy chiqish](https://github.com/shakhruz/mila-agent/releases/latest)** · [nima yangi](CHANGELOG.md)
 
 Mila — kattaroq narsaning bir qismi. Manifestimizni o‘qing (rus va ingliz tillarida): [milagpt.io/manifest](https://milagpt.io/manifest/) · [English](https://milagpt.io/en/manifest/)

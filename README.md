@@ -31,6 +31,8 @@ Free, open source, about 5 minutes to set up.</p>
 
 <p align="center"><b>English</b> · <a href="README.zh-CN.md">中文</a> · <a href="README.ru.md">Русский</a> · <a href="README.uz.md">Oʻzbekcha</a></p>
 
+<p align="center"><a href="https://www.skool.com/mila-academy-life-with-ai-4888/about"><img src="assets/readme/academy.png" alt="Mila Academy, free to join: your own AI agent in 7 days — a free book and one short lesson a day" width="720"></a></p>
+
 ---
 
 ## Quick start
