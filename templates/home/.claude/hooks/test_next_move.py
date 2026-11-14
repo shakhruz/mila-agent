@@ -180,5 +180,34 @@ chk("вместо расписания папка: форма 2 — отказ, 
 chk("другие сторожа живы рядом с ходом: извинение — отказ", guard(ans(head="Извините, не успела.")), True, "извинение")
 chk("клиентская группа (не владелец и не команда): ответ без «Мой ход / Ваш ход» — уходит", guard("Виктор, вот три примера. Какой ближе к вашему делу?", B2, chat="-1002"), False)
 chk("владелец: ответ без двух строк — по-прежнему отказ", guard("Готово, файл в папке.", B2, chat="111"), True, "Мой ход")
+# clients and guests: no two labels, but a timed promise and the buttons are still checked
+shutil.rmtree(J, ignore_errors=True); json.dump(jobs, open(J, "w"), ensure_ascii=False); no_beats(); beat()
+C = "-1002"
+chk("клиентская группа: «Пришлю завтра в 10:00 три варианта» без задачи Планировщика — отказ", guard("Виктор, пришлю завтра в 10:00 три варианта.", None, chat=C), True, "обещание со временем")
+chk("клиентская группа: обещание без времени — уходит", guard("Виктор, беру. Вернусь с результатом, как будет готово.", None, chat=C), False)
+chk("клиентская группа: «вернусь через час» (времени по часам нет — сверить не с чем) — отказ", guard("Виктор, вернусь через час с ответом.", None, chat=C), True, "обещание со временем")
+chk("клиентская группа: обещание на время, где стоит задача Планировщика (18:30), — уходит", guard("Виктор, пришлю сегодня в 18:30 сводку.", None, chat=C), False)
+chk("клиентская группа: на 09:00 есть живая задача (рядом выключенная и истёкшая на то же время) — уходит", guard("Виктор, пришлю завтра в 09:00 отчёт.", None, chat=C), False)
+chk("клиентская группа: время 11:45, задачи на него нет — отказ", guard("Виктор, напишу завтра в 11:45.", None, chat=C), True, "обещание со временем")
+no_beats()
+chk("клиентская группа: задача есть, но Планировщик на машине не работает — отказ", guard("Виктор, пришлю сегодня в 18:30 сводку.", None, chat=C), True, "обещание со временем")
+beat()
+chk("клиентская группа: кнопка «Принято» — отказ", guard("Виктор, вот три примера.", [[{"label": "Смотреть", "choice": "s", "style": "success"}, {"label": "Принято", "choice": "ok"}]], chat=C), True, "не кнопки")
+chk("клиентская группа: первая кнопка не зелёная — отказ", guard("Виктор, вот три примера.", [[{"label": "Смотреть", "choice": "s"}, {"label": "Позже", "choice": "l"}]], chat=C), True, "зелёная")
+chk("клиентская группа: одна кнопка-шаг — отказ (2–3)", guard("Виктор, вот пример.", [[{"label": "Смотреть", "choice": "s", "style": "success"}]], chat=C), True, "2–3")
+chk("клиентская группа: без кнопок вовсе — уходит", guard("Виктор, вот три примера. Какой ближе к вашему делу?", None, chat=C), False)
+chk("клиентская группа: «через полчаса» и «через пару часов» — тоже обещание со временем", (all(guard("Виктор, напишу через %s." % w, None, chat=C)[0] for w in ("полчаса", "пару часов", "2 дня")), "", 0), True)
+chk("клиентская группа: «пришлю к вечеру» и «пришлю к 18:00» без задачи — отказ", (all(guard("Виктор, пришлю %s подборку." % w, None, chat=C)[0] for w in ("к вечеру", "к 18:00")), "", 0), True)
+chk("владелец: «вернусь через час» без задачи в «Моём ходе» — отказ (раньше «через час» без числа не ловилось)", guard(ans(MY1, head="Вернусь через час с ответом.")), True, "обещание со временем")
+# OWNER_ID is not set: the only person in allowFrom is the owner — the rule stays for them
+OWNERLESS = {k: v for k, v in env.items() if k != "OWNER_ID"}
+os.remove(os.path.join(home, ".claude", "hooks", "internal-chats.json"))
+def guard_ownerless(text, buttons=B2, chat="555"):
+    r = subprocess.run([sys.executable, G], input=json.dumps({"tool_name": R, "tool_input": dict({"chat_id": chat, "text": text}, **({"buttons": buttons} if buttons is not None else {}))}),
+                       capture_output=True, text=True, env=OWNERLESS, timeout=30)
+    try: h = json.loads(r.stdout)["hookSpecificOutput"]; return h["permissionDecision"] == "deny", h.get("permissionDecisionReason", ""), r.returncode
+    except Exception: return False, "", r.returncode
+chk("OWNER_ID не задан, в allowFrom один человек — он владелец: ответ без двух строк — отказ", guard_ownerless("Готово, файл в папке."), True, "Мой ход")
+chk("OWNER_ID не задан: клиентская группа — без двух строк уходит", guard_ownerless("Виктор, вот три примера.", None, chat="-1002"), False)
 shutil.rmtree(home, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

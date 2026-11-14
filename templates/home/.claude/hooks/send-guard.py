@@ -62,11 +62,13 @@ SECRETS = [
 SECRETS_EARLY = SECRETS
 
 _allowed = set()
+_allow_from = set()
 _card_allow = set()
 _acc_ok = False
 try:
     _acc = json.load(open(os.path.expanduser("~/.claude/channels/telegram/access.json"), encoding="utf-8"))
     _allowed = {str(k) for k in (_acc.get("groups") or {}).keys()} | {str(x) for x in (_acc.get("allowFrom") or [])}
+    _allow_from = {str(x) for x in (_acc.get("allowFrom") or [])}
     _card_allow = {re.sub(r"\D", "", str(x)) for x in (_acc.get("cardAllow") or [])}   # the owner's own payment details (not masked)
     _acc_ok = True
 except Exception:
@@ -273,7 +275,7 @@ NM_FORMS = ((1, r"делаю сейчас|doing now|hozir qilyapman"), (2, r"с�
             (3, r"ничего не запущено|nothing is running|hech narsa ishga tushmagan"))
 # a promise with a time, in the first person and in the future: «пришлю завтра», «напомню в 18:00», «вернусь через час»
 NM_PROMISE = re.compile(r"(?i)(?<![а-яёa-z])(?:пришлю|напомню|вернусь|сделаю|отправлю|подготовлю|напишу|покажу|i(?:'ll| will) (?:send|remind|be back|do))(?![а-яё])"
-                        r"[^.\n!?]{0,60}?(?:завтра|послезавтра|сегодня в|вечером|утром|в \d{1,2}[:.]\d{2}|через \d+ ?(?:минут|час|дн|недел)|tomorrow|at \d{1,2}[:.]\d{2}|in \d+ ?(?:min|hour|day))")
+                        r"[^.\n!?]{0,60}?(?:завтра|послезавтра|сегодня в|вечером|утром|к вечеру|к утру|к обеду|[вк] \d{1,2}[:.]\d{2}|через (?:\d+ ?|пол|пару |несколько )?(?:минут|час|дн|день|недел)|tomorrow|at \d{1,2}[:.]\d{2}|in \d+ ?(?:min|hour|day))")
 NM_EMPTY_BTN = re.compile(r"(?i)^\W*(?:принято|понятно|понял[аи]?|ок|ok|хорошо|спасибо|подробнее|ясно|got it|thanks|more|details)\W*$")
 NM_IDLE = re.compile(r"(?i)ничего не нужно|иду дальше|продолжаю(?![а-яё])|nothing (?:is )?needed|moving on")
 NM_DAYS = ("понедельник", "вторник", "сред", "четверг", "пятниц", "суббот", "воскресен")
@@ -349,6 +351,40 @@ def next_move(body, a, work):
     return out
 
 
+def _nm_job_at(times, work):
+    """an enabled job in the schedule whose next run is at one of these (hour, minute) → (its next time, now), else None"""
+    import datetime as _d
+    try: jobs = json.load(open(os.path.join(work, "schedule", "jobs.json"), encoding="utf-8")).get("jobs") or []
+    except (OSError, ValueError, AttributeError): return None
+    for j in jobs:
+        if not isinstance(j, dict) or j.get("enabled") is False or not j.get("id"): continue
+        got, err = _nm_job(str(j["id"]), work)
+        if not err and (got[0].hour, got[0].minute) in times: return got
+    return None
+
+
+def next_move_people(body, a, work):
+    """A client or a guest: no «Мой ход / Ваш ход», but what protects them stays — a promise with a time stands only on a
+    Scheduler job at that time, and the buttons follow the same rules as everywhere."""
+    lines = [l.strip() for l in body.split("\n") if l.strip()]
+    if not lines: return []
+    out = []
+    m = NM_PROMISE.search(body)
+    if m:
+        hm = {(int(h), int(mi)) for h, mi in re.findall(r"\b(\d{1,2})[:.](\d{2})\b", body)}
+        job = _nm_job_at(hm, work) if hm else None
+        if not job or _nm_alive(work, job[1]):
+            out.append("в ответе обещание со временем, а задачи Планировщика на это время нет — скажите без времени («вернусь с результатом, "
+                       "как будет готово») или сначала поставьте задачу (mila_cron.py add)")
+    choices = [b for row in (a.get("buttons") or []) if isinstance(row, list) for b in row if isinstance(b, dict) and b.get("choice")]
+    if choices and a.get("multi") is not True:
+        if not 2 <= len(choices) <= 3: out.append("кнопок-шагов — 2–3 (сейчас %d); первая — рекомендуемая" % len(choices))
+        elif choices[0].get("style") != "success": out.append("первая кнопка — рекомендуемый шаг, зелёная (style: success)")
+    if any(NM_EMPTY_BTN.match(str(b.get("label") or "")) for b in choices):
+        out.append("кнопка — шаг, который я сделаю сразу; пустые «Принято», «Подробнее», «Ок» — не кнопки")
+    return out
+
+
 def _nm_note(work, kind, chat, what):
     """a line about the rule in work/state/next-move-fail.jsonl (no text of the answer) and, if the skill is there, a problem."""
     try:
@@ -415,6 +451,7 @@ def _nm_ours(c):
     keep the rule; a client or a guest gets a natural ending — what I do and a question or advice, buttons stay."""
     if not c: return False
     if owner and c == owner: return True
+    if not owner and len(_allow_from) == 1 and c in _allow_from: return True   # OWNER_ID is not set: the only person allowed to write is the owner
     if c == os.environ.get("MILA_DEV_CHAT", ""): return True
     try:
         return c in {str(x) for x in json.load(open(os.path.expanduser("~/.claude/hooks/internal-chats.json"), encoding="utf-8"))}
@@ -422,12 +459,15 @@ def _nm_ours(c):
         return False
 
 
-if tool.endswith("__reply") and _nm_ours(chat_id):
+if tool.endswith("__reply"):
     _nm_work = os.path.expanduser(os.environ.get("MILA_WORK") or "~/work")
     try:
-        _nm_res = next_move(_body, args, _nm_work)
-        _nm_parts(_nm_work, chat_id, _nm_res is None)
-        why += _nm_res or []
+        if _nm_ours(chat_id):
+            _nm_res = next_move(_body, args, _nm_work)
+            _nm_parts(_nm_work, chat_id, _nm_res is None)
+            why += _nm_res or []
+        else:
+            why += next_move_people(_body, args, _nm_work)
     except Exception as _nm_e:      # fail open: the answer goes, the failure is written down
         _nm_note(_nm_work, type(_nm_e).__name__, chat_id, "проверка «Следующего хода» в стороже отправки сломалась: %s" % type(_nm_e).__name__)
 
