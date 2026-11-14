@@ -101,6 +101,9 @@ chk("WebFetch: адрес Bot API — стоп", dec("WebFetch", url="https://%s
 chk("другой адрес Telegram (t.me, core.telegram.org) — пропуск", dec("WebFetch", url="https://core.telegram.org/bots/api", prompt="x"), "allow")
 chk("curl на t.me — пропуск", dec("Bash", command="curl -sI https://t.me/example_bot"), "allow")
 chk("слово telegram в команде без адреса API — пропуск", dec("Bash", command="grep -rn telegram docs/ | head"), "allow")
+chk("поиск по коду с экранированной точкой — пропуск", dec("Bash", command="grep -rn 'api\\.telegram\\.org' src/ | head"), "allow")
+_r = subprocess.run([sys.executable, G], input=json.dumps({"tool_name": "Bash", "tool_input": {"command": "grep -rn '%s' src/" % TG}}), capture_output=True, text=True, timeout=20, env=ENV)
+chk("поиск по коду без экранирования — стоп, и отказ подсказывает, как искать", "ok" if "экранированной точкой" in _r.stdout and '"deny"' in _r.stdout else "нет", "ok")
 rows3 = [json.loads(l) for l in open(J)] if os.path.exists(J) else []
 chk("журнал: правило tg-api, без команды и без ключа", "ok" if any(r["rule"] == "tg-api" for r in rows3) and "botX" not in open(J).read() else "нет", "ok")
 # почта аккаунта наружу: модель кладёт её в User-Agent curl, когда сайт просит контакт

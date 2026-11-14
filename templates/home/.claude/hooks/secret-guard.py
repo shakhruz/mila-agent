@@ -208,7 +208,7 @@ def main():
     if r:
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
               "permissionDecisionReason": ("Не делаю: %s. Сайту, которому нужен контакт, — спрошу хозяина, какой адрес дать." % r) if c[1] == "email"
-              else ("Не делаю: %s. Людям пишу только инструментами плагина." % r) if c[1] == "tg-api"
+              else ("Не делаю: %s. Людям пишу только инструментами плагина. Если это поиск по коду — ищу с экранированной точкой." % r) if c[1] == "tg-api"
               else ("Не делаю: %s. Ключи хозяина я не читаю сама — их берут нужные инструменты." % r)}}, ensure_ascii=False))
     return 0
 
