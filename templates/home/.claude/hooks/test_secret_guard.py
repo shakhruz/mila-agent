@@ -91,6 +91,18 @@ chk("…обычный файл с одним именем — пропуск", 
 shutil.rmtree(MANY, ignore_errors=True); os.remove(os.path.join(W, "notes/last.txt"))
 chk("сейф снова мал: файл со вторым именем, не ключ, — пропуск", dh("Read", file_path=os.path.join(W, "notes/twin-a.md")), "allow")
 shutil.rmtree(FH, ignore_errors=True)
+# Telegram напрямую, мимо плагина: команда или адрес к Bot API — стоп и строка в журнале
+TG = "api.telegram" + ".org"
+for c in ("curl -s https://%s/botX/sendMessage -d chat_id=1 -d text=hi" % TG, "wget -qO- 'https://%s/botX/getMe'" % TG,
+          "python3 -c \"import urllib.request as u; u.urlopen('https://%s/botX/sendPhoto')\"" % TG, "for i in 1 2; do curl https://API.TELEGRAM.ORG/botX/getUpdates; done"):
+    chk("Bash: вызов Bot API напрямую — стоп: " + c[:38], dec("Bash", command=c), "deny")
+chk("Monitor: вызов Bot API напрямую — стоп", dec("Monitor", command="while true; do curl -s https://%s/botX/getUpdates; sleep 5; done" % TG), "deny")
+chk("WebFetch: адрес Bot API — стоп", dec("WebFetch", url="https://%s/botX/getMe" % TG, prompt="x"), "deny")
+chk("другой адрес Telegram (t.me, core.telegram.org) — пропуск", dec("WebFetch", url="https://core.telegram.org/bots/api", prompt="x"), "allow")
+chk("curl на t.me — пропуск", dec("Bash", command="curl -sI https://t.me/example_bot"), "allow")
+chk("слово telegram в команде без адреса API — пропуск", dec("Bash", command="grep -rn telegram docs/ | head"), "allow")
+rows3 = [json.loads(l) for l in open(J)] if os.path.exists(J) else []
+chk("журнал: правило tg-api, без команды и без ключа", "ok" if any(r["rule"] == "tg-api" for r in rows3) and "botX" not in open(J).read() else "нет", "ok")
 # почта аккаунта наружу: модель кладёт её в User-Agent curl, когда сайт просит контакт
 EM = "ivan" + "@example.com"
 json.dump({"oauthAccount": {"emailAddress": EM}}, open(os.path.join(CFG, ".claude.json"), "w"))

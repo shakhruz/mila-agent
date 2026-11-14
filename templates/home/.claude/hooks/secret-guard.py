@@ -141,14 +141,24 @@ def email_out(text):
     return bool(e) and e in text.lower() and bool(NET.search(text))
 
 
+# Messages to people go out through the Telegram plugin, where the outgoing filters stand. A command or an address that calls the
+# Bot API itself goes past them. Where the bot's key is readable by the session's own user this is not a wall — it makes the way
+# round longer than one command and leaves a line in the journal.
+TG_API = re.compile(r"api\.telegram\.org", re.I)
+
+
 def check(tool, args, cwd=None):
     """(reason, rule, what matched) or None."""
     if tool == "WebFetch":
+        if TG_API.search(str(args.get("url") or "")):
+            return "это вызов Telegram напрямую, мимо плагина и его фильтров", "tg-api", "api.telegram.org"
         if email_out("https:// " + str(args.get("url") or "")):
             return "в адресе запроса почта аккаунта — наружу её не отправляю", "email", "account-email"
         return None
     if tool in ("Bash", "Monitor"):
         cmd = str(args.get("command") or "")
+        if TG_API.search(cmd):
+            return "команда вызывает Telegram напрямую, мимо плагина и его фильтров", "tg-api", "api.telegram.org"
         if email_out(cmd):
             return "команда отправляет почту аккаунта в сеть — наружу её не отправляю", "email", "account-email"
     if tool in ("Bash", "Monitor"):   # Monitor runs a shell command too: the same rules
@@ -198,6 +208,7 @@ def main():
     if r:
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
               "permissionDecisionReason": ("Не делаю: %s. Сайту, которому нужен контакт, — спрошу хозяина, какой адрес дать." % r) if c[1] == "email"
+              else ("Не делаю: %s. Людям пишу только инструментами плагина." % r) if c[1] == "tg-api"
               else ("Не делаю: %s. Ключи хозяина я не читаю сама — их берут нужные инструменты." % r)}}, ensure_ascii=False))
     return 0
 
