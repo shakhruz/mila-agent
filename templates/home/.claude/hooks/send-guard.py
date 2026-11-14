@@ -274,8 +274,21 @@ NM_CONT = re.compile(r"^\(?(продолжение следует|continued|davo
 NM_FORMS = ((1, r"делаю сейчас|doing now|hozir qilyapman"), (2, r"стоит в Планировщике|in the Scheduler|Rejalashtiruvchida"),
             (3, r"ничего не запущено|nothing is running|hech narsa ishga tushmagan"))
 # a promise with a time, in the first person and in the future: «пришлю завтра», «напомню в 18:00», «вернусь через час»
-NM_PROMISE = re.compile(r"(?i)(?<![а-яёa-z])(?:пришлю|напомню|вернусь|сделаю|отправлю|подготовлю|напишу|покажу|i(?:'ll| will) (?:send|remind|be back|do))(?![а-яё])"
+NM_PROMISE = re.compile(r"(?i)(?<![а-яёa-z])(?:пришлю|напомню|вернусь|сделаю|отправлю|подготовлю|напишу|покажу|отвечу|i(?:'ll| will) (?:send|remind|be back|do))(?![а-яё])"
                         r"[^.\n!?]{0,60}?(?:завтра|послезавтра|сегодня в|вечером|утром|к вечеру|к утру|к обеду|[вк] \d{1,2}[:.]\d{2}|через (?:\d+ ?|пол|пару |несколько )?(?:минут|час|дн|день|недел)|tomorrow|at \d{1,2}[:.]\d{2}|in \d+ ?(?:min|hour|day))")
+# a fork is not a promise of a time: to «when?» I answer «примерно час-два» (canon BEZ-SROKOV) — «примерно/около» and a range
+NM_FORK = re.compile(r"(?i)(?:примерно|около|ориентировочно|approximately|about|roughly)\s[^.\n!?]{0,25}?"
+                     r"(?:час-два|день-два|минуту-две|пар[уы] (?:минут|часов|дней)|\d+\s?[–—-]\s?\d+\s?(?:минут|час|дн|min|hour|day)|an hour or two|a day or two)")
+
+
+def nm_promise(text):
+    """a promise with a time that is not a fork → True"""
+    for m in NM_PROMISE.finditer(text):
+        end = min([i for i in (text.find(c, m.start()) for c in ".!?\n") if i != -1] or [len(text)])
+        if not NM_FORK.search(text[m.start():end]): return True     # the fork must stand with this verb's time, not earlier in the sentence
+    return False
+
+
 NM_EMPTY_BTN = re.compile(r"(?i)^\W*(?:принято|понятно|понял[аи]?|ок|ok|хорошо|спасибо|подробнее|ясно|got it|thanks|more|details)\W*$")
 NM_IDLE = re.compile(r"(?i)ничего не нужно|иду дальше|продолжаю(?![а-яё])|nothing (?:is )?needed|moving on")
 NM_DAYS = ("понедельник", "вторник", "сред", "четверг", "пятниц", "суббот", "воскресен")
@@ -338,7 +351,7 @@ def next_move(body, a, work):
                 if day is not None and day != nxt.weekday(): out.append("день недели в «Моём ходе» не совпадает с расписанием: ближайший срок — %s" % nxt.strftime("%d.%m %H:%M"))
                 if "завтра" in low and (nxt.date() - now.date()).days != 1: out.append("«завтра» не совпадает с расписанием: ближайший срок — %s" % nxt.strftime("%d.%m %H:%M"))
                 if "сегодня" in low and nxt.date() != now.date(): out.append("«сегодня» не совпадает с расписанием: ближайший срок — %s" % nxt.strftime("%d.%m %H:%M"))
-    if form != 2 and NM_PROMISE.search(head + "\n" + mine):
+    if form != 2 and nm_promise(head + "\n" + mine):
         out.append("в ответе обещание со временем, а в «Моём ходе» нет задачи Планировщика — поставьте задачу и назовите её, или уберите обещание")
     if NM_IDLE.search(yours) or (form == 3 and NM_IDLE.search(mine)):
         out.append("«ничего не нужно, иду дальше» при пустом ходе хозяину непонятно — в «Вашем ходе» нужна рекомендация следующего шага")
@@ -369,8 +382,7 @@ def next_move_people(body, a, work):
     lines = [l.strip() for l in body.split("\n") if l.strip()]
     if not lines: return []
     out = []
-    m = NM_PROMISE.search(body)
-    if m:
+    if nm_promise(body):
         hm = {(int(h), int(mi)) for h, mi in re.findall(r"\b(\d{1,2})[:.](\d{2})\b", body)}
         job = _nm_job_at(hm, work) if hm else None
         if not job or _nm_alive(work, job[1]):
