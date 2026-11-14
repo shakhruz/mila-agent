@@ -1,5 +1,17 @@
 # CHANGELOG · Mila
 
+## Unreleased — people are written to through my Telegram tools, not past them
+
+<details><summary>In Russian (read by the updater of installed Milas)</summary>
+
+**Для хозяина**
+- Людям я пишу только своими инструментами Telegram, где работают фильтры отправки. Команда или адрес, который зовёт Telegram Bot API напрямую, получает отказ и строку в журнале. Это страховка от случайного обхода, а не стена: намеренный обход она не остановит.
+
+</details>
+
+**For the owner**
+- I write to people only through my Telegram tools, where the sending filters work. A command or an address that calls the Telegram Bot API directly is refused and leaves a line in the journal. This guards against an accidental bypass; it is not a wall and does not stop a deliberate one.
+
 ## v1.7.14 · 14.11 — a start that no longer slips; the account's email stays home; pages of memory by day, week and month; a skill saved only by your press
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
