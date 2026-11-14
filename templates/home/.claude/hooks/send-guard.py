@@ -282,11 +282,9 @@ NM_FORK = re.compile(r"(?i)(?:примерно|около|ориентирово
 
 
 def nm_promise(text):
-    """a promise with a time that is not a fork → True"""
-    for m in NM_PROMISE.finditer(text):
-        end = min([i for i in (text.find(c, m.start()) for c in ".!?\n") if i != -1] or [len(text)])
-        if not NM_FORK.search(text[m.start():end]): return True     # the fork must stand with this verb's time, not earlier in the sentence
-    return False
+    """a promise with a time that is not a fork → True. The forks are cut out first: what is left of the text must hold no
+    promise with a time — a fork does not cover an exact time next to it («…примерно через час-два, а договор — завтра в 10:00»)."""
+    return NM_PROMISE.search(NM_FORK.sub(" ", text)) is not None
 
 
 NM_EMPTY_BTN = re.compile(r"(?i)^\W*(?:принято|понятно|понял[аи]?|ок|ok|хорошо|спасибо|подробнее|ясно|got it|thanks|more|details)\W*$")
