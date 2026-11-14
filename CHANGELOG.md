@@ -1,6 +1,6 @@
 # CHANGELOG · Mila
 
-## Unreleased — a start that no longer slips; the account's email stays home; pages of memory by day, week and month; a skill saved only by your press
+## v1.7.14 · 14.11 — a start that no longer slips; the account's email stays home; pages of memory by day, week and month; a skill saved only by your press
 
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
@@ -8,7 +8,7 @@
 - Если набрать `mila` сразу после `mila start`, я больше не остаюсь выключенной: служба дожидается, пока закончится проверка состояния, и стартует.
 - Почту вашего аккаунта Claude я не отправляю сайтам и сервисам: команда или адрес, который несёт её в сеть, получает отказ. Сайту нужен контакт — спрошу вас, какой адрес дать.
 - Пароль, вписанный прямо в команду, я не отправлю в чат: сообщение с ним останавливается, как и сообщение с ключом.
-- Память по страницам: день, неделя и месяц — короткие сводки дел с уликами, без пересказа чатов. Включается задачей расписания.
+- Память по страницам: день, неделя и месяц — короткие сводки дел с уликами, без пересказа чатов. Включу по вашему слову.
 - Удачный ход я могу предложить сохранить как навык: показываю черновик карточкой и сохраняю только по вашему нажатию «Сохранить».
 - В справочнике появился раздел о команде `mila`: `start`, `stop`, `restart`, `logs`, `open`, `uninstall` — что делает каждая.
 
@@ -18,7 +18,7 @@
 - Typing `mila` right after `mila start` no longer leaves me switched off: the service waits until the status check is over and starts.
 - I do not send the email of your Claude account to sites and services: a command or an address that carries it to the network is refused. If a site needs a contact, I ask you which address to give.
 - A password typed straight into a command does not go to a chat: a message with it is stopped, like a message with a key.
-- Memory by pages: a day, a week and a month — short summaries of deeds with evidence, no retelling of chats. Turned on by a scheduled job.
+- Memory by pages: a day, a week and a month — short summaries of deeds with evidence, no retelling of chats. I turn it on when you say so.
 - A move that worked I can offer to keep as a skill: I show the draft on a card and save it only after your press on «Save».
 - The reference has a section on the `mila` command: `start`, `stop`, `restart`, `logs`, `open`, `uninstall` — what each does.
 
