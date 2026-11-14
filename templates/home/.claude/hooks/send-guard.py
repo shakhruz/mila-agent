@@ -409,7 +409,20 @@ def _nm_parts(work, chat, is_part):
         with open(f, "w", encoding="utf-8") as fh: json.dump(w, fh)
 
 
-if tool.endswith("__reply"):
+def _nm_ours(c):
+    """«Мой ход / Ваш ход» is the working language with the owner and the team (owner's word 15.11.2026, 49546: with clients and
+    guests the two labels sound mechanical). The owner, internal chats (~/.claude/hooks/internal-chats.json) and the dev chat
+    keep the rule; a client or a guest gets a natural ending — what I do and a question or advice, buttons stay."""
+    if not c: return False
+    if owner and c == owner: return True
+    if c == os.environ.get("MILA_DEV_CHAT", ""): return True
+    try:
+        return c in {str(x) for x in json.load(open(os.path.expanduser("~/.claude/hooks/internal-chats.json"), encoding="utf-8"))}
+    except Exception:
+        return False
+
+
+if tool.endswith("__reply") and _nm_ours(chat_id):
     _nm_work = os.path.expanduser(os.environ.get("MILA_WORK") or "~/work")
     try:
         _nm_res = next_move(_body, args, _nm_work)

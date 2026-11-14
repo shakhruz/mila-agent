@@ -2,6 +2,8 @@
 
 ## Unreleased — people are written to through my Telegram tools, not past them
 
+- «Мой ход / Ваш ход» — только хозяину и команде (личка хозяина, internal-chats.json, чат разработки). С клиентами и гостями — живая концовка без меток, кнопки остаются; сторож отправки больше не требует двух строк в клиентских чатах (слово хозяина 15.11.2026: «механистично, смешно звучит»).
+
 <details><summary>In Russian (read by the updater of installed Milas)</summary>
 
 **Для хозяина**

@@ -7,7 +7,9 @@ import datetime as dt, json, os, shutil, subprocess, sys, tempfile
 H = os.path.dirname(os.path.abspath(__file__)); G = os.path.join(H, "send-guard.py"); REPO = os.path.join(H, "..", "..", "..", "..")
 home = tempfile.mkdtemp(); work = os.path.join(home, "work"); CL = os.path.join(home, ".claude")
 os.makedirs(os.path.join(CL, "channels/telegram")); os.makedirs(os.path.join(work, "schedule"))
-json.dump({"groups": {"-1001": {}}, "allowFrom": ["555"]}, open(os.path.join(CL, "channels/telegram/access.json"), "w"))
+json.dump({"groups": {"-1001": {}, "-1002": {}}, "allowFrom": ["555"]}, open(os.path.join(CL, "channels/telegram/access.json"), "w"))
+os.makedirs(os.path.join(home, ".claude", "hooks"), exist_ok=True)
+json.dump(["555", "-1001"], open(os.path.join(home, ".claude", "hooks", "internal-chats.json"), "w"))      # the team; -1002 is a client group
 for s in ("raspisanie", "problemy", "dela", "pd-vault"):
     if os.path.isdir(os.path.join(REPO, "skills", s)): shutil.copytree(os.path.join(REPO, "skills", s), os.path.join(CL, "skills", s), ignore=shutil.ignore_patterns("__pycache__", "test_*"))
 import zoneinfo
@@ -176,5 +178,7 @@ no_beats(); beat()
 os.remove(J); os.makedirs(J)
 chk("вместо расписания папка: форма 2 — отказ, остальное уходит", guard(ans(P("«отчёт за день», придёт завтра в 09:00."))), True, "не читается")
 chk("другие сторожа живы рядом с ходом: извинение — отказ", guard(ans(head="Извините, не успела.")), True, "извинение")
+chk("клиентская группа (не владелец и не команда): ответ без «Мой ход / Ваш ход» — уходит", guard("Виктор, вот три примера. Какой ближе к вашему делу?", B2, chat="-1002"), False)
+chk("владелец: ответ без двух строк — по-прежнему отказ", guard("Готово, файл в папке.", B2, chat="111"), True, "Мой ход")
 shutil.rmtree(home, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)

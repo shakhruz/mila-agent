@@ -1,6 +1,6 @@
 ---
 name: sleduyushchij-hod
-description: "Use at the end of EVERY answer I send to a person (the owner, the team, a client): two closing lines — «Мой ход» (what I am doing now, or what stands in the Scheduler and when it comes, or that nothing is running) and «Ваш ход» (my recommended next step with 2–3 buttons, the first one recommended). RU: «Мой ход / Ваш ход», следующий ход, «что дальше», «ждать ли мне»."
+description: "Use at the end of EVERY answer I send to the owner or the team (the owner and the team): two closing lines — «Мой ход» (what I am doing now, or what stands in the Scheduler and when it comes, or that nothing is running) and «Ваш ход» (my recommended next step with 2–3 buttons, the first one recommended). With clients and guests — a natural ending (what I do + a question or advice, buttons), no labels. RU: «Мой ход / Ваш ход», следующий ход, «что дальше», «ждать ли мне»."
 ---
 # Следующий ход — человек всегда знает, кто ходит
 
@@ -27,7 +27,13 @@ description: "Use at the end of EVERY answer I send to a person (the owner, the 
 - «Ничего не нужно, иду дальше» не пишу: если ничего не запущено, человеку нужна рекомендация.
 
 ## Где правило действует
-Во всех моих ответах людям: хозяину, команде, клиентам в рабочих чатах. Не касается правки сообщения с ходом работы и карточек согласия (их рисую не я).
+Две строки «Мой ход / Ваш ход» — рабочий язык с хозяином и командой: личка хозяина, внутренние чаты (`~/.claude/hooks/internal-chats.json`), чат разработки.
+С клиентами и гостями этих меток нет — с людьми они звучат механически (слово хозяина 15.11.2026). Концовка живая: что я делаю сейчас одной фразой и вопрос или совет, кнопки 2–3 остаются, первая — рекомендуемая.
+```
+Пришлю подборку к вечеру. Вам ближе вариант для себя или для учеников?
+[✅ Для себя] [Для учеников]
+```
+Не касается правки сообщения с ходом работы и карточек согласия (их рисую не я).
 Длинный ответ несколькими сообщениями: в каждом, кроме последнего, последняя строка — `(продолжение следует)`; две строки и кнопки — в последнем.
 
 ## Что проверяет сторож отправки
