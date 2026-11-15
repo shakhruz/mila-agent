@@ -56,7 +56,7 @@ def read_in_home(home, rel):
         return None
     try:
         st = os.fstat(fd)
-        if not stat.S_ISREG(st.st_mode) or st.st_size > MAXF:
+        if not stat.S_ISREG(st.st_mode) or st.st_size > MAXF or st.st_nlink != 1:   # жёсткая ссылка на чужой файл — отказ
             return None
         with os.fdopen(os.dup(fd), "rb") as f:
             return f.read().decode("utf-8", "replace")
@@ -154,6 +154,7 @@ def event(slug, owner, jid, slot, content, now):
 DLIT_MIN = 120                           # срок на исполнение по умолчанию (поле задачи dlit, минуты, 10…1440)
 ONCE_WAIT = dt.timedelta(hours=2)        # разовое дело без итога за 2 ч → строка сторожа
 FIRES_PER_DAY = int(os.environ.get("MILA_FIRES_PER_DAY") or 300)   # бюджет срабатываний своих задач в сутки на дом
+OWNER_FIRES_PER_DAY = int(os.environ.get("MILA_OWNER_FIRES_PER_DAY") or 300)   # отдельный потолок задач хозяина/старшей
 
 
 def watch(state_dir, now, slug, jid, why):
@@ -289,11 +290,14 @@ def tick(home, slug, owner="", state_dir=None, now=None, beat_dir=None):
         day = now.date().isoformat()                            # v4: бюджет срабатываний в сутки на дом — держит расход, а не число задач
         if st.setdefault("day", {}).get("date") != day:
             st["day"] = {"date": day, "n": 0}
-        if st["day"]["n"] >= FIRES_PER_DAY and j.get("by", "mila") == "mila":
-            if not st["day"].get("told"):
-                st["day"]["told"] = True; watch(state_dir, now, slug, jid, "daily fire budget %d reached; own jobs wait till tomorrow" % FIRES_PER_DAY)
+        pool = "mila" if j.get("by", "mila") == "mila" else "owner"   # бюджет на ВСЕ задачи: «по слову хозяина» проверяется только видом
+        cap = FIRES_PER_DAY if pool == "mila" else OWNER_FIRES_PER_DAY  # (Качество 15.11) — у задач хозяина/старшей свой потолок
+        if st["day"].get(pool, 0) >= cap:
+            if not st["day"].get("told_" + pool):
+                st["day"]["told_" + pool] = True
+                watch(state_dir, now, slug, jid, "daily fire budget %d reached for %s jobs; they wait till tomorrow" % (cap, pool))
             continue
-        st["day"]["n"] += 1
+        st["day"][pool] = st["day"].get(pool, 0) + 1; st["day"]["n"] += 1
         extra = ("\nНашла проверка:\n" + "\n".join("• " + t for _, t in found[:20])) if found else ""
         fired.append((jid, slot, "[⏰ расписание] %s\n%s%s\nСделай и запиши итог: %s done %s \"…\"" % (jid, str(j.get("text") or "")[:2000], extra, MC, jid), "slot"))
         if found:

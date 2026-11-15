@@ -33,6 +33,7 @@ WORD_RE = re.compile(r"-?[0-9A-Za-z_]{1,40}/[0-9A-Za-z_-]{1,60}")
 # v4 (слово хозяина 15.11.2026): это планировщик помощника, а не кроны — задач могут быть сотни, на год вперёд.
 # Подписку тратит не число задач, а частота срабатываний: её держит служба (бюджет в сутки) и сторож исполнения.
 MAX_JOBS, MAX_TEXT, DEF_DAYS, MAX_DAYS = 1000, 2000, 30, 90
+MAX_FOREVER = 50          # задач без срока в доме — не больше (Качество 15.11: слово хозяина проверяется только видом)
 OWNER_DAYS = 400          # задачи по слову хозяина/старшей живут до года с запасом; без срока — только им (--no-expire)
 
 
@@ -160,6 +161,8 @@ def add(jid, cron, text, by="mila", word="", expires="", no_expire=False, quiet=
             raise Refuse("задача «%s» уже есть — rm или другой id" % jid)
         if len(d["jobs"]) >= MAX_JOBS:
             raise Refuse("задач уже %d — больше нельзя" % MAX_JOBS)
+        if exp is None and sum(1 for x in d["jobs"] if not x.get("expires")) >= MAX_FOREVER:
+            raise Refuse("задач без срока уже %d — больше нельзя; дай срок (до %d дней)" % (MAX_FOREVER, OWNER_DAYS))
         rec = {"id": jid, "cron": cron, "at": when.isoformat(timespec="minutes") if at else None, "check": check or None, "kind": kind or None, "text": text, "by": by, "word": word or "", "created": now().isoformat(timespec="minutes"),
                "expires": exp.isoformat() if exp else None, "quiet": quiet, "catchup": catchup, "enabled": True}
         d["jobs"].append(rec)

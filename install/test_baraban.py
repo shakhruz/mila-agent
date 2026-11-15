@@ -143,4 +143,27 @@ f = t3(at(6, 10, 1))
 w = [json.loads(l) for l in open(os.path.join(ST3, "watch.jsonl"))]
 check("v4: бюджет 2 в сутки — пришли 2 своих, строка сторожа одна", len(f) == 2 and sum(1 for x in w if "budget" in x["why"]) == 1, (f, w))
 os.environ.pop("MILA_FIRES_PER_DAY"); importlib.reload(B)
+# Качество 15.11: «по слову хозяина» не обходит бюджет; жёсткая ссылка в проверке — отказ
+H4 = os.path.join(T, "h4"); W4 = os.path.join(H4, "work"); EV4 = os.path.join(H4, ".claude/channels/telegram/inbound/events.jsonl")
+os.makedirs(os.path.dirname(EV4)); os.makedirs(W4); open(EV4, "w").close()
+json.dump({"allowFrom": [OWN]}, open(os.path.join(H4, ".claude/channels/telegram/access.json"), "w"))
+open(os.path.join(W4, "USER.md"), "w").write("Часовой пояс — Asia/Tashkent\nТихие часы — 22:00–08:00\n")
+ST4 = os.path.join(T, "state4")
+def mc4(*a, now):
+    return subprocess.run([sys.executable, os.path.join(R, "skills/raspisanie/mila_cron.py"), *a], capture_output=True, text=True,
+                          env=dict(os.environ, MILA_WORK=W4, MILA_CRON_NOW=now.isoformat(), MILA_EVENTS=EV4))
+for i in range(50):
+    mc4("add", "o%d" % i, "*/5 * * * *", "x", "--by", "owner", "--word", "33823108/1", "--no-expire", now=at(10))
+r51 = mc4("add", "o50", "*/5 * * * *", "x", "--by", "owner", "--word", "33823108/1", "--no-expire", now=at(10))
+check("проба Качества: 51-я задача без срока — отказ", r51.returncode == 1 and "без срока" in r51.stdout, r51.stdout)
+os.environ["MILA_OWNER_FIRES_PER_DAY"] = "300"; importlib.reload(B)
+tot = 0
+for m in range(0, 60, 5):
+    tot += len(B.tick(H4, "h4", "", ST4, at(11, 9, m))["fired"])
+w4 = [json.loads(l) for l in open(os.path.join(ST4, "watch.jsonl"))]
+check("проба Качества: 50 задач */5 by=owner — за сутки не больше 300 срабатываний, одна строка сторожа", tot == 300 and sum(1 for x in w4 if "budget" in x["why"]) == 1, (tot, w4[-2:]))
+os.environ.pop("MILA_OWNER_FIRES_PER_DAY"); importlib.reload(B)
+outside2 = os.path.join(H4, "chuzhoe.json"); json.dump([{"id": "x", "text": "секрет", "due": "2020-01-01 00:00"}], open(outside2, "w"))
+os.link(outside2, os.path.join(W4, "link.json"))
+check("проба Качества: проверка по жёсткой ссылке — отказ (nlink≠1)", B.run_check(H4, "deadlines:work/link.json", at(11), TZ) == [])
 shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
