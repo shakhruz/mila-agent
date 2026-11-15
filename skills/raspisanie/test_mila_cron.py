@@ -50,6 +50,14 @@ dn = [json.loads(l) for l in open(os.path.join(W, "schedule", "done.jsonl"))]
 chk("v4: start/fail — статусы в done.jsonl; итог и срыв — в журнал дел, start — нет", [d.get("status") for d in dn][-2:] == ["start", "fail"]
     and [d["ступень"] for d in dl] == ["сделала", "сорвано"] and dl[0]["тип"] == "расписание" and dl[1]["улика"] == "journal:schedule/done.jsonl:%d" % len(dn))
 chk("v4: личные данные в итоге в журнал дел не переходят", dl[1]["результат"] == "" and "+998" not in open(os.path.join(W, "dela.jsonl")).read())
+code, out = k("event", "speed-dating", "2026-11-25 12:00", "Speed Dating, Humo Arena", "--by", "owner", "--word", "-1001/77")
+ev = {j["id"]: j for j in jobs() if j["id"].startswith("speed-dating")}
+chk("v4: событие + «будь готова» за день и за 2 ч", code == 0 and set(ev) == {"speed-dating", "speed-dating-p1d", "speed-dating-p2h"}
+    and ev["speed-dating-p1d"]["at"].startswith("2026-11-24T12:00") and ev["speed-dating-p2h"]["at"].startswith("2026-11-25T10:00") and "Будь готова" in ev["speed-dating-p2h"]["text"])
+code, out = k("agenda", "--hours", "1000")
+chk("v4: повестка — событие 📅 и подготовка 🎒 по времени", code == 0 and out.index("🎒") < out.index("📅") and "Speed Dating" in out)
+chk("v4: --prep с ошибкой — отказ", k("event", "x2", "2026-11-25 12:00", "x", "--prep", "вчера")[0] == 1)
+for x in list(ev): k("rm", x)
 chk("rm и задачи «нет такой»", k("rm", "vecher")[0] == 0 and k("rm", "vecher")[0] == 1)
 snap = os.path.join(W, "crons.md")
 open(snap, "w").write("# Снимок\n## Кроны сессии\n- 5223c3ed · «Второй взгляд» · 17 10,12,14,16,18,20 * * * · durable, истекает 01.11\n- 77aa · «Сломанный» · 99 9 * * * · x\n## Обещания\n- 1 · «не крон» · 0 9 * * * · x\n")

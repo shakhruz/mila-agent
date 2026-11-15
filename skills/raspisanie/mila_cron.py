@@ -7,6 +7,8 @@
                                          [--no-expire] [--quiet respect|ignore] [--catchup one|skip]
                                          [--check deadlines:<файл>[:часы]|changed:<файл>]  — сначала дешёвая проверка, нечего делать — тихо
   mila_cron.py start <id> ["заметка"]  — взялась за длинную задачу · fail <id> "почему" — сорвано (итог и срыв — в журнал дел)
+  mila_cron.py event <id> "ГГГГ-ММ-ДД ЧЧ:ММ" "что, где, с кем" [--prep 1d,2h] [--by owner --word …] — событие хозяина + «будь готова» заранее
+  mila_cron.py agenda [--hours 24]  — повестка перед глазами: события и задачи на ближайшие часы
   mila_cron.py add <id> --at "ГГГГ-ММ-ДД ЧЧ:ММ" "<текст>" [--by …] [--word …]   — разовое дело на дату (встреча, продление, дедлайн)
   mila_cron.py rm <id> · pause <id> · resume <id> · extend <id> ГГГГ-ММ-ДД
   mila_cron.py next "<cron>" [N]        — ближайшие N сроков (проверка выражения до сохранения)
@@ -117,7 +119,7 @@ def _at(v):
 CHECK_RE = re.compile(r"(deadlines|changed):(?!/)(?!.*\.\.)[\w./-]{1,200}(:\d{1,3})?")
 
 
-def add(jid, cron, text, by="mila", word="", expires="", no_expire=False, quiet="respect", catchup="one", at="", check=""):
+def add(jid, cron, text, by="mila", word="", expires="", no_expire=False, quiet="respect", catchup="one", at="", check="", kind=""):
     if not ID_RE.fullmatch(jid or ""):
         raise Refuse("id — [a-z0-9-], до 40 знаков")
     if check and not CHECK_RE.fullmatch(check):
@@ -158,11 +160,68 @@ def add(jid, cron, text, by="mila", word="", expires="", no_expire=False, quiet=
             raise Refuse("задача «%s» уже есть — rm или другой id" % jid)
         if len(d["jobs"]) >= MAX_JOBS:
             raise Refuse("задач уже %d — больше нельзя" % MAX_JOBS)
-        rec = {"id": jid, "cron": cron, "at": when.isoformat(timespec="minutes") if at else None, "check": check or None, "text": text, "by": by, "word": word or "", "created": now().isoformat(timespec="minutes"),
+        rec = {"id": jid, "cron": cron, "at": when.isoformat(timespec="minutes") if at else None, "check": check or None, "kind": kind or None, "text": text, "by": by, "word": word or "", "created": now().isoformat(timespec="minutes"),
                "expires": exp.isoformat() if exp else None, "quiet": quiet, "catchup": catchup, "enabled": True}
         d["jobs"].append(rec)
         lk.save()
     return rec
+
+
+PREP_RE = re.compile(r"(\d{1,3})([dhm])")
+
+
+def event(jid, when, what, prep="1d,2h", by="mila", word=""):
+    """Событие в жизни хозяина (встреча, эфир, поездка, продление): само событие + «будь готова» заранее.
+    Каждая точка подготовки — разовая задача <id>-p<срок>: что подготовить, что порекомендовать, готовы ли мы."""
+    t = _at(when)
+    offs = []
+    for part in [x.strip() for x in (prep or "").split(",") if x.strip()]:
+        m = PREP_RE.fullmatch(part)
+        if not m:
+            raise Refuse("--prep — через запятую: 1d, 2h, 30m")
+        n, u = int(m.group(1)), m.group(2)
+        offs.append((part, dt.timedelta(days=n) if u == "d" else dt.timedelta(hours=n) if u == "h" else dt.timedelta(minutes=n)))
+    stamp = t.strftime("%d.%m %H:%M")
+    main = add(jid, "", "Событие сейчас: %s (%s). После — итог хозяину и следующий шаг." % (what, stamp), by=by, word=word,
+               at=t.strftime("%Y-%m-%d %H:%M"), kind="event")
+    made = [main]
+    for part, off in offs:
+        pt = t - off
+        if pt <= now():
+            continue
+        made.append(add("%s-p%s" % (jid[:33], part), "", "Будь готова: %s — %s. Что хозяину подготовить и взять с собой, что порекомендовать, "
+                        "что доделать до начала? Готовы ли мы? Проверь календарь, дела и переписку; хозяину — коротко, с кнопками." % (what, stamp),
+                        by=by, word=word, at=pt.strftime("%Y-%m-%d %H:%M"), kind="prep"))
+    return made
+
+
+def agenda(hours=24):
+    """Повестка перед глазами: события и срабатывания на ближайшие N часов — компактно, по времени."""
+    d = _load(); t = now(); end = t + dt.timedelta(hours=hours); rows = []
+    for j in d["jobs"]:
+        if not j.get("enabled", True):
+            continue
+        try:
+            if j.get("at"):
+                w = dt.datetime.fromisoformat(j["at"])
+                if t < w <= end:
+                    rows.append((w, j))
+            elif j.get("cron"):
+                for w in next_runs(j["cron"], 48):
+                    if w > end:
+                        break
+                    rows.append((w, j))
+        except ValueError:
+            continue
+    rows.sort(key=lambda x: x[0])
+    ev = [r for r in rows if r[1].get("kind") in ("event", "prep")]
+    rest = [r for r in rows if r[1].get("kind") not in ("event", "prep")]
+    out = []
+    for w, j in ev:
+        out.append("%s %s %s" % (w.strftime("%d.%m %H:%M"), "📅" if j.get("kind") == "event" else "🎒", j["text"][:90]))
+    if rest:
+        out.append("задачи: " + ", ".join("%s %s" % (w.strftime("%H:%M"), j["id"]) for w, j in rest[:30]) + (" …ещё %d" % (len(rest) - 30) if len(rest) > 30 else ""))
+    return out
 
 
 def _mutate(jid, fn):
@@ -336,6 +395,12 @@ def main(argv):
                 print("%s · %s · %s · следующий %s · последний %s%s%s" % (
                     r["id"], ("разово " + r["at"][:16].replace("T", " ")) if r.get("at") else r["cron"], "вкл" if r["enabled"] else "пауза", (r["next"] or "—")[:16], (r["last"] or "—")[:16],
                     " · ИСТЕКЛА" if r["expired"] else "", (" · итог: " + r["result"]) if r.get("result") else ""))
+        elif cmd == "event" and len(pos) == 3:
+            for r in event(*pos, prep=opt.get("prep", "1d,2h"), by=opt.get("by", "mila"), word=opt.get("word", "")):
+                print("добавлена %s · %s %s" % (r["id"], "событие" if r["kind"] == "event" else "подготовка", r["at"].replace("T", " ")[:16]))
+        elif cmd == "agenda":
+            rows = agenda(int(opt.get("hours", 24)))
+            print("\n".join(rows) if rows else "на %s ч ничего" % opt.get("hours", 24))
         elif cmd == "done" and len(pos) == 2:
             done(*pos); print("итог записан: %s" % pos[0])
         elif cmd == "fail" and len(pos) == 2:

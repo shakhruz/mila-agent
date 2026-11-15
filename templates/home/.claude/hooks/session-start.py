@@ -90,6 +90,17 @@ try:
             os.makedirs(ST, exist_ok=True); open(mark, "w").write(day)
 except Exception:
     pass
+# Повестка перед глазами (слово хозяина 15.11.2026): события и задачи Планировщика на 24 ч — как календарь на столе.
+try:
+    import subprocess
+    mc = os.path.join(H, ".claude", "skills", "raspisanie", "mila_cron.py")
+    if os.path.exists(mc):
+        r = subprocess.run([sys.executable, mc, "agenda", "--hours", "24"], capture_output=True, text=True, timeout=8)
+        rows = [x for x in r.stdout.splitlines() if x.strip()][:12] if r.returncode == 0 else []
+        if rows and not rows[0].startswith("на 24 ч ничего"):
+            lines.append("повестка 24 ч (mila_cron.py agenda): " + " | ".join(x[:160] for x in rows))
+except Exception:
+    pass
 if lines:
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart",
                                              "additionalContext": "Старт сессии Компаньона: " + " · ".join(lines)}},
