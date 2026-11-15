@@ -149,6 +149,17 @@ def event(slug, owner, jid, slot, content, now):
                       ensure_ascii=False)
 
 
+ONCE_WAIT = dt.timedelta(hours=2)        # разовое дело без итога за 2 ч → строка сторожа
+FIRES_PER_DAY = int(os.environ.get("MILA_FIRES_PER_DAY") or 300)   # бюджет срабатываний своих задач в сутки на дом
+
+
+def watch(state_dir, now, slug, jid, why):
+    """Строка сторожа исполнения: <state>/watch.jsonl (читают Качество, «Проблемы» и утренний журнал)."""
+    os.makedirs(state_dir, mode=0o700, exist_ok=True)
+    with open(os.path.join(state_dir, "watch.jsonl"), "a", encoding="utf-8") as f:
+        f.write(json.dumps({"at": now.isoformat(), "slug": slug, "job": jid, "why": why}, ensure_ascii=False) + "\n")
+
+
 def default_state():
     """Where the Scheduler keeps its per-home state when BARABAN_STATE is not set: the XDG state folder of whoever runs it."""
     return os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "mila", "baraban")
@@ -179,22 +190,44 @@ def tick(home, slug, owner="", state_dir=None, now=None, beat_dir=None):
         js = st["jobs"].setdefault(jid, {})
         exp = j.get("expires")
         if exp and now.date() > dt.date.fromisoformat(exp):
+            if j.get("at"):                                   # разовое отжило своё — без «продлить?», тихо
+                continue
             if not js.get("expired_told"):
                 fired.append((jid, now, "[⏰ расписание] %s — срок задачи вышел %s. Продлить? %s extend %s ГГГГ-ММ-ДД, или rm." % (jid, exp, MC, jid), "expired"))
             continue
-        try:
-            spec = C.parse(str(j.get("cron") or ""))
-        except Exception:
-            continue
         created = dt.datetime.fromisoformat(j["created"]).astimezone(tz) if j.get("created") else now
         last = dt.datetime.fromisoformat(js["last"]).astimezone(tz) if js.get("last") else created
-        slot = js.get("waiting") and dt.datetime.fromisoformat(js["waiting"]).astimezone(tz) or spec.last_at_or_before(now)
+        if j.get("at"):                                       # v4: разовое дело на дату — один раз, потом только сторож итога
+            try:
+                at = dt.datetime.fromisoformat(j["at"]).astimezone(tz)
+            except ValueError:
+                continue
+            if js.get("once"):
+                if not js.get("once_watched") and now - at > ONCE_WAIT and not any(
+                        dt.datetime.fromisoformat(x).astimezone(tz) >= at for x in done.get(jid, [])):
+                    js["once_watched"] = True; watch(state_dir, now, slug, jid, "one-off fired, no done in 2 h")
+                continue
+            slot = js.get("waiting") and dt.datetime.fromisoformat(js["waiting"]).astimezone(tz) or (at if at <= now else None)
+        else:
+            try:
+                spec = C.parse(str(j.get("cron") or ""))
+            except Exception:
+                continue
+            slot = js.get("waiting") and dt.datetime.fromisoformat(js["waiting"]).astimezone(tz) or spec.last_at_or_before(now)
         if not slot or slot <= last:
             continue
         if j.get("catchup") == "skip" and (now - slot) > dt.timedelta(minutes=5) and not js.get("waiting"):
             js["last"] = slot.isoformat(); continue
         if j.get("quiet", "respect") == "respect" and in_quiet(now, quiet):
             js["waiting"] = slot.isoformat(); continue          # fires once when the quiet hours end
+        day = now.date().isoformat()                            # v4: бюджет срабатываний в сутки на дом — держит расход, а не число задач
+        if st.setdefault("day", {}).get("date") != day:
+            st["day"] = {"date": day, "n": 0}
+        if st["day"]["n"] >= FIRES_PER_DAY and j.get("by", "mila") == "mila":
+            if not st["day"].get("told"):
+                st["day"]["told"] = True; watch(state_dir, now, slug, jid, "daily fire budget %d reached; own jobs wait till tomorrow" % FIRES_PER_DAY)
+            continue
+        st["day"]["n"] += 1
         fired.append((jid, slot, "[⏰ расписание] %s\n%s\nСделай и запиши итог: %s done %s \"…\"" % (jid, str(j.get("text") or "")[:2000], MC, jid), "slot"))
     out = []
     for jid, slot, content, kind in fired:
@@ -206,13 +239,13 @@ def tick(home, slug, owner="", state_dir=None, now=None, beat_dir=None):
         if kind == "expired":
             js["expired_told"] = True; continue
         js.pop("waiting", None); js["last"] = slot.isoformat()
+        if dict((x.get("id"), x) for x in jobs).get(jid, {}).get("at"):
+            js["once"] = True
         hist = js.setdefault("fires", []); hist.append(slot.isoformat()); del hist[:-5]
         ds = [dt.datetime.fromisoformat(x).astimezone(tz) for x in done.get(jid, [])]
         if len(hist) >= 2 and not any(d >= dt.datetime.fromisoformat(hist[-2]).astimezone(tz) for d in ds) and js.get("watched") != hist[-2]:
             js["watched"] = hist[-2]
-            os.makedirs(state_dir, mode=0o700, exist_ok=True)
-            with open(os.path.join(state_dir, "watch.jsonl"), "a", encoding="utf-8") as f:
-                f.write(json.dumps({"at": now.isoformat(), "slug": slug, "job": jid, "why": "fired twice without done"}, ensure_ascii=False) + "\n")
+            watch(state_dir, now, slug, jid, "fired twice without done")
     os.makedirs(state_dir, mode=0o700, exist_ok=True)
     if out:
         with open(os.path.join(state_dir, "fired.jsonl"), "a", encoding="utf-8") as f:

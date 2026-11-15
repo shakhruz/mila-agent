@@ -18,14 +18,22 @@ chk("add: задача записана, живёт 30 дней, ближайш�
 chk("файл расписания — только владельцу (600)", oct(os.stat(os.path.join(W, "schedule", "jobs.json")).st_mode)[-3:] == "600")
 for args, why in ((["add", "Bad_ID", "0 9 * * *", "x"], "id"), (["add", "a", "* * * * *", "x"], "раза в 5"), (["add", "b", "*/3 * * * *", "x"], "раза в 5"),
                   (["add", "c", "61 9 * * *", "x"], "cron"), (["add", "d", "0 9 * * *", ""], "текст"), (["add", "e", "0 9 * * *", "я" * 2001], "текст"),
-                  (["add", "f", "0 9 * * *", "x", "--by", "owner"], "--word"), (["add", "g", "0 9 * * *", "x", "--no-expire"], "без срока нельзя"),
+                  (["add", "f", "0 9 * * *", "x", "--by", "owner"], "--word"), (["add", "g", "0 9 * * *", "x", "--no-expire"], "без срока — только"),
                   (["add", "h", "0 9 * * *", "x", "--expires", "2027-03-01"], "срок жизни"), (["add", "vtoroy-vzglyad", "0 9 * * *", "x"], "уже есть")):
     code, out = k(*args)
     chk("отказ: %s → «%s»" % (" ".join(args[1:3]), why), code == 1 and why in out)
 code, out = k("add", "vecher", "30 19 * * *", "Вечерняя проверка", "--by", "owner", "--word", "-100" + "1/2189", "--no-expire")
-chk("без срока — нельзя никому, даже с --by owner (Качество: вечная задача тратит подписку молча)", code == 1 and "без срока нельзя" in out)
+chk("v4: по слову хозяина — без срока можно (--by owner --word --no-expire)", code == 0 and [j for j in jobs() if j["id"] == "vecher"][0]["expires"] is None)
+k("rm", "vecher")
 code, out = k("add", "vecher", "30 19 * * *", "Вечерняя проверка", "--by", "owner", "--word", "-100" + "1/2189", "--expires", "2027-01-20")
-chk("с согласия владельца — с word, до 90 дней", code == 0 and [j for j in jobs() if j["id"] == "vecher"][0]["expires"] == "2027-01-20")
+chk("с согласия владельца — с word, срок до 400 дней (2027-01-20)", code == 0 and [j for j in jobs() if j["id"] == "vecher"][0]["expires"] == "2027-01-20")
+chk("v4: своя задача — по-прежнему до 90 дней", k("add", "svoya", "0 9 * * *", "x", "--expires", "2027-03-01")[0] == 1)
+code, out = k("add", "vstrecha", "--at", "2026-11-25 12:00", "Speed Dating, Humo Arena")
+chk("v4: разовое дело на дату — записано, живёт до 27.11, следующий срок 25.11 12:00", code == 0 and "разово 2026-11-25 12:00" in out and [j for j in jobs() if j["id"] == "vstrecha"][0]["expires"] == "2026-11-27")
+chk("v4: разовое в прошлом — отказ", k("add", "proshloe", "--at", "2026-10-01 09:00", "x")[0] == 1)
+chk("v4: разовое дальше 400 дней — отказ", k("add", "daleko", "--at", "2028-01-01 09:00", "x")[0] == 1)
+chk("v4: list показывает разовое как «разово ДАТА»", "vstrecha · разово 2026-11-25 12:00" in k("list")[1])
+k("rm", "vstrecha")
 chk("pause / resume / extend", k("pause", "vecher")[0] == 0 and not [j for j in jobs() if j["id"] == "vecher"][0]["enabled"]
     and k("resume", "vecher")[0] == 0 and k("extend", "vtoroy-vzglyad", "2026-12-20")[0] == 0 and [j for j in jobs() if j["id"] == "vtoroy-vzglyad"][0]["expires"] == "2026-12-20")
 code, out = k("next", "0 9 * * 1", "3")
@@ -47,8 +55,8 @@ os.remove(os.path.join(W, "schedule", "jobs.json"))
 th = [threading.Thread(target=k, args=("add", "p%d" % i, "0 9 * * *", "x")) for i in range(12)]
 [t.start() for t in th]; [t.join() for t in th]
 chk("12 одновременных add — все 12 записаны (замок, без потерь)", len(jobs()) == 12)
-for i in range(12, 30): k("add", "p%d" % i, "0 9 * * *", "x")
-chk("31-я задача — отказ (не больше 30)", k("add", "p30", "0 9 * * *", "x") == (1, k("add", "p30", "0 9 * * *", "x")[1]) and len(jobs()) == 30)
+for i in range(12, 45): k("add", "p%d" % i, "0 9 * * *", "x")
+chk("v4: 45 задач — без потолка в 30 (планировщик помощника, а не кроны)", len(jobs()) == 45)
 # the zone without the USER.md line is the one the service fires by (Asia/Tashkent), not the machine's
 W2 = tempfile.mkdtemp(prefix="cron-tz-")
 p = subprocess.run([sys.executable, K, "next", "0 9 * * *", "1"], env=dict(os.environ, MILA_WORK=W2, MILA_EVENTS=EV, TZ="America/New_York", MILA_CRON_NOW="2026-10-26T10:00:00+05:00"), capture_output=True, text=True, timeout=30)

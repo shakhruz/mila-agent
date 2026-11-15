@@ -5,14 +5,15 @@
 
   mila_cron.py add <id> "<cron>" "<текст>" [--by mila|owner|senior] [--word <чат>/<сообщение>] [--expires ГГГГ-ММ-ДД]
                                          [--no-expire] [--quiet respect|ignore] [--catchup one|skip]
+  mila_cron.py add <id> --at "ГГГГ-ММ-ДД ЧЧ:ММ" "<текст>" [--by …] [--word …]   — разовое дело на дату (встреча, продление, дедлайн)
   mila_cron.py rm <id> · pause <id> · resume <id> · extend <id> ГГГГ-ММ-ДД
   mila_cron.py next "<cron>" [N]        — ближайшие N сроков (проверка выражения до сохранения)
   mila_cron.py list [--json]           — задачи: следующий срок в поясе хозяина, последний запуск (по журналу плагина), итог
   mila_cron.py done <id> "<итог>"       — итог последнего запуска (одна строка)
   mila_cron.py import <crons.md>        — перенести «Кроны сессии» из снимка (строки «- <id> · «имя» · <cron> · …»)
 
-Правила: id [a-z0-9-]{1,40}; cron — 5 полей, не чаще раза в 5 минут; текст ≤ 2000; задач ≤ 30; срок жизни по умолчанию 30 дней,
-максимум 90 для всех — дольше только продлением (extend). by=owner|senior — только с --word (по чьему слову).
+Правила: id [a-z0-9-]{1,40}; cron — 5 полей, не чаще раза в 5 минут; текст ≤ 2000; задач ≤ 1000; срок жизни по умолчанию 30 дней,
+своим — до 90 (дальше extend), по слову хозяина/старшей — до 400 или без срока (--no-expire); разовые --at — до 400 дней вперёд. by=owner|senior — только с --word (по чьему слову).
 Пути: MILA_WORK (по умолчанию ~/work); пояс — «Часовой пояс — Asia/…» из USER.md, иначе Asia/Tashkent (то же правило, что у службы). Код 0 — ок, 1 — отказ, 2 — ошибка запуска."""
 import datetime as dt, fcntl, json, os, re, sys, zoneinfo
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -25,7 +26,10 @@ DONE = os.path.join(DIR, "done.jsonl")
 EVENTS = os.path.expanduser(os.environ.get("MILA_EVENTS") or "~/.claude/channels/telegram/inbound/events.jsonl")
 ID_RE = re.compile(r"[a-z0-9-]{1,40}")
 WORD_RE = re.compile(r"-?[0-9A-Za-z_]{1,40}/[0-9A-Za-z_-]{1,60}")
-MAX_JOBS, MAX_TEXT, DEF_DAYS, MAX_DAYS = 30, 2000, 30, 90
+# v4 (слово хозяина 15.11.2026): это планировщик помощника, а не кроны — задач могут быть сотни, на год вперёд.
+# Подписку тратит не число задач, а частота срабатываний: её держит служба (бюджет в сутки) и сторож исполнения.
+MAX_JOBS, MAX_TEXT, DEF_DAYS, MAX_DAYS = 1000, 2000, 30, 90
+OWNER_DAYS = 400          # задачи по слову хозяина/старшей живут до года с запасом; без срока — только им (--no-expire)
 
 
 def tz():
@@ -100,10 +104,26 @@ def _find(d, jid):
     raise Refuse("задачи «%s» нет" % jid)
 
 
-def add(jid, cron, text, by="mila", word="", expires="", no_expire=False, quiet="respect", catchup="one"):
+def _at(v):
+    try:
+        t = dt.datetime.strptime(str(v).strip(), "%Y-%m-%d %H:%M")
+    except ValueError:
+        raise Refuse("--at — «ГГГГ-ММ-ДД ЧЧ:ММ» в поясе хозяина")
+    return t.replace(tzinfo=now().tzinfo)
+
+
+def add(jid, cron, text, by="mila", word="", expires="", no_expire=False, quiet="respect", catchup="one", at=""):
     if not ID_RE.fullmatch(jid or ""):
         raise Refuse("id — [a-z0-9-], до 40 знаков")
-    _spec(cron)
+    if at:
+        when = _at(at)
+        if when <= now():
+            raise Refuse("--at — в будущем")
+        if when.date() > now().date() + dt.timedelta(days=OWNER_DAYS):
+            raise Refuse("--at — не дальше %d дней вперёд" % OWNER_DAYS)
+        cron = ""
+    else:
+        _spec(cron)
     text = (text or "").strip()
     if not text or len(text) > MAX_TEXT:
         raise Refuse("текст — от 1 до %d знаков" % MAX_TEXT)
@@ -114,18 +134,24 @@ def add(jid, cron, text, by="mila", word="", expires="", no_expire=False, quiet=
     if quiet not in ("respect", "ignore") or catchup not in ("one", "skip"):
         raise Refuse("quiet — respect|ignore, catchup — one|skip")
     today = now().date()
-    if no_expire:   # «вечная» задача тратит подписку молча, а --word проверяется только по виду — без срока нет ни у кого
-        raise Refuse("без срока нельзя: максимум %d дней; нужно дольше — extend, когда придёт «продлить?»" % MAX_DAYS)
-    exp = _date(expires) if expires else today + dt.timedelta(days=DEF_DAYS)
-    if exp <= today or exp > today + dt.timedelta(days=MAX_DAYS):
-        raise Refuse("срок жизни — от завтра до %d дней вперёд" % MAX_DAYS)
+    top = OWNER_DAYS if by in ("owner", "senior") else MAX_DAYS
+    if no_expire and by == "mila":   # своя «вечная» задача тратит подписку молча; без срока — только по слову хозяина или старшей
+        raise Refuse("без срока — только задачи по слову хозяина или старшей (--by owner|senior --word); своя — до %d дней, дальше extend" % MAX_DAYS)
+    if at:
+        exp = when.date() + dt.timedelta(days=2)       # разовое: живёт до своего часа и два дня на тихие часы и итог
+    elif no_expire:
+        exp = None
+    else:
+        exp = _date(expires) if expires else today + dt.timedelta(days=DEF_DAYS)
+        if exp <= today or exp > today + dt.timedelta(days=top):
+            raise Refuse("срок жизни — от завтра до %d дней вперёд" % top)
     with _Locked() as lk:
         d = lk.d
         if any(j.get("id") == jid for j in d["jobs"]):
             raise Refuse("задача «%s» уже есть — rm или другой id" % jid)
         if len(d["jobs"]) >= MAX_JOBS:
             raise Refuse("задач уже %d — больше нельзя" % MAX_JOBS)
-        rec = {"id": jid, "cron": cron, "text": text, "by": by, "word": word or "", "created": now().isoformat(timespec="minutes"),
+        rec = {"id": jid, "cron": cron, "at": when.isoformat(timespec="minutes") if at else None, "text": text, "by": by, "word": word or "", "created": now().isoformat(timespec="minutes"),
                "expires": exp.isoformat() if exp else None, "quiet": quiet, "catchup": catchup, "enabled": True}
         d["jobs"].append(rec)
         lk.save()
@@ -151,8 +177,10 @@ def resume(jid):
 
 def extend(jid, date):
     e = _date(date); today = now().date()
-    if e <= today or e > today + dt.timedelta(days=MAX_DAYS):
-        raise Refuse("срок жизни — от завтра до %d дней вперёд" % MAX_DAYS)
+    with _Locked() as lk:
+        top = OWNER_DAYS if _find(lk.d, jid).get("by") in ("owner", "senior") else MAX_DAYS
+    if e <= today or e > today + dt.timedelta(days=top):
+        raise Refuse("срок жизни — от завтра до %d дней вперёд" % top)
     return _mutate(jid, lambda d, j: j.update(expires=e.isoformat(), enabled=True))
 
 
@@ -207,7 +235,10 @@ def listing():
     d = _load(); last = last_runs(); res = results(); t = now(); rows = []
     for j in d["jobs"]:
         try:
-            nx = C.parse(j["cron"]).next_after(t).isoformat(timespec="minutes") if j.get("enabled") else None
+            if j.get("at"):
+                nx = j["at"] if j.get("enabled") and dt.datetime.fromisoformat(j["at"]) > t else None
+            else:
+                nx = C.parse(j["cron"]).next_after(t).isoformat(timespec="minutes") if j.get("enabled") else None
         except ValueError:
             nx = None
         exp = j.get("expires")
@@ -253,7 +284,10 @@ def main(argv):
         else:
             pos.append(a[i]); i += 1
     try:
-        if cmd == "add" and len(pos) == 3:
+        if cmd == "add" and opt.get("at") and len(pos) == 2:
+            r = add(pos[0], "", pos[1], by=opt.get("by", "mila"), word=opt.get("word", ""), quiet=opt.get("quiet", "respect"), at=opt["at"])
+            print("добавлена %s · разово %s · живёт до %s" % (r["id"], r["at"].replace("T", " ")[:16], r["expires"]))
+        elif cmd == "add" and len(pos) == 3:
             r = add(*pos, by=opt.get("by", "mila"), word=opt.get("word", ""), expires=opt.get("expires", ""), no_expire=opt.get("no_expire", False),
                     quiet=opt.get("quiet", "respect"), catchup=opt.get("catchup", "one"))
             print("добавлена %s · %s · живёт до %s · ближайший срок %s" % (r["id"], r["cron"], r["expires"] or "без срока",
@@ -273,7 +307,7 @@ def main(argv):
                 print("задач нет")
             for r in ([] if opt.get("json") else rows):
                 print("%s · %s · %s · следующий %s · последний %s%s%s" % (
-                    r["id"], r["cron"], "вкл" if r["enabled"] else "пауза", (r["next"] or "—")[:16], (r["last"] or "—")[:16],
+                    r["id"], ("разово " + r["at"][:16].replace("T", " ")) if r.get("at") else r["cron"], "вкл" if r["enabled"] else "пауза", (r["next"] or "—")[:16], (r["last"] or "—")[:16],
                     " · ИСТЕКЛА" if r["expired"] else "", (" · итог: " + r["result"]) if r.get("result") else ""))
         elif cmd == "done" and len(pos) == 2:
             done(*pos); print("итог записан: %s" % pos[0])

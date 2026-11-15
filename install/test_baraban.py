@@ -97,4 +97,30 @@ check("командой, как её зовёт таймер ноутбука (�
 env = {"MILA_SCHEDULER_BEAT": BD}
 check("cronspec.last_beat находит эту отметку по дому", C.last_beat(H2, env) == P2 + dt.timedelta(minutes=9), C.last_beat(H2, env))
 check("служба и mila-cron берут пояс у одного правила", B.user_md(HOME)[0] == C.owner_tz(open(os.path.join(W, "USER.md")).read()) and str(B.user_md(H2)[0]) == C.DEFAULT_TZ == "Asia/Tashkent")
+# v4: разовое дело на дату, сторож итога, бюджет срабатываний
+H3 = os.path.join(T, "h3"); W3 = os.path.join(H3, "work"); EV3 = os.path.join(H3, ".claude/channels/telegram/inbound/events.jsonl")
+os.makedirs(os.path.dirname(EV3)); os.makedirs(W3); open(EV3, "w").close()
+json.dump({"allowFrom": [OWN]}, open(os.path.join(H3, ".claude/channels/telegram/access.json"), "w"))
+open(os.path.join(W3, "USER.md"), "w").write("Часовой пояс — Asia/Tashkent\nТихие часы — 22:00–08:00\n")
+ST3 = os.path.join(T, "state3")
+def mc3(*a, now):
+    r = subprocess.run([sys.executable, os.path.join(R, "skills/raspisanie/mila_cron.py"), *a], capture_output=True, text=True,
+                       env=dict(os.environ, MILA_WORK=W3, MILA_CRON_NOW=now.isoformat(), MILA_EVENTS=EV3))
+    assert r.returncode == 0, r.stdout + r.stderr
+def t3(now): return B.tick(H3, "h3", "", ST3, now)["fired"]
+mc3("add", "vstrecha", "--at", at(2, 12, 0).strftime("%Y-%m-%d %H:%M"), "Встреча Speed Dating", now=at())
+check("v4: разовое — до своего часа тишина", t3(at(2, 11, 59)) == [])
+check("v4: разовое — в свой час одно событие", t3(at(2, 12, 1)) == ["vstrecha"])
+check("v4: разовое — больше не приходит", t3(at(2, 12, 30)) == [] and t3(at(3, 12, 0)) == [])
+w = [json.loads(l) for l in open(os.path.join(ST3, "watch.jsonl"))] if os.path.exists(os.path.join(ST3, "watch.jsonl")) else []
+check("v4: разовое без итога за 2 ч — одна строка сторожа", sum(1 for x in w if x["job"] == "vstrecha" and "one-off" in x["why"]) == 1, w)
+mc3("add", "noch-at", "--at", at(4, 23, 30).strftime("%Y-%m-%d %H:%M"), "Ночью", now=at())
+r1, r2, r3 = t3(at(4, 23, 31)), t3(at(5, 8, 1)), t3(at(5, 8, 2))
+check("v4: разовое в тихие часы ждёт утра и приходит один раз", r1 == [] and r2 == ["noch-at"] and r3 == [], (r1, r2, r3))
+os.environ["MILA_FIRES_PER_DAY"] = "2"; import importlib; importlib.reload(B)
+for i in range(4): mc3("add", "b%d" % i, "0 10 * * *", "x", now=at(5))
+f = t3(at(6, 10, 1))
+w = [json.loads(l) for l in open(os.path.join(ST3, "watch.jsonl"))]
+check("v4: бюджет 2 в сутки — пришли 2 своих, строка сторожа одна", len(f) == 2 and sum(1 for x in w if "budget" in x["why"]) == 1, (f, w))
+os.environ.pop("MILA_FIRES_PER_DAY"); importlib.reload(B)
 shutil.rmtree(T, ignore_errors=True); print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
