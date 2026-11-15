@@ -37,6 +37,17 @@ The owner does not type these: he says «remind me on Mondays» in the chat, Mil
 
 The time zone and the quiet hours are read from the owner's `USER.md` (the lines «Часовой пояс — Area/City» and «Тихие часы — 22:00–08:00»). Without the lines — Asia/Tashkent and 22–08. The zone is one rule (`cronspec.owner_tz`) for the service that fires, for `mila_cron.py` that shows the slots and for the send guard that checks a promised time: «09:00» is one moment for the three. On a machine elsewhere, write the line.
 
+## Events, cheap checks and results
+| What | Command | What happens |
+|---|---|---|
+| An event in the owner's life: a meeting, a broadcast, a trip, a renewal | `event <id> "YYYY-MM-DD HH:MM" "what, where, with whom" [--prep 1d,2h]` | one one-off job at the hour of the event and one «be ready» job for every preparation point that is still ahead: what to prepare, what to recommend, are we ready. These jobs come at their hour at night too — whether to wake the owner, Mila decides by her quiet-hours rules |
+| A check before waking Mila | `add … --check deadlines:<file>[:hours]` or `--check changed:<file>` | the service first looks at a file of the home without a model: open items with a deadline in the next hours (2 by default) or overdue, or «the file has changed». Nothing found — the slot passes silently; found — it comes inside the event. Only these two built-in checks exist: no command from `jobs.json` is ever run |
+| A long job | `start <id> ["note"]`, then `done <id> "<result>"` or `fail <id> "why"` | the result and the failure go to `schedule/done.jsonl` and, as one line, to the deeds journal `work/dela.jsonl` |
+| The agenda | `agenda [--hours 24]` | events and fires of the next hours, by time; a frequent job is one line. Every session start shows the agenda for 24 hours |
+
+A fire has a time limit: 120 minutes by default. No `done` in that time — one line in the watch journal, not a line every minute.
+
+
 ## How a job reaches Mila
 Once a minute the Scheduler makes one pass (`baraban.py tick`). A job fires when its slot is newer than its last fire and newer than its creation. The fire is one line appended to the Telegram plugin's inbound journal — the same road rituals and the owner's messages take — so the session sees:
 
