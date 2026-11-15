@@ -29,6 +29,7 @@ import hmac, hashlib
 salt = open(os.path.join(T, "delivery.salt")).read().strip()
 chk("HMAC тот же, что у плагина (sha256, соль из delivery.salt, 16 знаков)", lines()[1]["chat"] == hmac.new(salt.encode(), GROUP.encode(), hashlib.sha256).hexdigest()[:16])
 import urllib.request
+orig = urllib.request.urlopen
 # bot_send
 sys.path.insert(0, os.path.join(H, "..", "packs", "manager", "bot-send")); import bot_send as B
 cls = [c for c in vars(B).values() if isinstance(c, type) and hasattr(c, "_api")][0]
