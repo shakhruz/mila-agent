@@ -27,11 +27,12 @@ The owner does not type these: he says «remind me on Mondays» in the chat, Mil
 ## Rules
 | Rule | Value |
 |---|---|
-| Schedule | a 5-field cron expression, in the owner's time zone |
+| Schedule | a 5-field cron expression, in the owner's time zone; or a one-off job on a date — `add <id> --at "YYYY-MM-DD HH:MM" "<text>"`: it fires once, waits for the morning in the quiet hours and leaves quietly afterwards |
 | How often | not more often than once in 5 minutes |
-| Jobs in one home | at most 30 |
+| Jobs in one home | at most 1000; without an end — at most 50 |
 | Text of a job | 1–2000 characters |
-| Lifetime | 30 days by default, 90 at most; then one event «extend?» and silence. There are no jobs without an end: an eternal job spends the subscription silently |
+| Lifetime | Mila's own jobs: 30 days by default, 90 at most; then one event «extend?» and silence. Jobs at the owner's or the administrator's request: up to 400 days, or without an end (`--no-expire`) |
+| Fires a day in one home | 300 for Mila's own jobs and a separate 300 for jobs at the owner's or the administrator's request. The budget is reached — the rest wait till tomorrow and the watch journal gets one line. The mark «whose job» does not switch the budget off: the script checks only its form |
 | Whose job | Mila's own (`by mila`), or by the owner's or the administrator's word — then with `--word <chat>/<message>`. The script checks only the form of this pointer: it cannot see the chat |
 
 The time zone and the quiet hours are read from the owner's `USER.md` (the lines «Часовой пояс — Area/City» and «Тихие часы — 22:00–08:00»). Without the lines — Asia/Tashkent and 22–08. The zone is one rule (`cronspec.owner_tz`) for the service that fires, for `mila_cron.py` that shows the slots and for the send guard that checks a promised time: «09:00» is one moment for the three. On a machine elsewhere, write the line.

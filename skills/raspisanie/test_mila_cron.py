@@ -23,7 +23,7 @@ for args, why in ((["add", "Bad_ID", "0 9 * * *", "x"], "id"), (["add", "a", "* 
     code, out = k(*args)
     chk("отказ: %s → «%s»" % (" ".join(args[1:3]), why), code == 1 and why in out)
 code, out = k("add", "vecher", "30 19 * * *", "Вечерняя проверка", "--by", "owner", "--word", "-100" + "1/2189", "--no-expire")
-chk("v4: по слову хозяина — без срока можно (--by owner --word --no-expire)", code == 0 and [j for j in jobs() if j["id"] == "vecher"][0]["expires"] is None)
+chk("v4: по просьбе хозяина — без срока можно (--by owner --word --no-expire)", code == 0 and [j for j in jobs() if j["id"] == "vecher"][0]["expires"] is None)
 k("rm", "vecher")
 code, out = k("add", "vecher", "30 19 * * *", "Вечерняя проверка", "--by", "owner", "--word", "-100" + "1/2189", "--expires", "2027-01-20")
 chk("с согласия владельца — с word, срок до 400 дней (2027-01-20)", code == 0 and [j for j in jobs() if j["id"] == "vecher"][0]["expires"] == "2027-01-20")

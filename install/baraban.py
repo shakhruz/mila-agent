@@ -67,8 +67,9 @@ def read_in_home(home, rel):
 def append_in_home(home, rel, line):
     fd = open_in_home(home, rel, os.O_WRONLY | os.O_APPEND)   # no O_CREAT: the plugin owns this file
     try:
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
-            raise OSError("not a regular file")
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1:      # a second name (hard link) may be a file outside the home
+            raise OSError("not a regular file with one name")
         os.write(fd, (line + "\n").encode())
     finally:
         os.close(fd)
@@ -290,8 +291,8 @@ def tick(home, slug, owner="", state_dir=None, now=None, beat_dir=None):
         day = now.date().isoformat()                            # v4: бюджет срабатываний в сутки на дом — держит расход, а не число задач
         if st.setdefault("day", {}).get("date") != day:
             st["day"] = {"date": day, "n": 0}
-        pool = "mila" if j.get("by", "mila") == "mila" else "owner"   # бюджет на ВСЕ задачи: «по слову хозяина» проверяется только видом
-        cap = FIRES_PER_DAY if pool == "mila" else OWNER_FIRES_PER_DAY  # (Качество 15.11) — у задач хозяина/старшей свой потолок
+        pool = "mila" if j.get("by", "mila") == "mila" else "owner"   # бюджет на все задачи: пометка «чья задача» проверяется только по виду
+        cap = FIRES_PER_DAY if pool == "mila" else OWNER_FIRES_PER_DAY  # у задач хозяина и старшей свой потолок
         if st["day"].get(pool, 0) >= cap:
             if not st["day"].get("told_" + pool):
                 st["day"]["told_" + pool] = True
