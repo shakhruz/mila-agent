@@ -43,6 +43,13 @@ open(EV, "w").write(json.dumps({"method": "notifications/claude/channel", "param
 k("done", "vtoroy-vzglyad", "пропусков нет")
 code, out = k("list")
 chk("list: следующий срок, последний запуск по журналу плагина, итог", code == 0 and "vtoroy-vzglyad" in out and "следующий 2026-10-26T10:17" in out and "последний 2026-10-26T10:17" in out and "итог: пропусков нет" in out)
+k("start", "vtoroy-vzglyad", "взялась")
+k("fail", "vtoroy-vzglyad", "нет доступа, звонить +998 90 123 45 67")
+dl = [json.loads(l) for l in open(os.path.join(W, "dela.jsonl"))]
+dn = [json.loads(l) for l in open(os.path.join(W, "schedule", "done.jsonl"))]
+chk("v4: start/fail — статусы в done.jsonl; итог и срыв — в журнал дел, start — нет", [d.get("status") for d in dn][-2:] == ["start", "fail"]
+    and [d["ступень"] for d in dl] == ["сделала", "сорвано"] and dl[0]["тип"] == "расписание" and dl[1]["улика"] == "journal:schedule/done.jsonl:%d" % len(dn))
+chk("v4: личные данные в итоге в журнал дел не переходят", dl[1]["результат"] == "" and "+998" not in open(os.path.join(W, "dela.jsonl")).read())
 chk("rm и задачи «нет такой»", k("rm", "vecher")[0] == 0 and k("rm", "vecher")[0] == 1)
 snap = os.path.join(W, "crons.md")
 open(snap, "w").write("# Снимок\n## Кроны сессии\n- 5223c3ed · «Второй взгляд» · 17 10,12,14,16,18,20 * * * · durable, истекает 01.11\n- 77aa · «Сломанный» · 99 9 * * * · x\n## Обещания\n- 1 · «не крон» · 0 9 * * * · x\n")

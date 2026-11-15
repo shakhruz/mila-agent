@@ -6,6 +6,7 @@
   mila_cron.py add <id> "<cron>" "<текст>" [--by mila|owner|senior] [--word <чат>/<сообщение>] [--expires ГГГГ-ММ-ДД]
                                          [--no-expire] [--quiet respect|ignore] [--catchup one|skip]
                                          [--check deadlines:<файл>[:часы]|changed:<файл>]  — сначала дешёвая проверка, нечего делать — тихо
+  mila_cron.py start <id> ["заметка"]  — взялась за длинную задачу · fail <id> "почему" — сорвано (итог и срыв — в журнал дел)
   mila_cron.py add <id> --at "ГГГГ-ММ-ДД ЧЧ:ММ" "<текст>" [--by …] [--word …]   — разовое дело на дату (встреча, продление, дедлайн)
   mila_cron.py rm <id> · pause <id> · resume <id> · extend <id> ГГГГ-ММ-ДД
   mila_cron.py next "<cron>" [N]        — ближайшие N сроков (проверка выражения до сохранения)
@@ -216,11 +217,31 @@ def last_runs():
     return out
 
 
-def done(jid, result):
+PD = re.compile(r"\d[\d \-()]{7,}\d|@\w{3,}|[\w.+-]+@[\w-]+\.[\w.]+")
+
+
+def done(jid, result, status="done"):
+    """Итог задачи: done — сделано, fail — сорвано (почему), start — взялась, задача длинная. Итог и срыв идут и в журнал дел
+    (work/dela.jsonl, ступень «сделала», улика — строка done.jsonl): фоновая работа видна так же, как чат."""
     with _Locked() as lk:
         _find(lk.d, jid)
-    with open(DONE, "a", encoding="utf-8") as f:
-        f.write(json.dumps({"id": jid, "at": now().isoformat(timespec="minutes"), "result": str(result)[:300]}, ensure_ascii=False) + "\n")
+    t = now().isoformat(timespec="minutes")
+    os.makedirs(DIR, exist_ok=True)
+    with open(DONE, "a+", encoding="utf-8") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        f.seek(0); n = sum(1 for _ in f) + 1
+        f.write(json.dumps({"id": jid, "at": t, "status": status, "result": str(result)[:300]}, ensure_ascii=False) + "\n")
+        fcntl.flock(f, fcntl.LOCK_UN)
+    if status in ("done", "fail"):
+        res = "" if PD.search(str(result)) else str(result)[:160]
+        row = {"дата": t[:10], "дело": "%s %s" % (jid, t[:16].replace("T", " ")), "тип": "расписание", "для": "хозяин",
+               "ступень": "сделала" if status == "done" else "сорвано", "улика": "journal:schedule/done.jsonl:%d" % n, "результат": res}
+        try:
+            fd = os.open(os.path.join(os.path.dirname(DIR), "dela.jsonl"), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+            with os.fdopen(fd, "a", encoding="utf-8") as g:
+                fcntl.flock(g, fcntl.LOCK_EX); g.write(json.dumps(row, ensure_ascii=False) + "\n"); fcntl.flock(g, fcntl.LOCK_UN)
+        except OSError:
+            pass
     return True
 
 
@@ -317,6 +338,10 @@ def main(argv):
                     " · ИСТЕКЛА" if r["expired"] else "", (" · итог: " + r["result"]) if r.get("result") else ""))
         elif cmd == "done" and len(pos) == 2:
             done(*pos); print("итог записан: %s" % pos[0])
+        elif cmd == "fail" and len(pos) == 2:
+            done(*pos, status="fail"); print("срыв записан: %s — в «Проблемы» и утренний журнал" % pos[0])
+        elif cmd == "start" and len(pos) in (1, 2):
+            done(pos[0], pos[1] if len(pos) == 2 else "", status="start"); print("в работе: %s — итог: done или fail" % pos[0])
         elif cmd == "import" and len(pos) == 1:
             out, skipped = import_md(pos[0])
             print("перенесено %d%s" % (len(out), ("; пропущено: " + "; ".join(skipped)) if skipped else ""))

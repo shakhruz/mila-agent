@@ -135,7 +135,9 @@ def dones(home):
     out = {}
     for line in (read_in_home(home, "work/schedule/done.jsonl") or "").splitlines():
         try:
-            r = json.loads(line); out.setdefault(r["id"], []).append(r["at"])
+            r = json.loads(line)
+            if r.get("status", "done") in ("done", "fail"):        # «start» — задача в работе, ещё не итог
+                out.setdefault(r["id"], []).append(r["at"])
         except (ValueError, KeyError, TypeError):
             pass
     return out
@@ -149,6 +151,7 @@ def event(slug, owner, jid, slot, content, now):
                       ensure_ascii=False)
 
 
+DLIT_MIN = 120                           # срок на исполнение по умолчанию (поле задачи dlit, минуты, 10…1440)
 ONCE_WAIT = dt.timedelta(hours=2)        # разовое дело без итога за 2 ч → строка сторожа
 FIRES_PER_DAY = int(os.environ.get("MILA_FIRES_PER_DAY") or 300)   # бюджет срабатываний своих задач в сутки на дом
 
@@ -236,6 +239,15 @@ def tick(home, slug, owner="", state_dir=None, now=None, beat_dir=None):
         if not re.fullmatch(r"[a-z0-9-]{1,40}", jid) or not j.get("enabled", True):
             continue
         js = st["jobs"].setdefault(jid, {})
+        lastfire = (js.get("fires") or [None])[-1]                # v4: сторож итога — у каждого срабатывания свой срок на исполнение
+        if lastfire and js.get("late") != lastfire:
+            lf = dt.datetime.fromisoformat(lastfire).astimezone(tz)
+            try:
+                dl = max(10, min(int(j.get("dlit") or DLIT_MIN), 1440))
+            except (TypeError, ValueError):
+                dl = DLIT_MIN
+            if now - lf > dt.timedelta(minutes=dl) and not any(dt.datetime.fromisoformat(x).astimezone(tz) >= lf for x in done.get(jid, [])):
+                js["late"] = lastfire; watch(state_dir, now, slug, jid, "no done %d min after fire %s" % (dl, lastfire[:16]))
         exp = j.get("expires")
         if exp and now.date() > dt.date.fromisoformat(exp):
             if j.get("at"):                                   # разовое отжило своё — без «продлить?», тихо

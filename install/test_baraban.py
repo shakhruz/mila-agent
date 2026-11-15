@@ -131,6 +131,12 @@ check("v4: changed — первый раз будит, без правки ти�
 r = subprocess.run([sys.executable, os.path.join(R, "skills/raspisanie/mila_cron.py"), "add", "zlo", "0 9 * * *", "x", "--check", "deadlines:/etc/shadow"],
                    capture_output=True, text=True, env=dict(os.environ, MILA_WORK=W3, MILA_CRON_NOW=at(8).isoformat(), MILA_EVENTS=EV3))
 check("v4: проверка вне дома — отказ", r.returncode == 1 and "--check" in r.stdout, r.stdout)
+mc3("add", "dolgo", "--at", at(9, 10, 0).strftime("%Y-%m-%d %H:%M"), "Длинная задача", "--by", "owner", "--word", "-1001/2", now=at(8, 16, 0))
+t3(at(9, 10, 1)); t3(at(9, 11, 0))
+wl = lambda: [json.loads(l) for l in open(os.path.join(ST3, "watch.jsonl"))]
+check("v4: в работе меньше срока — сторож молчит", not any(x["job"] == "dolgo" for x in wl()))
+t3(at(9, 12, 5)); t3(at(9, 12, 30))
+check("v4: нет итога за 120 мин — одна строка «no done»", sum(1 for x in wl() if x["job"] == "dolgo" and x["why"].startswith("no done")) == 1, wl()[-3:])
 os.environ["MILA_FIRES_PER_DAY"] = "2"; import importlib; importlib.reload(B)
 for i in range(4): mc3("add", "b%d" % i, "0 10 * * *", "x", now=at(5))
 f = t3(at(6, 10, 1))
