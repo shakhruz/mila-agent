@@ -90,7 +90,7 @@ try:
             os.makedirs(ST, exist_ok=True); open(mark, "w").write(day)
 except Exception:
     pass
-# Повестка перед глазами (слово хозяина 15.11.2026): события и задачи Планировщика на 24 ч — как календарь на столе.
+# Повестка перед глазами: события и задачи Планировщика на 24 ч — как календарь на столе.
 try:
     import subprocess
     mc = os.path.join(H, ".claude", "skills", "raspisanie", "mila_cron.py")
