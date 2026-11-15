@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Журнал доставки для скриптов ядра, которые шлют в Telegram сами, мимо плагина (heartbeat, bot_send, limit_watch, subscription_watch).
+"""Журнал доставки для скриптов ядра, которые шлют в Telegram сами, мимо плагина (bot_send, limit_watch, subscription_watch).
 Свой журнал ядра (плагин mila-telegram его не пишет): $TELEGRAM_STATE_DIR (по умолчанию ~/.claude/channels/telegram)/
 delivery.jsonl (600), чат — HMAC с солью delivery.salt (600, вне журнала), без текста; delivery-status.json — счёт по классам за сутки.
 Здесь только запись — скрипт не должен будить хозяина сам.

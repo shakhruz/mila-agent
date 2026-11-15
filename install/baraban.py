@@ -160,6 +160,54 @@ def watch(state_dir, now, slug, jid, why):
         f.write(json.dumps({"at": now.isoformat(), "slug": slug, "job": jid, "why": why}, ensure_ascii=False) + "\n")
 
 
+def _items(raw):
+    try:
+        v = json.loads(raw)
+        return v if isinstance(v, list) else (v.get("items") or [])
+    except ValueError:
+        out = []
+        for line in raw.splitlines():
+            try:
+                out.append(json.loads(line))
+            except ValueError:
+                continue
+        return out
+
+
+def run_check(home, check, now, tz):
+    """«Удар» без модели (бывший Пульс, слит 15.11.2026): только встроенные проверки по данным дома, никаких команд из jobs.json —
+    служба идёт под root. Возвращает [(ключ, строка)]; пусто — будить Милу незачем.
+      deadlines:<файл>[:часы] — открытые пункты {id, text, due, done} со сроком в ближайшие N ч (2 по умолчанию) или просроченные;
+      changed:<файл>          — файл изменился с прошлой проверки (ключ — отпечаток содержимого)."""
+    kind, _, rest = str(check).partition(":")
+    rel, _, arg = rest.partition(":")
+    raw = read_in_home(home, rel)
+    if raw is None:
+        return []
+    if kind == "changed":
+        import hashlib
+        return [("changed:" + hashlib.sha256(raw.encode()).hexdigest()[:16], "изменился %s" % rel)]
+    if kind != "deadlines":
+        return []
+    try:
+        hours = float(arg or 2)
+    except ValueError:
+        hours = 2
+    out = []
+    for it in _items(raw):
+        if not isinstance(it, dict) or it.get("done") or not it.get("due"):
+            continue
+        try:
+            due = dt.datetime.fromisoformat(str(it["due"]).replace(" ", "T"))
+        except ValueError:
+            continue
+        due = due.replace(tzinfo=tz) if due.tzinfo is None else due.astimezone(tz)
+        if due - now <= dt.timedelta(hours=hours):
+            out.append(("%s:%s" % (it.get("id"), due.isoformat(timespec="minutes")),
+                        "%s · срок %s%s" % (str(it.get("text") or it.get("id"))[:200], due.strftime("%d.%m %H:%M"), " · просрочено" if due < now else "")))
+    return out
+
+
 def default_state():
     """Where the Scheduler keeps its per-home state when BARABAN_STATE is not set: the XDG state folder of whoever runs it."""
     return os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "mila", "baraban")
@@ -220,6 +268,12 @@ def tick(home, slug, owner="", state_dir=None, now=None, beat_dir=None):
             js["last"] = slot.isoformat(); continue
         if j.get("quiet", "respect") == "respect" and in_quiet(now, quiet):
             js["waiting"] = slot.isoformat(); continue          # fires once when the quiet hours end
+        found = None
+        if j.get("check"):                                      # v4: сначала дешёвая проверка; нечего делать — тихо, модель не будим
+            seen = js.setdefault("seen", [])
+            found = [(k, t) for k, t in run_check(home, j["check"], now, tz) if k not in seen]
+            if not found:
+                js["last"] = slot.isoformat(); js.pop("waiting", None); js["idle"] = js.get("idle", 0) + 1; continue
         day = now.date().isoformat()                            # v4: бюджет срабатываний в сутки на дом — держит расход, а не число задач
         if st.setdefault("day", {}).get("date") != day:
             st["day"] = {"date": day, "n": 0}
@@ -228,7 +282,10 @@ def tick(home, slug, owner="", state_dir=None, now=None, beat_dir=None):
                 st["day"]["told"] = True; watch(state_dir, now, slug, jid, "daily fire budget %d reached; own jobs wait till tomorrow" % FIRES_PER_DAY)
             continue
         st["day"]["n"] += 1
-        fired.append((jid, slot, "[⏰ расписание] %s\n%s\nСделай и запиши итог: %s done %s \"…\"" % (jid, str(j.get("text") or "")[:2000], MC, jid), "slot"))
+        extra = ("\nНашла проверка:\n" + "\n".join("• " + t for _, t in found[:20])) if found else ""
+        fired.append((jid, slot, "[⏰ расписание] %s\n%s%s\nСделай и запиши итог: %s done %s \"…\"" % (jid, str(j.get("text") or "")[:2000], extra, MC, jid), "slot"))
+        if found:
+            js["_found"] = [k for k, _ in found]
     out = []
     for jid, slot, content, kind in fired:
         try:
@@ -239,6 +296,8 @@ def tick(home, slug, owner="", state_dir=None, now=None, beat_dir=None):
         if kind == "expired":
             js["expired_told"] = True; continue
         js.pop("waiting", None); js["last"] = slot.isoformat()
+        if js.get("_found"):
+            js["seen"] = (js.get("seen", []) + js.pop("_found"))[-200:]
         if dict((x.get("id"), x) for x in jobs).get(jid, {}).get("at"):
             js["once"] = True
         hist = js.setdefault("fires", []); hist.append(slot.isoformat()); del hist[:-5]

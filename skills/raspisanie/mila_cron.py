@@ -5,6 +5,7 @@
 
   mila_cron.py add <id> "<cron>" "<текст>" [--by mila|owner|senior] [--word <чат>/<сообщение>] [--expires ГГГГ-ММ-ДД]
                                          [--no-expire] [--quiet respect|ignore] [--catchup one|skip]
+                                         [--check deadlines:<файл>[:часы]|changed:<файл>]  — сначала дешёвая проверка, нечего делать — тихо
   mila_cron.py add <id> --at "ГГГГ-ММ-ДД ЧЧ:ММ" "<текст>" [--by …] [--word …]   — разовое дело на дату (встреча, продление, дедлайн)
   mila_cron.py rm <id> · pause <id> · resume <id> · extend <id> ГГГГ-ММ-ДД
   mila_cron.py next "<cron>" [N]        — ближайшие N сроков (проверка выражения до сохранения)
@@ -112,9 +113,14 @@ def _at(v):
     return t.replace(tzinfo=now().tzinfo)
 
 
-def add(jid, cron, text, by="mila", word="", expires="", no_expire=False, quiet="respect", catchup="one", at=""):
+CHECK_RE = re.compile(r"(deadlines|changed):(?!/)(?!.*\.\.)[\w./-]{1,200}(:\d{1,3})?")
+
+
+def add(jid, cron, text, by="mila", word="", expires="", no_expire=False, quiet="respect", catchup="one", at="", check=""):
     if not ID_RE.fullmatch(jid or ""):
         raise Refuse("id — [a-z0-9-], до 40 знаков")
+    if check and not CHECK_RE.fullmatch(check):
+        raise Refuse("--check — deadlines:<файл в доме>[:часы] или changed:<файл в доме>")
     if at:
         when = _at(at)
         if when <= now():
@@ -151,7 +157,7 @@ def add(jid, cron, text, by="mila", word="", expires="", no_expire=False, quiet=
             raise Refuse("задача «%s» уже есть — rm или другой id" % jid)
         if len(d["jobs"]) >= MAX_JOBS:
             raise Refuse("задач уже %d — больше нельзя" % MAX_JOBS)
-        rec = {"id": jid, "cron": cron, "at": when.isoformat(timespec="minutes") if at else None, "text": text, "by": by, "word": word or "", "created": now().isoformat(timespec="minutes"),
+        rec = {"id": jid, "cron": cron, "at": when.isoformat(timespec="minutes") if at else None, "check": check or None, "text": text, "by": by, "word": word or "", "created": now().isoformat(timespec="minutes"),
                "expires": exp.isoformat() if exp else None, "quiet": quiet, "catchup": catchup, "enabled": True}
         d["jobs"].append(rec)
         lk.save()
@@ -289,7 +295,7 @@ def main(argv):
             print("добавлена %s · разово %s · живёт до %s" % (r["id"], r["at"].replace("T", " ")[:16], r["expires"]))
         elif cmd == "add" and len(pos) == 3:
             r = add(*pos, by=opt.get("by", "mila"), word=opt.get("word", ""), expires=opt.get("expires", ""), no_expire=opt.get("no_expire", False),
-                    quiet=opt.get("quiet", "respect"), catchup=opt.get("catchup", "one"))
+                    quiet=opt.get("quiet", "respect"), catchup=opt.get("catchup", "one"), check=opt.get("check", ""))
             print("добавлена %s · %s · живёт до %s · ближайший срок %s" % (r["id"], r["cron"], r["expires"] or "без срока",
                                                                        next_runs(r["cron"], 1)[0].strftime("%d.%m %H:%M")))
         elif cmd in ("rm", "pause", "resume") and len(pos) == 1:

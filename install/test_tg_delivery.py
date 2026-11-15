@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """tg_delivery: строка в общий журнал доставки (формат плагина), HMAC с солью без id, HTTPError Telegram разобран, сеть — network,
-шум не в счёте; heartbeat._tg_send пишет в журнал и не падает. python3 install/test_tg_delivery.py"""
+шум не в счёте. (Пульс heartbeat/ убран 15.11.2026 — слит в Сердцебиение.) python3 install/test_tg_delivery.py"""
 import io, json, os, sys, tempfile, urllib.error
 H = os.path.dirname(os.path.abspath(__file__)); T = tempfile.mkdtemp(); os.environ["TELEGRAM_STATE_DIR"] = T
 sys.path.insert(0, H); import tg_delivery as D
@@ -28,14 +28,7 @@ chk("соль 600, журнал 600", oct(os.stat(os.path.join(T, "delivery.salt
 import hmac, hashlib
 salt = open(os.path.join(T, "delivery.salt")).read().strip()
 chk("HMAC тот же, что у плагина (sha256, соль из delivery.salt, 16 знаков)", lines()[1]["chat"] == hmac.new(salt.encode(), GROUP.encode(), hashlib.sha256).hexdigest()[:16])
-# heartbeat
-sys.path.insert(0, os.path.join(H, "..", "heartbeat")); import heartbeat as HB
 import urllib.request
-orig = urllib.request.urlopen
-urllib.request.urlopen = lambda req, timeout=0: (_ for _ in ()).throw(urllib.error.HTTPError("u", 403, "x", {}, io.BytesIO(b'{"ok":false,"error_code":403,"description":"Forbidden: bot was blocked by the user"}')))
-res = HB._tg_send("1:" + "x" * 10, OWNER, "текст-сигнала")
-urllib.request.urlopen = orig
-chk("heartbeat._tg_send: 403 → False без исключения, строка blocked via heartbeat, текста нет", res is False and lines()[-1]["cls"] == "blocked" and lines()[-1]["via"] == "heartbeat" and "текст-сигнала" not in open(os.path.join(T, "delivery.jsonl")).read(), lines()[-1])
 # bot_send
 sys.path.insert(0, os.path.join(H, "..", "packs", "manager", "bot-send")); import bot_send as B
 cls = [c for c in vars(B).values() if isinstance(c, type) and hasattr(c, "_api")][0]
