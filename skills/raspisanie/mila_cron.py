@@ -33,6 +33,8 @@ WORD_RE = re.compile(r"-?[0-9A-Za-z_]{1,40}/[0-9A-Za-z_-]{1,60}")
 # v4: это планировщик помощника, а не кроны — задач могут быть сотни, на год вперёд.
 # Подписку тратит не число задач, а частота срабатываний: её держит служба (бюджет в сутки) и сторож исполнения.
 MAX_JOBS, MAX_TEXT, DEF_DAYS, MAX_DAYS = 1000, 2000, 30, 90
+MAX_FILE = 4 * 1024 * 1024    # jobs.json; служба читает до 8 МБ
+DONE_KEEP = 5000              # строк итогов в done.jsonl; старше — в done.old.jsonl
 MAX_FOREVER = 50          # задач без срока в доме — не больше (пометка «чья задача» проверяется только по виду)
 OWNER_DAYS = 400          # задачи по просьбе хозяина/старшей живут до года с запасом; без срока — только им (--no-expire)
 
@@ -76,9 +78,12 @@ class _Locked:
         return self
 
     def save(self):
+        raw = json.dumps(self.d, ensure_ascii=False, indent=1)
+        if len(raw.encode("utf-8")) > MAX_FILE:       # служба не читает файл больше своего предела — отказ здесь, а не тишина там
+            raise Refuse("расписание больше %d МБ — убери старые задачи (rm) или сократи тексты" % (MAX_FILE // (1024 * 1024)))
         tmp = JOBS + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(self.d, f, ensure_ascii=False, indent=1)
+            f.write(raw)
         os.chmod(tmp, 0o600); os.replace(tmp, JOBS)
 
     def __exit__(self, *a):
@@ -183,10 +188,20 @@ def event(jid, when, what, prep="1d,2h", by="mila", word=""):
         if not m:
             raise Refuse("--prep — через запятую: 1d, 2h, 30m")
         n, u = int(m.group(1)), m.group(2)
+        if part in [x for x, _ in offs]:
+            raise Refuse("--prep — точка «%s» дважды" % part)
         offs.append((part, dt.timedelta(days=n) if u == "d" else dt.timedelta(hours=n) if u == "h" else dt.timedelta(minutes=n)))
+    ids = [jid] + ["%s-p%s" % (jid[:33], part) for part, off in offs if t - off > now()]
+    have = {j.get("id") for j in _load()["jobs"]}
+    for i in ids:                                         # всё или ничего: проверяю до первой записи
+        if not ID_RE.fullmatch(i or ""):
+            raise Refuse("id — [a-z0-9-], до 40 знаков")
+        if i in have:
+            raise Refuse("задача «%s» уже есть — rm или другой id" % i)
     stamp = t.strftime("%d.%m %H:%M")
+    # события и подготовка приходят Миле в свой час и ночью: будить ли хозяина, решает она и её правила тихих часов
     main = add(jid, "", "Событие сейчас: %s (%s). После — итог хозяину и следующий шаг." % (what, stamp), by=by, word=word,
-               at=t.strftime("%Y-%m-%d %H:%M"), kind="event")
+               at=t.strftime("%Y-%m-%d %H:%M"), kind="event", quiet="ignore")
     made = [main]
     for part, off in offs:
         pt = t - off
@@ -194,7 +209,7 @@ def event(jid, when, what, prep="1d,2h", by="mila", word=""):
             continue
         made.append(add("%s-p%s" % (jid[:33], part), "", "Будь готова: %s — %s. Что хозяину подготовить и взять с собой, что порекомендовать, "
                         "что доделать до начала? Готовы ли мы? Проверь календарь, дела и переписку; хозяину — коротко, с кнопками." % (what, stamp),
-                        by=by, word=word, at=pt.strftime("%Y-%m-%d %H:%M"), kind="prep"))
+                        by=by, word=word, at=pt.strftime("%Y-%m-%d %H:%M"), kind="prep", quiet="ignore"))
     return made
 
 
@@ -204,26 +219,32 @@ def agenda(hours=24):
     for j in d["jobs"]:
         if not j.get("enabled", True):
             continue
-        try:
+        try:                                              # одна битая задача не роняет повестку
             if j.get("at"):
-                w = dt.datetime.fromisoformat(j["at"])
+                w = dt.datetime.fromisoformat(str(j["at"]))
+                w = w if w.tzinfo else w.replace(tzinfo=t.tzinfo)
                 if t < w <= end:
                     rows.append((w, j))
             elif j.get("cron"):
-                for w in next_runs(j["cron"], 48):
+                for w in next_runs(j["cron"], 300, cap=300):
                     if w > end:
                         break
                     rows.append((w, j))
-        except ValueError:
+        except Exception:
             continue
     rows.sort(key=lambda x: x[0])
     ev = [r for r in rows if r[1].get("kind") in ("event", "prep")]
     rest = [r for r in rows if r[1].get("kind") not in ("event", "prep")]
     out = []
     for w, j in ev:
-        out.append("%s %s %s" % (w.strftime("%d.%m %H:%M"), "📅" if j.get("kind") == "event" else "🎒", j["text"][:90]))
+        out.append("%s %s %s" % (w.strftime("%d.%m %H:%M"), "📅" if j.get("kind") == "event" else "🎒", str(j.get("text") or "")[:90]))
     if rest:
-        out.append("задачи: " + ", ".join("%s %s" % (w.strftime("%H:%M"), j["id"]) for w, j in rest[:30]) + (" …ещё %d" % (len(rest) - 30) if len(rest) > 30 else ""))
+        seen_ids = {}                                     # частая задача — одной записью: «09:05 id ×12»
+        for w, j in rest:
+            seen_ids.setdefault(str(j.get("id")), []).append(w)
+        items = sorted(seen_ids.items(), key=lambda x: x[1][0])
+        out.append("задачи: " + ", ".join("%s %s%s" % (ws[0].strftime("%H:%M"), i, " ×%d" % len(ws) if len(ws) > 1 else "") for i, ws in items[:30])
+                   + (" …ещё %d" % (len(items) - 30) if len(items) > 30 else ""))
     return out
 
 
@@ -253,9 +274,9 @@ def extend(jid, date):
     return _mutate(jid, lambda d, j: j.update(expires=e.isoformat(), enabled=True))
 
 
-def next_runs(cron, n=5):
+def next_runs(cron, n=5, cap=20):
     s = _spec(cron); t = now(); out = []
-    for _ in range(max(1, min(int(n), 20))):
+    for _ in range(max(1, min(int(n), cap))):
         t = s.next_after(t); out.append(t)
     return out
 
@@ -293,13 +314,18 @@ def done(jid, result, status="done"):
         fcntl.flock(f, fcntl.LOCK_EX)
         f.seek(0); n = sum(1 for _ in f) + 1
         f.write(json.dumps({"id": jid, "at": t, "status": status, "result": str(result)[:300]}, ensure_ascii=False) + "\n")
+        if n > DONE_KEEP * 2:                             # файл не растёт без конца: старое — в done.old.jsonl
+            f.seek(0); lines = f.read().splitlines(True)
+            with open(DONE.replace("done.jsonl", "done.old.jsonl"), "a", encoding="utf-8") as o:
+                o.writelines(lines[:-DONE_KEEP])
+            f.seek(0); f.truncate(); f.writelines(lines[-DONE_KEEP:]); n = DONE_KEEP
         fcntl.flock(f, fcntl.LOCK_UN)
     if status in ("done", "fail"):
         res = "" if PD.search(str(result)) else str(result)[:160]
         row = {"дата": t[:10], "дело": "%s %s" % (jid, t[:16].replace("T", " ")), "тип": "расписание", "для": "хозяин",
                "ступень": "сделала" if status == "done" else "сорвано", "улика": "journal:schedule/done.jsonl:%d" % n, "результат": res}
         try:
-            fd = os.open(os.path.join(os.path.dirname(DIR), "dela.jsonl"), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+            fd = os.open(os.path.join(os.path.dirname(DIR), "dela.jsonl"), os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
             with os.fdopen(fd, "a", encoding="utf-8") as g:
                 fcntl.flock(g, fcntl.LOCK_EX); g.write(json.dumps(row, ensure_ascii=False) + "\n"); fcntl.flock(g, fcntl.LOCK_UN)
         except OSError:
@@ -373,8 +399,13 @@ def main(argv):
         else:
             pos.append(a[i]); i += 1
     try:
+        if cmd == "add" and opt.get("at") and len(pos) == 3:
+            raise Refuse("или cron, или --at: разовое дело — add <id> --at \"ГГГГ-ММ-ДД ЧЧ:ММ\" \"<текст>\"")
         if cmd == "add" and opt.get("at") and len(pos) == 2:
-            r = add(pos[0], "", pos[1], by=opt.get("by", "mila"), word=opt.get("word", ""), quiet=opt.get("quiet", "respect"), at=opt["at"])
+            if opt.get("expires") or opt.get("no_expire") or opt.get("catchup"):
+                raise Refuse("у разового дела нет --expires, --no-expire и --catchup: оно живёт до своего часа и два дня после")
+            r = add(pos[0], "", pos[1], by=opt.get("by", "mila"), word=opt.get("word", ""), quiet=opt.get("quiet", "respect"), at=opt["at"],
+                    check=opt.get("check", ""))
             print("добавлена %s · разово %s · живёт до %s" % (r["id"], r["at"].replace("T", " ")[:16], r["expires"]))
         elif cmd == "add" and len(pos) == 3:
             r = add(*pos, by=opt.get("by", "mila"), word=opt.get("word", ""), expires=opt.get("expires", ""), no_expire=opt.get("no_expire", False),

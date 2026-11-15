@@ -29,7 +29,7 @@ for p in (os.path.join(HERE, "..", "skills", "raspisanie"), os.path.expanduser("
         sys.path.insert(0, p); break
 import cronspec as C
 
-MAXF = 512 * 1024
+MAXF = 8 * 1024 * 1024        # jobs.json на 1000 задач — около 0,6 МБ; запас на порядок
 
 
 def open_in_home(home, rel, flags):
@@ -132,14 +132,42 @@ def write_beat(beat_dir, slug, now, public=False):
     os.replace(tmp, p)
 
 
+def too_big(home, rel):
+    try:
+        fd = open_in_home(home, rel, os.O_RDONLY)
+    except OSError:
+        return False
+    try:
+        return os.fstat(fd).st_size > MAXF
+    finally:
+        os.close(fd)
+
+
+def day_once(state_dir, slug, now, why):
+    """Одна строка сторожа в сутки на причину, которая касается всего дома."""
+    os.makedirs(state_dir, mode=0o700, exist_ok=True)
+    mark = os.path.join(state_dir, "%s.homewatch" % slug); key = now.date().isoformat() + " " + why
+    try:
+        if open(mark, encoding="utf-8").read() == key:
+            return
+    except OSError:
+        pass
+    watch(state_dir, now, slug, "-", why)
+    with open(mark, "w", encoding="utf-8") as f:
+        f.write(key)
+
+
 def dones(home):
+    """id → [время итога]; принимаю только строки-объекты с разборчивым временем: битая строка не роняет проход."""
     out = {}
-    for line in (read_in_home(home, "work/schedule/done.jsonl") or "").splitlines():
+    for line in (read_in_home(home, "work/schedule/done.jsonl") or "").splitlines()[-20000:]:
         try:
             r = json.loads(line)
-            if r.get("status", "done") in ("done", "fail"):        # «start» — задача в работе, ещё не итог
-                out.setdefault(r["id"], []).append(r["at"])
-        except (ValueError, KeyError, TypeError):
+            if not isinstance(r, dict) or r.get("status", "done") not in ("done", "fail"):   # «start» — задача в работе, ещё не итог
+                continue
+            dt.datetime.fromisoformat(str(r["at"])).astimezone()
+            out.setdefault(str(r["id"]), []).append(str(r["at"]))
+        except (ValueError, KeyError, TypeError, OverflowError):
             pass
     return out
 
@@ -159,7 +187,7 @@ OWNER_FIRES_PER_DAY = int(os.environ.get("MILA_OWNER_FIRES_PER_DAY") or 300)   #
 
 
 def watch(state_dir, now, slug, jid, why):
-    """Строка сторожа исполнения: <state>/watch.jsonl (читают Качество, «Проблемы» и утренний журнал)."""
+    """Строка сторожа исполнения: <state>/watch.jsonl (читают проверяющий, «Проблемы» и утренний журнал)."""
     os.makedirs(state_dir, mode=0o700, exist_ok=True)
     with open(os.path.join(state_dir, "watch.jsonl"), "a", encoding="utf-8") as f:
         f.write(json.dumps({"at": now.isoformat(), "slug": slug, "job": jid, "why": why}, ensure_ascii=False) + "\n")
@@ -196,6 +224,7 @@ def run_check(home, check, now, tz):
         return []
     try:
         hours = float(arg or 2)
+        hours = hours if 0 <= hours <= 720 else 2            # nan/inf/отрицательное — по умолчанию
     except ValueError:
         hours = 2
     out = []
@@ -229,80 +258,97 @@ def tick(home, slug, owner="", state_dir=None, now=None, beat_dir=None):
         except OSError as e: sys.stderr.write("baraban: beat not written: %s\n" % e)
     raw = read_in_home(home, "work/schedule/jobs.json")
     if raw is None or not owner:
+        if owner and too_big(home, "work/schedule/jobs.json"):     # файл есть, но больше предела — не молчу
+            day_once(state_dir, slug, now, "jobs.json larger than %d MB: no job fires" % (MAXF // (1024 * 1024)))
+            return {"fired": [], "why": "jobs.json too big"}
         return {"fired": [], "why": "no jobs.json" if raw is None else "no owner"}
     try:
-        jobs = [j for j in (json.loads(raw).get("jobs") or []) if isinstance(j, dict)]
+        doc = json.loads(raw)
+        jobs = doc.get("jobs") if isinstance(doc, dict) else None
+        jobs = [j for j in jobs if isinstance(j, dict)] if isinstance(jobs, list) else []
     except ValueError:
         return {"fired": [], "why": "jobs.json unreadable"}
     sp = os.path.join(state_dir, "%s.json" % slug); st = load_state(sp); fired = []
     done = dones(home)
-    for j in jobs:
+    pend = {"mila": 0, "owner": 0}; pools = {}
+
+    def one(j):
         jid = str(j.get("id") or "")
         if not re.fullmatch(r"[a-z0-9-]{1,40}", jid) or not j.get("enabled", True):
-            continue
+            return
         js = st["jobs"].setdefault(jid, {})
         lastfire = (js.get("fires") or [None])[-1]                # v4: сторож итога — у каждого срабатывания свой срок на исполнение
         if lastfire and js.get("late") != lastfire:
             lf = dt.datetime.fromisoformat(lastfire).astimezone(tz)
             try:
                 dl = max(10, min(int(j.get("dlit") or DLIT_MIN), 1440))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 dl = DLIT_MIN
             if now - lf > dt.timedelta(minutes=dl) and not any(dt.datetime.fromisoformat(x).astimezone(tz) >= lf for x in done.get(jid, [])):
                 js["late"] = lastfire; watch(state_dir, now, slug, jid, "no done %d min after fire %s" % (dl, lastfire[:16]))
         exp = j.get("expires")
         if exp and now.date() > dt.date.fromisoformat(exp):
             if j.get("at"):                                   # разовое отжило своё — без «продлить?», тихо
-                continue
+                return
             if not js.get("expired_told"):
                 fired.append((jid, now, "[⏰ расписание] %s — срок задачи вышел %s. Продлить? %s extend %s ГГГГ-ММ-ДД, или rm." % (jid, exp, MC, jid), "expired"))
-            continue
+            return
         created = dt.datetime.fromisoformat(j["created"]).astimezone(tz) if j.get("created") else now
         last = dt.datetime.fromisoformat(js["last"]).astimezone(tz) if js.get("last") else created
         if j.get("at"):                                       # v4: разовое дело на дату — один раз, потом только сторож итога
             try:
                 at = dt.datetime.fromisoformat(j["at"]).astimezone(tz)
             except ValueError:
-                continue
+                return
             if js.get("once"):
                 if not js.get("once_watched") and now - at > ONCE_WAIT and not any(
                         dt.datetime.fromisoformat(x).astimezone(tz) >= at for x in done.get(jid, [])):
                     js["once_watched"] = True; watch(state_dir, now, slug, jid, "one-off fired, no done in 2 h")
-                continue
+                return
             slot = js.get("waiting") and dt.datetime.fromisoformat(js["waiting"]).astimezone(tz) or (at if at <= now else None)
         else:
             try:
                 spec = C.parse(str(j.get("cron") or ""))
             except Exception:
-                continue
+                return
             slot = js.get("waiting") and dt.datetime.fromisoformat(js["waiting"]).astimezone(tz) or spec.last_at_or_before(now)
         if not slot or slot <= last:
-            continue
+            return
         if j.get("catchup") == "skip" and (now - slot) > dt.timedelta(minutes=5) and not js.get("waiting"):
-            js["last"] = slot.isoformat(); continue
+            js["last"] = slot.isoformat(); return
         if j.get("quiet", "respect") == "respect" and in_quiet(now, quiet):
-            js["waiting"] = slot.isoformat(); continue          # fires once when the quiet hours end
+            js["waiting"] = slot.isoformat(); return          # fires once when the quiet hours end
         found = None
         if j.get("check"):                                      # v4: сначала дешёвая проверка; нечего делать — тихо, модель не будим
             seen = js.setdefault("seen", [])
             found = [(k, t) for k, t in run_check(home, j["check"], now, tz) if k not in seen]
             if not found:
-                js["last"] = slot.isoformat(); js.pop("waiting", None); js["idle"] = js.get("idle", 0) + 1; continue
+                js["last"] = slot.isoformat(); js.pop("waiting", None); js["idle"] = js.get("idle", 0) + 1; return
         day = now.date().isoformat()                            # v4: бюджет срабатываний в сутки на дом — держит расход, а не число задач
         if st.setdefault("day", {}).get("date") != day:
             st["day"] = {"date": day, "n": 0}
         pool = "mila" if j.get("by", "mila") == "mila" else "owner"   # бюджет на все задачи: пометка «чья задача» проверяется только по виду
         cap = FIRES_PER_DAY if pool == "mila" else OWNER_FIRES_PER_DAY  # у задач хозяина и старшей свой потолок
-        if st["day"].get(pool, 0) >= cap:
+        if st["day"].get(pool, 0) + pend[pool] >= cap:
             if not st["day"].get("told_" + pool):
                 st["day"]["told_" + pool] = True
                 watch(state_dir, now, slug, jid, "daily fire budget %d reached for %s jobs; they wait till tomorrow" % (cap, pool))
-            continue
-        st["day"][pool] = st["day"].get(pool, 0) + 1; st["day"]["n"] += 1
+            return
+        pend[pool] += 1; pools[jid] = pool                      # в бюджет идёт только доставленное — считаю после записи события
         extra = ("\nНашла проверка:\n" + "\n".join("• " + t for _, t in found[:20])) if found else ""
         fired.append((jid, slot, "[⏰ расписание] %s\n%s%s\nСделай и запиши итог: %s done %s \"…\"" % (jid, str(j.get("text") or "")[:2000], extra, MC, jid), "slot"))
         if found:
-            js["_found"] = [k for k, _ in found]
+            js["_found"] = [k for k, _ in found[:20]]            # «увидено» — только показанное; остальное придёт в следующий раз
+    for j in jobs:                                           # одна битая запись не останавливает расписание дома
+        try:
+            one(j)
+        except Exception as e:
+            jid = str(j.get("id") or "?")[:40]
+            bad = st.setdefault("bad", {})
+            if bad.get(jid) != now.date().isoformat():
+                bad[jid] = now.date().isoformat()
+                try: watch(state_dir, now, slug, jid, "job skipped: bad record (%s)" % type(e).__name__)
+                except OSError: pass
     out = []
     for jid, slot, content, kind in fired:
         try:
@@ -313,6 +359,8 @@ def tick(home, slug, owner="", state_dir=None, now=None, beat_dir=None):
         if kind == "expired":
             js["expired_told"] = True; continue
         js.pop("waiting", None); js["last"] = slot.isoformat()
+        if jid in pools:
+            st["day"][pools[jid]] = st["day"].get(pools[jid], 0) + 1; st["day"]["n"] = st["day"].get("n", 0) + 1
         if js.get("_found"):
             js["seen"] = (js.get("seen", []) + js.pop("_found"))[-200:]
         if dict((x.get("id"), x) for x in jobs).get(jid, {}).get("at"):
