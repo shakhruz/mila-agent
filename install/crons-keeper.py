@@ -36,6 +36,18 @@ def text_of(resp):
         return str(resp)
 
 
+def job_id(resp):
+    """id созданного крона из ответа CronCreate. Claude Code отдаёт хуку ответ объектом ({"id", "humanSchedule", "recurring",
+    "durable", "nextFireAt"}) — тогда id берётся из поля; в строке — по словам «job <id>» / «task <id>». Нет id — крон не создан."""
+    if isinstance(resp, dict):
+        v = resp.get("id")
+        if isinstance(v, str) and re.fullmatch(r"[0-9a-zA-Z_-]{6,64}", v):
+            return v
+        resp = resp.get("content") if isinstance(resp.get("content"), str) else text_of(resp)
+    m = re.search(r"\b(?:job|task) ([0-9a-zA-Z_-]{6,})", text_of(resp))
+    return m.group(1) if m else ""
+
+
 def one_shot_passed(cron, now):
     """Разовый крон с закреплёнными минутой, часом, днём и месяцем — прошло ли его время в этом году."""
     f = cron.split()
@@ -51,16 +63,15 @@ def one_shot_passed(cron, now):
 def on_tool(ev):
     name = ev.get("tool_name", "")
     inp = ev.get("tool_input") or {}
-    resp = text_of(ev.get("tool_response"))
     rows = load()
     if name == "CronCreate":
-        m = re.search(r"\b(?:job|task) ([0-9a-zA-Z_-]{6,})", resp)
-        if not m:
+        jid = job_id(ev.get("tool_response"))
+        if not jid:
             return  # не создан — нечего помнить
         cron, prompt = str(inp.get("cron", "")), str(inp.get("prompt", ""))
         # тот же крон с тем же текстом после рестарта — заменяем, не копим дубли
         rows = [r for r in rows if not (r.get("cron") == cron and r.get("prompt") == prompt)]
-        rows.append({"id": m.group(1), "cron": cron, "prompt": prompt,
+        rows.append({"id": jid, "cron": cron, "prompt": prompt,
                      "recurring": inp.get("recurring", True) is not False,
                      "durable": bool(inp.get("durable")), "created": int(time.time())})
         save(rows)
