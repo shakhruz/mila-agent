@@ -42,7 +42,7 @@ mila onboard
 2. **Claude** —— 如果尚未登录，会打开 Anthropic 自己的登录页面；Mila 看不到登录信息。
 3. **配对** —— 你会得到一个 6 位验证码，从 Telegram 发给你的机器人；你就成为主人（白名单 + `OWNER_ID`）。
 
-之后运行 `mila` 启动。`mila onboard --check` 只显示三步状态，不做任何更改。机器人没有反应时，运行 `mila doctor`。
+之后运行 `mila` 启动。诞生之后，Mila 会在后台自己工作：终端可以关闭，电脑重启后她会自动启动——只要这台电脑开着并且联网；停止用 `mila stop`。`mila onboard --check` 只显示三步状态，不做任何更改。机器人没有反应时，运行 `mila doctor`。
 
 **Mila 需要什么。** 一个 Telegram 机器人：Mila 住在 Telegram 里——私信、群组和你的公开机器人。Claude Code 加上你自己的 Claude 套餐或 API 密钥：Mila 基于 Claude 打造。一台常开的电脑或服务器：它运行时 Mila 就在工作。支持 macOS 和 Linux；Windows 通过 WSL。Claude Code 的频道功能是新功能，所以启动器目前用开发标志开启它（见快速开始）。
 
