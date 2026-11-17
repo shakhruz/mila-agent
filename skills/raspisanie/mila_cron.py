@@ -15,6 +15,8 @@
   mila_cron.py list [--json]           — задачи: следующий срок в поясе хозяина, последний запуск (по журналу плагина), итог
   mila_cron.py done <id> "<итог>"       — итог последнего запуска (одна строка)
   mila_cron.py import <crons.md>        — перенести «Кроны сессии» из снимка (строки «- <id> · «имя» · <cron> · …»)
+  mila_cron.py import [<файл.json>]     — перенести кроны сессии из файла Claude Code (без файла — ~/work/.claude/scheduled_tasks.json):
+                                          {"tasks": [{"id", "cron", "prompt", "recurring"}]}; годится и список state/crons.json. Повторный запуск дублей не даёт.
 
 Правила: id [a-z0-9-]{1,40}; cron — 5 полей, не чаще раза в 5 минут; текст ≤ 2000; задач ≤ 1000; срок жизни по умолчанию 30 дней,
 своим — до 90 (дальше extend), по просьбе хозяина/старшей — до 400 или без срока (--no-expire); разовые --at — до 400 дней вперёд. by=owner|senior — только с --word (по чьему слову).
@@ -380,6 +382,45 @@ def import_md(path):
     return out, skipped
 
 
+MAX_IMPORT = 1024 * 1024   # файл кронов сессии; больше — не читаю
+
+
+def import_json(path):
+    """Кроны сессии из файла Claude Code (.claude/scheduled_tasks.json: {"tasks": [{"id", "cron", "prompt", "recurring"}]}) или из
+    списка state/crons.json ([{"cron", "prompt", "recurring"}]) → задачи by=mila. id = c-<id записи>, без id — c-<8 знаков суммы
+    cron+текста>: повторный импорт того же файла дублей не даёт («уже есть» — в пропущенных). Разовые (recurring: false) не переношу:
+    их cron закреплён на день и месяц и в расписании повторялся бы каждый год — такое дело ставится add --at."""
+    import hashlib
+    try:
+        if os.path.getsize(path) > MAX_IMPORT:
+            raise Refuse("файл кронов больше %d КБ — не читаю" % (MAX_IMPORT // 1024))
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except OSError as e:
+        raise Refuse("не открыть %s: %s" % (path, e.strerror or e))
+    except ValueError:
+        raise Refuse("%s — не JSON" % path)
+    tasks = d.get("tasks") if isinstance(d, dict) else d
+    if not isinstance(tasks, list):
+        raise Refuse("%s — жду {\"tasks\": [...]} или список" % path)
+    out, skipped = [], []
+    for i, t in enumerate(tasks, 1):
+        if not isinstance(t, dict):
+            skipped.append("запись %d: не объект" % i); continue
+        cron = t.get("cron") if isinstance(t.get("cron"), str) else ""
+        text = t.get("prompt") if isinstance(t.get("prompt"), str) else t.get("text") if isinstance(t.get("text"), str) else ""
+        cron, text = " ".join(cron.split()), text.strip()
+        raw = re.sub(r"[^a-z0-9-]", "", str(t.get("id") or "").lower())
+        jid = ("c-" + (raw or hashlib.sha256((cron + "\n" + text).encode("utf-8")).hexdigest()[:8]))[:40]
+        if t.get("recurring") is False:
+            skipped.append("%s: разовая — поставь add --at" % jid); continue
+        try:
+            out.append(add(jid, cron, text))
+        except Refuse as e:
+            skipped.append("%s: %s" % (jid, e))
+    return out, skipped
+
+
 def main(argv):
     if not argv:
         print(__doc__); return 2
@@ -441,8 +482,9 @@ def main(argv):
             done(*pos, status="fail"); print("срыв записан: %s — в «Проблемы» и утренний журнал" % pos[0])
         elif cmd == "start" and len(pos) in (1, 2):
             done(pos[0], pos[1] if len(pos) == 2 else "", status="start"); print("в работе: %s — итог: done или fail" % pos[0])
-        elif cmd == "import" and len(pos) == 1:
-            out, skipped = import_md(pos[0])
+        elif cmd == "import" and len(pos) <= 1:
+            src = pos[0] if pos else os.path.join(WORK, ".claude", "scheduled_tasks.json")
+            out, skipped = import_json(src) if src.lower().endswith(".json") else import_md(src)
             print("перенесено %d%s" % (len(out), ("; пропущено: " + "; ".join(skipped)) if skipped else ""))
         else:
             print(__doc__); return 2

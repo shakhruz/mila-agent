@@ -72,6 +72,33 @@ open(snap, "w").write("# Снимок\n## Кроны сессии\n- 5223c3ed ·
 code, out = k("import", snap)
 chk("import из снимка: «Кроны сессии» → задача c-5223c3ed; битая — пропуск с причиной; чужой раздел не трогаю", code == 0 and "перенесено 1" in out and "c-77aa" in out
     and any(j["id"] == "c-5223c3ed" for j in jobs()) and not any(j["id"] == "c-1" for j in jobs()))
+os.makedirs(os.path.join(W, ".claude"))
+st = os.path.join(W, ".claude", "scheduled_tasks.json")
+T = [{"id": "ab12cd34", "cron": "17 10,12 * * *", "prompt": "Второй взгляд из сессии", "recurring": True, "createdAt": 1},
+     {"id": "ef56", "cron": "30 14 28 2 *", "prompt": "разовое", "recurring": False}, {"id": "aa11", "cron": "* * * * *", "prompt": "каждую минуту"},
+     {"id": "bb22", "cron": "0 9 * * *", "prompt": ""}, "мусор", {"cron": "5 8 * * 1", "prompt": "Без id"}]
+json.dump({"tasks": T}, open(st, "w"), ensure_ascii=False)
+before = len(jobs()); code, out = k("import")
+got = {j["id"]: j for j in jobs()}
+chk("import без файла: читает .claude/scheduled_tasks.json дома — 2 задачи (с id и без id), cron и текст те же, by=mila",
+    code == 0 and "перенесено 2" in out and len(got) == before + 2 and got["c-ab12cd34"]["cron"] == "17 10,12 * * *"
+    and got["c-ab12cd34"]["text"] == "Второй взгляд из сессии" and got["c-ab12cd34"]["by"] == "mila" and sum(1 for j in got.values() if j["text"] == "Без id") == 1)
+chk("import json: разовая, чаще 5 минут, без текста, не объект — пропуск с причиной, в расписании их нет",
+    "c-ef56: разовая" in out and "c-aa11" in out and "раза в 5" in out and "c-bb22" in out and "запись 5: не объект" in out and not {"c-ef56", "c-aa11", "c-bb22"} & set(got))
+code, out = k("import", st)
+chk("import json повторно: дублей нет — «перенесено 0», «уже есть»", code == 0 and "перенесено 0" in out and out.count("уже есть") == 2 and len(jobs()) == before + 2)
+lst = os.path.join(W, "crons.json"); json.dump([{"cron": "40 7 * * *", "prompt": "Список флота", "recurring": True}], open(lst, "w"), ensure_ascii=False)
+code, out = k("import", lst)
+chk("import json: список state/crons.json (без tasks и без id) — тоже переносится", code == 0 and "перенесено 1" in out and any(j["text"] == "Список флота" for j in jobs()))
+n_before = len(jobs())
+for body, why in (("{не json", "не JSON"), ('{"tasks": 5}', "жду"), ('"строка"', "жду")):
+    open(lst, "w").write(body); code, out = k("import", lst)
+    chk("import json: %s → отказ «%s», расписание цело" % (body, why), code == 1 and why in out and len(jobs()) == n_before)
+chk("import json: файла нет → отказ, не падение", k("import", os.path.join(W, "net.json"))[0] == 1)
+open(lst, "w").write("[" + " " * (1024 * 1024) + "]")
+chk("import json: файл больше 1 МБ — не читаю", (lambda r: r[0] == 1 and "больше" in r[1])(k("import", lst)))
+os.remove(st)
+chk("import без файла, а файла кронов в доме нет → отказ с путём", (lambda r: r[0] == 1 and "scheduled_tasks.json" in r[1])(k("import")))
 open(os.path.join(W, "schedule", "jobs.json"), "w").write("{не json")
 chk("испорченный jobs.json — отказ, не перезаписываю", k("add", "z", "0 9 * * *", "x")[0] == 1 and open(os.path.join(W, "schedule", "jobs.json")).read() == "{не json")
 os.remove(os.path.join(W, "schedule", "jobs.json"))
