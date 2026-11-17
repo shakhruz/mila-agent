@@ -7,7 +7,9 @@ Python/shell tools around Claude Code and a Telegram channel.
 Before: Python 3.12, [Bun](https://bun.sh), ffmpeg and the DejaVu font, and `pip install pyyaml pillow numpy telethon==1.45.0`
 (the same set the CI workflow installs; a test whose tool is missing reports 0/0 and is shown as ⚠️, not green). Install the
 packages into the interpreter or a virtualenv, not with `pip install --user`: the throwaway `HOME` below hides the user site,
-and tests then fail with «No module named 'yaml'» — or keep it visible with `PYTHONUSERBASE=$HOME/.local`. Then three commands:
+and tests then fail with «No module named 'yaml'». If your packages are in the user site, put it first on the same line —
+`PYTHONUSERBASE=$HOME/.local HOME=$(mktemp -d) bash tests/run_all.sh` (in this order: the shell reads `$HOME` left to right).
+Then three commands:
 ```sh
 git clone https://github.com/shakhruz/mila-agent.git && cd mila-agent
 HOME=$(mktemp -d) bash tests/run_all.sh   # every test in the repo, with a throwaway HOME — the script itself does not replace it
