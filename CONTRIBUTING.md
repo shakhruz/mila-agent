@@ -4,12 +4,14 @@ Thanks for helping. Mila is a kit of skills (Markdown), hooks and small
 Python/shell tools around Claude Code and a Telegram channel.
 
 ## Hack on Mila
-Three commands and you are in:
+Before: Python 3.12, [Bun](https://bun.sh), ffmpeg and the DejaVu font, and `pip install pyyaml pillow numpy telethon==1.45.0`
+(the same set the CI workflow installs; a test whose tool is missing reports 0/0 and is shown as ⚠️, not green). Then three commands:
 ```sh
 git clone https://github.com/shakhruz/mila-agent.git && cd mila-agent
-bash tests/run_all.sh            # every test in the repo, in a sandboxed HOME — all green before you change anything
-python3 tools/kitchen_lint.py    # no internal notes in public files — must stay clean
+HOME=$(mktemp -d) bash tests/run_all.sh   # every test in the repo, with a throwaway HOME — the script itself does not replace it
+python3 tools/kitchen_lint.py             # no internal notes in public files — must stay clean
 ```
+With the tools above everything is green before you change anything.
 What is where:
 
 | Folder | What lives there |
@@ -45,7 +47,8 @@ A person decides what to build, a separate reviewing agent checks each change ag
 maintainer reads it and pushes. Pull requests from people are reviewed the same way; say in yours whether an agent wrote it.
 
 ## Tests
-`bash tests/run_all.sh` runs every test in the repo (sandboxed `HOME`) plus the frontmatter check — all green before a
+`HOME=$(mktemp -d) bash tests/run_all.sh` runs every test in the repo plus the frontmatter check (the throwaway `HOME` is yours
+to give: the script does not replace it, and without it the tests run in your real home) — all green before a
 pull request, also with `CI=true` and through `bash tests/run_ci_local.sh` (clean HOME, UTC, exactly the workflow's Python
 packages). CI runs the same script, plus gitleaks on the whole history. A test that needs a new library adds it to the
 `pip install` line in `.github/workflows/tests.yml`. To run one test while you work:
