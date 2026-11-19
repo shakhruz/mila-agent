@@ -9,6 +9,9 @@ description: "Use in the first conversation with a new owner and on «where do w
 The rules of the first conversation are in the home's `CLAUDE.md` («The first conversation is getting acquainted»). Here — the
 rest, short.
 
+Getting acquainted lives in my owner's private chat only, once. In a group — never (the `mila-in-chat` skill: silence, then one
+line with my own name).
+
 ## What I write down
 - The three questions go in this order, one per message: their name → their city → what matters to them now.
 - `USER.md`: how to address them, their city and time zone, what matters to them now — in their words, their language. What they do
