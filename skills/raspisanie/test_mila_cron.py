@@ -75,8 +75,8 @@ chk("import из снимка: «Кроны сессии» → задача c-52
 os.makedirs(os.path.join(W, ".claude"))
 st = os.path.join(W, ".claude", "scheduled_tasks.json")
 T = [{"id": "ab12cd34", "cron": "17 10,12 * * *", "prompt": "Второй взгляд из сессии", "recurring": True, "createdAt": 1},
-     {"id": "ef56", "cron": "30 14 28 2 *", "prompt": "разовое", "recurring": False}, {"id": "aa11", "cron": "* * * * *", "prompt": "каждую минуту"},
-     {"id": "bb22", "cron": "0 9 * * *", "prompt": ""}, "мусор", {"cron": "5 8 * * 1", "prompt": "Без id"}]
+     {"id": "ef56", "cron": "30 14 28 2 *", "prompt": "разовое", "recurring": False}, {"id": "aa11", "cron": "* * * * *", "prompt": "каждую минуту", "recurring": True},
+     {"id": "bb22", "cron": "0 9 * * *", "prompt": "", "recurring": True}, "мусор", {"cron": "5 8 * * 1", "prompt": "Без id", "recurring": True}]
 json.dump({"tasks": T}, open(st, "w"), ensure_ascii=False)
 before = len(jobs()); code, out = k("import")
 got = {j["id"]: j for j in jobs()}
@@ -90,6 +90,17 @@ chk("import json повторно: дублей нет — «перенесен�
 lst = os.path.join(W, "crons.json"); json.dump([{"cron": "40 7 * * *", "prompt": "Список флота", "recurring": True}], open(lst, "w"), ensure_ascii=False)
 code, out = k("import", lst)
 chk("import json: список state/crons.json (без tasks и без id) — тоже переносится", code == 0 and "перенесено 1" in out and any(j["text"] == "Список флота" for j in jobs()))
+# форма живого файла Claude Code: у разовой задачи поля recurring НЕТ, у повторяющейся — true; служебные поля — мимо расписания
+meta = {"createdAt": int("1794884" + "925184"), "createdBySessionId": "s", "createdByPid": 1, "createdByProcStart": "x", "createdInProject": "/p"}
+json.dump({"tasks": [dict({"id": "dab6535b", "cron": "17 4 31 12 *", "prompt": "разовая без поля recurring"}, **meta),
+                     dict({"id": "47795bdb", "cron": "13 4 * * 0", "prompt": "повторяющаяся", "recurring": True}, **meta),
+                     {"id": "cc33", "cron": "0 9 * * *", "prompt": "recurring строкой", "recurring": "true"}, {"id": "dd44", "cron": "0 9 * * *", "prompt": "recurring null", "recurring": None}]},
+          open(lst, "w"), ensure_ascii=False)
+code, out = k("import", lst); got = {j["id"]: j for j in jobs()}
+chk("import json, живая форма: разовая БЕЗ поля recurring не перенесена (иначе срабатывала бы каждый год), повторяющаяся → c-47795bdb",
+    code == 0 and "перенесено 1" in out and "c-dab6535b: разовая" in out and "c-dab6535b" not in got and got.get("c-47795bdb", {}).get("cron") == "13 4 * * 0")
+chk("import json: recurring не true (строка, null) — тоже разовая; служебные поля файла в расписание не попали",
+    "c-cc33: разовая" in out and "c-dd44: разовая" in out and not {"c-cc33", "c-dd44"} & set(got) and not any(x in got["c-47795bdb"] for x in meta))
 n_before = len(jobs())
 for body, why in (("{не json", "не JSON"), ('{"tasks": 5}', "жду"), ('"строка"', "жду")):
     open(lst, "w").write(body); code, out = k("import", lst)

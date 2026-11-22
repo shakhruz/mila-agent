@@ -16,7 +16,8 @@
   mila_cron.py done <id> "<итог>"       — итог последнего запуска (одна строка)
   mila_cron.py import <crons.md>        — перенести «Кроны сессии» из снимка (строки «- <id> · «имя» · <cron> · …»)
   mila_cron.py import [<файл.json>]     — перенести кроны сессии из файла Claude Code (без файла — ~/work/.claude/scheduled_tasks.json):
-                                          {"tasks": [{"id", "cron", "prompt", "recurring"}]}; годится и список state/crons.json. Повторный запуск дублей не даёт.
+                                          {"tasks": [{"id", "cron", "prompt", "recurring"}]}; годится и список state/crons.json. Переносит только "recurring": true
+                                          (разовые — add --at); повторный запуск дублей не даёт.
 
 Правила: id [a-z0-9-]{1,40}; cron — 5 полей, не чаще раза в 5 минут; текст ≤ 2000; задач ≤ 1000; срок жизни по умолчанию 30 дней,
 своим — до 90 (дальше extend), по просьбе хозяина/старшей — до 400 или без срока (--no-expire); разовые --at — до 400 дней вперёд. by=owner|senior — только с --word (по чьему слову).
@@ -388,8 +389,9 @@ MAX_IMPORT = 1024 * 1024   # файл кронов сессии; больше �
 def import_json(path):
     """Кроны сессии из файла Claude Code (.claude/scheduled_tasks.json: {"tasks": [{"id", "cron", "prompt", "recurring"}]}) или из
     списка state/crons.json ([{"cron", "prompt", "recurring"}]) → задачи by=mila. id = c-<id записи>, без id — c-<8 знаков суммы
-    cron+текста>: повторный импорт того же файла дублей не даёт («уже есть» — в пропущенных). Разовые (recurring: false) не переношу:
-    их cron закреплён на день и месяц и в расписании повторялся бы каждый год — такое дело ставится add --at."""
+    cron+текста>: повторный импорт того же файла дублей не даёт («уже есть» — в пропущенных). Повторяющаяся — только "recurring": true.
+    У разовой задачи Claude Code поля recurring нет вовсе (снято с живого файла), поэтому нет поля или не true — разовая,
+    не переношу: её cron закреплён на день и месяц и в расписании повторялся бы каждый год — такое дело ставится add --at."""
     import hashlib
     try:
         if os.path.getsize(path) > MAX_IMPORT:
@@ -412,7 +414,7 @@ def import_json(path):
         cron, text = " ".join(cron.split()), text.strip()
         raw = re.sub(r"[^a-z0-9-]", "", str(t.get("id") or "").lower())
         jid = ("c-" + (raw or hashlib.sha256((cron + "\n" + text).encode("utf-8")).hexdigest()[:8]))[:40]
-        if t.get("recurring") is False:
+        if t.get("recurring") is not True:
             skipped.append("%s: разовая — поставь add --at" % jid); continue
         try:
             out.append(add(jid, cron, text))

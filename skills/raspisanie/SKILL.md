@@ -17,7 +17,7 @@ python3 $M list                                      # следующий сро
 python3 $M done otchet-pn "отправлен, 5 строк"       # итог последнего запуска
 python3 $M pause|resume|rm <id> · extend <id> ГГГГ-ММ-ДД
 python3 $M import ~/work/state/crons.md              # перенести кроны из снимка сессии
-python3 $M import                                    # перенести кроны сессии из ~/work/.claude/scheduled_tasks.json (или import <файл.json>); повтор дублей не даёт
+python3 $M import                                    # перенести кроны сессии из ~/work/.claude/scheduled_tasks.json (или import <файл.json>); только повторяющиеся, разовые — add --at; повтор дублей не даёт
 python3 $M add prodlit --at "2026-12-01 10:00" "Продлить домен"         # разовое дело на дату
 python3 $M event vstrecha "2026-11-25 12:00" "Встреча с партнёром, офис" --prep 1d,2h   # событие хозяина + «будь готова»
 python3 $M agenda --hours 24                         # повестка: события 📅, подготовка 🎒, задачи
