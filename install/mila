@@ -307,7 +307,7 @@ case "${1:-continue}" in
   help|-h|--help)
                cat <<'HELP'
 mila            how she is: Mila lives in the background and answers in Telegram (not born yet — opens the birth page)
-mila start      start her in the background (launchd on macOS, systemd --user on Linux); she also starts after a reboot
+mila start      start her in the background (launchd on macOS, systemd --user on Linux); she also starts when you log in after a reboot
 mila stop       stop her; she will not answer until `mila start`
 mila restart    stop her and start her again
 mila uninstall  take her off this machine: stop, remove the service, move her token, sign-in and birth record aside

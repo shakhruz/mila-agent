@@ -178,13 +178,13 @@ strangers who guess the bot's username keep getting pairing codes.
 ### The `mila` command
 
 After the birth Mila lives in the background: a service of your own user (launchd `com.milagpt.session` on macOS, a systemd
-user unit `mila-session.service` on Linux) keeps one session running and starts it again after a reboot. You do not keep a
+user unit `mila-session.service` on Linux) keeps one session running and starts it again when you log in after a reboot (on Linux also without a login, once lingering is on: `loginctl enable-linger <user>`). You do not keep a
 terminal open for her.
 
 | Command | What it does |
 |---|---|
 | `mila` | Not born yet — opens the birth page. Born — starts her in the background if she is not running and shows how she is. It does not open a session in the folder you typed it in. |
-| `mila start` | Starts her in the background; she also starts after a reboot. |
+| `mila start` | Starts her in the background; she also starts when you log in after a reboot. |
 | `mila stop` | Stops her; she does not answer until `mila start`. |
 | `mila restart` | Stops her and starts her again. |
 | `mila status` | The background service and the channel: receiver, bridge, journal. |

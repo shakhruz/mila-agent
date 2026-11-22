@@ -50,7 +50,7 @@ mila onboard
 2. **Claude** — kirmagan bo‘lsangiz, Anthropic’ning o‘z kirish sahifasi ochiladi; Mila uni ko‘rmaydi.
 3. **Juftlash** — 6 belgili kod olasiz va uni botingizga yuborasiz; siz — egasiz (allowlist va `OWNER_ID`).
 
-Keyin — `mila`. Tug‘ilgandan keyin Mila o‘zi, fonda ishlaydi: terminalni yopsangiz bo‘ladi, kompyuter qayta yoqilganda u o‘zi ishga tushadi — shu kompyuter yoniq va internetga ulangan bo‘lsa; to‘xtatish — `mila stop`. `mila onboard --check` hech narsani o‘zgartirmasdan uch qadamni ko‘rsatadi. Bot jim bo‘lsa — `mila doctor`.
+Keyin — `mila`. Tug‘ilgandan keyin Mila o‘zi, fonda ishlaydi: terminal oynasini yopsangiz bo‘ladi. Kompyuter qayta yoqilgach, u siz tizimga qayta kirganingizda ishga tushadi. Linux-serverda u kirishsiz ham ishlashi uchun: `loginctl enable-linger <ism>`. To‘xtatish — `mila stop`. `mila onboard --check` hech narsani o‘zgartirmasdan uch qadamni ko‘rsatadi. Bot jim bo‘lsa — `mila doctor`.
 
 **Milaga nima kerak.** Telegram bot: Mila Telegram’da yashaydi — shaxsiy xabarlar, guruhlar va sizning ochiq botingiz. Claude Code va o‘z Claude obunangiz yoki API kalitingiz: Mila Claude bilan yaratilgan. O‘chmaydigan kompyuter yoki server: Mila u ishlab turganda ishlaydi. macOS va Linux; Windows’da — WSL orqali. Claude Code’dagi kanallar — yangilik, shuning uchun ishga tushirgich hozircha ularni ishlab chiqish bayrog‘i bilan yoqadi.
 

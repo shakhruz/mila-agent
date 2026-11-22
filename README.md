@@ -49,7 +49,7 @@ It installs the latest release tag, not `main`. Want to look first? Run it with 
 
 **2. Run `mila`.** A setup page opens on your own computer. Create her Telegram bot in one tap, sign in to Claude on Anthropic's page, open your bot to pair. Prefer the terminal? `mila onboard` does the same.
 
-**3. Say hi in Telegram.** Send your bot a message. She answers. From then on she works on her own, in the background: you can close the terminal, and she starts again after a reboot — as long as this computer is on and online. Quiet bot? Run `mila doctor`.
+**3. Say hi in Telegram.** Send your bot a message. She answers. From then on she works on her own, in the background: you can close the terminal window. After a reboot she starts when you log in again. On a Linux server, to keep her running without a login: `loginctl enable-linger <user>`. `mila stop` stops her. Quiet bot? Run `mila doctor`.
 
 ≈ 5 minutes · bring your own Claude plan or Anthropic API key · no computer to keep on? Mila runs in the cloud too: [Railway or Hostinger, one page](docs/CLOUD.md) · [Latest release](https://github.com/shakhruz/mila-agent/releases/latest)
 

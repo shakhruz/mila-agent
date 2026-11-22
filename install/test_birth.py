@@ -252,9 +252,9 @@ chk("после «родилась» страница сама запускае�
 os.makedirs(os.path.join(T, "run"), exist_ok=True); open(os.path.join(T, "run", "greeted"), "w").close()
 st, aw = req("GET", BASE + "api/awake")
 chk("её первые слова ушли — страница узнаёт об этом (awake greeted=true) и только тогда говорит «она ждёт»", json.loads(aw).get("greeted") is True)
-chk("страница: «Мила уже работает сама — терминал можно закрыть» есть на четырёх языках и говорится только после её первых слов; до них — прежнее «страницу можно закрыть»",
+chk("страница: «Мила уже работает сама — окно терминала можно закрыть» есть на четырёх языках и говорится только после её первых слов; до них — прежнее «страницу можно закрыть»",
     page.count(',"closed_bg":"') == 4 and page.count('"closed":"') == 4 and 'say("m4",wakeKey==="p4"?"closed_bg":"closed","ok")' in page
-    and "терминал можно закрыть" in page and "close this page and the terminal" in page)
+    and "окно терминала можно закрыть" in page and "close this page and the terminal window" in page)
 chk("страница: «она ждёт» показывается по факту — сначала «просыпается», опрос awake, при молчании — честная строка; ум подключается в чате",
     'data-i="wake"' in page and 'api("awake")' in page and 'wakeKey="p4"' in page and 'wakeKey="wake_late"' in page and "if(!st.claude.done)return enter2()" not in page
     and all(len(re.findall(r'"%s":' % k, page)) == 4 for k in ("wake", "wake_late")))
