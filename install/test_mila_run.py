@@ -225,15 +225,15 @@ try:
     chk("есть запись Claude Code об установке (installed_plugins.json) — берётся путь из неё, даже если рядом есть копии новее", any(("plugin %s" % OTHER) in l for l in read(os.path.join(ST, "run.log")).splitlines()[-4:]), read(os.path.join(ST, "run.log"))[-300:])
     p.send_signal(signal.SIGTERM); p.wait(timeout=25)
 
-    # her sticker set: the default every Mila is born with, a file to use another one, an empty variable to have none
+    # her sticker set: none by default (the core names no set), a file or a variable of the home to name one, an empty variable to have none
     def _set(extra, hooks_file=None):
         d = tempfile.mkdtemp(dir=T); shutil.copy(RUN, os.path.join(d, "mila-run.py"))
         if hooks_file is not None: open(os.path.join(d, "sticker-set.txt"), "w").write(hooks_file)
         e = dict(ENV); e.pop("MILA_STICKER_SET", None); e.update(extra)
         code = "import importlib.util as u, sys; s = u.spec_from_file_location('m', sys.argv[1]); m = u.module_from_spec(s); s.loader.exec_module(m); print(m.sticker_set())"
         return subprocess.run([sys.executable, "-B", "-c", code, os.path.join(d, "mila-run.py")], env=e, capture_output=True, text=True).stdout.strip()
-    chk("набор стикеров: без настроек — набор, с которым рождается каждая Мила", _set({}) == "super_mila" + "_by_milamini_ashot_bot", _set({}))
-    chk("…файл sticker-set.txt в папке хуков заменяет набор; строка не вида имени набора — не берётся", _set({}, "my_own_set\n") == "my_own_set" and _set({}, "плохое имя; rm\n").startswith("super_mila"), (_set({}, "my_own_set\n"), _set({}, "плохое имя; rm\n")))
+    chk("набор стикеров: без настроек — набора нет (ядро своего не называет): пустая строка, первые слова без стикера", _set({}) == "", _set({}))
+    chk("…файл sticker-set.txt в папке хуков называет набор; строка не вида имени набора — не берётся, набора нет", _set({}, "my_own_set\n") == "my_own_set" and _set({}, "плохое имя; rm\n") == "", (_set({}, "my_own_set\n"), _set({}, "плохое имя; rm\n")))
     chk("…пустая переменная MILA_STICKER_SET — без стикера; непустая — она", _set({"MILA_STICKER_SET": ""}) == "" and _set({"MILA_STICKER_SET": "x_set"}) == "x_set")
 
     # no plugin

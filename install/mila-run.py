@@ -259,12 +259,13 @@ def birth_lang():
     return l if l in ("en", "ru", "uz", "zh") else "en"
 
 
-DEFAULT_STICKER_SET = "super_mila_by_milamini_ashot_bot"   # the «Super Mila» set: a newborn's first words come with a sticker
+DEFAULT_STICKER_SET = ""   # the core names no set: a home says which one (MILA_STICKER_SET or hooks/sticker-set.txt); none — no sticker
 
 
 def sticker_set():
-    """The name of her sticker set: MILA_STICKER_SET (empty — no sticker), else the one line of hooks/sticker-set.txt (the way
-    to use another set), else the set every Mila is born with. A set her bot cannot reach — no sticker, silently."""
+    """The name of her sticker set: MILA_STICKER_SET (empty — no sticker), else the one line of hooks/sticker-set.txt, else
+    none — her first words go without a sticker. The set belongs to a home, not to the core. A set her bot cannot reach —
+    no sticker, silently."""
     v = os.environ.get("MILA_STICKER_SET")
     if v is not None: return v.strip()
     try:
