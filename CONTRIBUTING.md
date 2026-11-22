@@ -3,6 +3,32 @@
 Thanks for helping. Mila is a kit of skills (Markdown), hooks and small
 Python/shell tools around Claude Code and a Telegram channel.
 
+## Hack on Mila
+Three commands and you are in:
+```sh
+git clone https://github.com/shakhruz/mila-agent.git && cd mila-agent
+bash tests/run_all.sh            # every test in the repo, in a sandboxed HOME — all green before you change anything
+python3 tools/kitchen_lint.py    # no internal notes in public files — must stay clean
+```
+What is where:
+
+| Folder | What lives there |
+|---|---|
+| `skills/` | the skills every Mila has: a `SKILL.md` and, where needed, its scripts and tests |
+| `packs/` | roles on top of the core (a manager, a content expert, ads…): sets of skills installed by the owner's «yes» |
+| `templates/home/.claude/hooks/` | the hooks that guard what Mila sends, says and reads; each has a test next to it |
+| `templates/work/` | the files a newborn Mila starts with |
+| `install/` | the installer, the `mila` command, birth, the background service, the Scheduler, the doctor |
+| `tools/` | linters, the release gate, the library builder |
+| `tests/` | `run_all.sh`, the CI twin `run_ci_local.sh`, checks of the docs and READMEs |
+| `docs/`, `docker/`, `deploy/` | the documentation, the container image, a server and cloud setup |
+
+**Contributions in English are welcome. Skill texts are Russian — we help with the translation. Hooks, tests, the installer
+and the docs need no Russian at all.**
+
+What we hope people will do: try Mila on Linux and WSL and tell us what broke; check the hooks; translate skills and docs;
+make the installer work beyond macOS.
+
 ## Ground rules
 - One logical change per pull request; small commits.
 - No secrets, no real chat ids, no names of real customers or people in code,
