@@ -356,7 +356,7 @@ chk("шаг «адрес»: одно поле (код или ключ), одна
     page4.index('id="bone"') < page4.index('id="bbot"') < page4.index('id="pasted"') < page4.index('id="bgo"') and 'href="https://t.me/BotFather"' in page4
     and page4.count("<input") == 1 and "<details" not in page4 and 'id="tok"' not in page4 and 'id="bcodein"' not in page4 and '"own"' not in page4)
 chk("страница различает вставленное по формату: ключ бота → api/token, код рождения → api/code, остальное — ошибка e_input",
-    'k==="code"?{code:v}:{token:v}' in page4 and "api(k," in page4 and '"e_input"' in page4 and "MILA-XXXX-XXXX-XXXX / 1234567890:AA" in page4)
+    'k==="code"?{code:v}:{token:v}' in page4 and "api(k," in page4 and '"e_input"' in page4 and "MILA-XXXX-XXXX-XXXX / 123456:AA" in page4)
 chk("шаги названы: «A place to meet», «Her mind», «You»; «A voice» нет", '"t1":"A place to meet"' in page4 and '"t2":"Her mind"' in page4 and '"t3":"You"' in page4 and "A voice" not in page4 and "Место встречи" in page4 and "Её ум" in page4)
 nothing = lambda: not os.path.exists(envf) and not os.path.exists(os.path.join(T, "tg", "access.json"))
 r = api("code", {"code": "hello"})[1]
