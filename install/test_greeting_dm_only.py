@@ -20,5 +20,6 @@ check("Groups: greeting and acquaintance are for the private chat only", "privat
 chat = " ".join(rd("skills/mila-in-chat/SKILL.md").split())
 check("mila-in-chat: the first-day greeting never goes to a group", "в группу не несу никогда" in chat and "только для лички хозяина" in chat)
 check("mila-in-chat: acquaintance not finished → same silence until the button", "Знакомство ещё не пройдено" in chat and "молчу до его кнопки" in chat)
+check("mila-in-chat and «Groups» agree: the owner's own word before the button gets a short answer, without acquaintance", "раньше кнопки — короткий ответ по его словам, без знакомства" in chat and "short answer to its words" in groups)
 check("onboarding: private chat only", "private chat only" in " ".join(rd("skills/onboarding/SKILL.md").split()))
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
