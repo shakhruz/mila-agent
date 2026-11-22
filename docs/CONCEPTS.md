@@ -10,7 +10,7 @@
 | 🤝 **Consent** (RU: Согласование) | the owner opens a lock with a button — for this text, this time | the consent journal |
 | 🔀 **Choice** (RU: Выбор) | options A/B/C, each with its outcome, and Mila's recommendation | `skills/cards`, `skills/iniciativa` |
 | 🧭 **Fork** (RU: Развилка) | on her own reversible work Mila goes ahead and logs the point where the owner may turn | `skills/razvilki` |
-| ♟ **The next move** (RU: Следующий ход) | every answer ends with «My move» and «Your move» | `skills/sleduyushchij-hod`, checked by the send guard |
+| ♟ **The next move** (RU: Следующий ход) | every answer to the owner ends with «My move» and «Your move» | `skills/sleduyushchij-hod`, checked by the send guard |
 
 ## Lock
 A word in the owner's name, money, anything that cannot be undone. A lock is a mechanism, not a promise «I will ask»: such actions are run by a separate process, the consent proxy, under another OS user. The session has no service keys — it can only ask.

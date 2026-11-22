@@ -456,17 +456,14 @@ def _nm_parts(work, chat, is_part):
 
 
 def _nm_ours(c):
-    """«Мой ход / Ваш ход» is the working language with the owner and the team (owner's word 15.11.2026, 49546: with clients and
-    guests the two labels sound mechanical). The owner, internal chats (~/.claude/hooks/internal-chats.json) and the dev chat
-    keep the rule; a client or a guest gets a natural ending — what I do and a question or advice, buttons stay."""
+    """«Мой ход / Ваш ход» is the working language with the owner (owner's word 15.11.2026: with clients and guests the two labels
+    sound mechanical; 22.11.2026: required only in the owner's private chat). A work group keeps the rule only when the home names
+    it: MILA_DEV_CHAT (one chat) or MILA_HOD_CHATS (ids through a comma). Every other chat — a client, a guest, an internal group
+    not named there — gets a natural ending: what I do and a question or advice, buttons stay."""
     if not c: return False
     if owner and c == owner: return True
     if not owner and len(_allow_from) == 1 and c in _allow_from: return True   # OWNER_ID is not set: the only person allowed to write is the owner
-    if c == os.environ.get("MILA_DEV_CHAT", ""): return True
-    try:
-        return c in {str(x) for x in json.load(open(os.path.expanduser("~/.claude/hooks/internal-chats.json"), encoding="utf-8"))}
-    except Exception:
-        return False
+    return c in {x.strip() for x in (os.environ.get("MILA_DEV_CHAT", "") + "," + os.environ.get("MILA_HOD_CHATS", "")).split(",") if x.strip()}
 
 
 if tool.endswith("__reply"):

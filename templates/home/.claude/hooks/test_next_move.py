@@ -7,9 +7,9 @@ import datetime as dt, json, os, shutil, subprocess, sys, tempfile
 H = os.path.dirname(os.path.abspath(__file__)); G = os.path.join(H, "send-guard.py"); REPO = os.path.join(H, "..", "..", "..", "..")
 home = tempfile.mkdtemp(); work = os.path.join(home, "work"); CL = os.path.join(home, ".claude")
 os.makedirs(os.path.join(CL, "channels/telegram")); os.makedirs(os.path.join(work, "schedule"))
-json.dump({"groups": {"-1001": {}, "-1002": {}}, "allowFrom": ["555"]}, open(os.path.join(CL, "channels/telegram/access.json"), "w"))
+json.dump({"groups": {"-1001": {}, "-1002": {}, "-1003": {}}, "allowFrom": ["555"]}, open(os.path.join(CL, "channels/telegram/access.json"), "w"))
 os.makedirs(os.path.join(home, ".claude", "hooks"), exist_ok=True)
-json.dump(["555", "-1001"], open(os.path.join(home, ".claude", "hooks", "internal-chats.json"), "w"))      # the team; -1002 is a client group
+json.dump(["555", "-1001", "-1003"], open(os.path.join(home, ".claude", "hooks", "internal-chats.json"), "w"))      # internal chats; the home names -1001 (work group) and 555 (a teammate) in MILA_HOD_CHATS, -1003 is internal but not named, -1002 is a client group
 for s in ("raspisanie", "problemy", "dela", "pd-vault"):
     if os.path.isdir(os.path.join(REPO, "skills", s)): shutil.copytree(os.path.join(REPO, "skills", s), os.path.join(CL, "skills", s), ignore=shutil.ignore_patterns("__pycache__", "test_*"))
 import zoneinfo
@@ -23,8 +23,8 @@ jobs = {"jobs": [{"id": "отчёт за день", "cron": "0 9 * * *", "text":
                  {"id": "старая задача", "cron": "0 9 * * *", "text": "x", "enabled": True, "expires": (NOW - dt.timedelta(days=2)).date().isoformat()},
                  {"id": "выключенная", "cron": "0 9 * * *", "text": "x", "enabled": False, "expires": None}]}
 J = os.path.join(work, "schedule", "jobs.json"); json.dump(jobs, open(J, "w"), ensure_ascii=False)
-env = dict(os.environ, HOME=home, OWNER_ID="111", MILA_WORK=work, CLAUDE_CONFIG_DIR=CL, MILA_CRON_NOW=NOW.isoformat(), PYTHONDONTWRITEBYTECODE="1")
-for k in ("MILA_SCHEDULER_BEAT", "BARABAN_STATE", "XDG_STATE_HOME"): env.pop(k, None)
+env = dict(os.environ, HOME=home, OWNER_ID="111", MILA_HOD_CHATS="-1001,555", MILA_WORK=work, CLAUDE_CONFIG_DIR=CL, MILA_CRON_NOW=NOW.isoformat(), PYTHONDONTWRITEBYTECODE="1")
+for k in ("MILA_SCHEDULER_BEAT", "BARABAN_STATE", "XDG_STATE_HOME", "MILA_DEV_CHAT"): env.pop(k, None)
 SLUG = os.path.basename(os.path.realpath(home)); BEATS = os.path.join(home, "state", "baraban")
 def beat(age_s=0, name=None, folder=None, text=None):
     """The Scheduler's pass mark as the service leaves it: <state>/<home name>.beat with the time of the pass."""
@@ -68,7 +68,7 @@ chk("узбекские метки", guard("Tayyor.\nMening yurishim: hech narsa
 chk("markdownv2 с экранированием («Мой ход\\:») — уходит", guard("Готово\\.\n*Мой ход\\:* ничего не запущено — жду вас\\.\n*Ваш ход\\:* советую посмотреть черновик\\.", format="markdownv2"), False)
 chk("«Мой ход» не из трёх форм — отказ", guard(ans("Мой ход: работаю.")), True, "трёх форм")
 chk("строка длиннее 200 знаков — отказ", guard(ans(MY1 + " " + "очень " * 40)), True, "200")
-chk("правило — везде: в группе без строк тоже отказ", guard("Отчёт готов.", chat="-1001"), True, "Мой ход")
+chk("рабочая группа, названная в MILA_HOD_CHATS: без строк — отказ", guard("Отчёт готов.", chat="-1001"), True, "Мой ход")
 chk("в группе со строками — уходит", guard(ans(), chat="-1001"), False)
 chk("правка сообщения (ход работы) — правило молчит", guard("идёт сборка…", None, tool="mcp__plugin_mila-telegram_telegram__edit_message"), False)
 
@@ -180,6 +180,17 @@ chk("вместо расписания папка: форма 2 — отказ, 
 chk("другие сторожа живы рядом с ходом: извинение — отказ", guard(ans(head="Извините, не успела.")), True, "извинение")
 chk("клиентская группа (не владелец и не команда): ответ без «Мой ход / Ваш ход» — уходит", guard("Виктор, вот три примера. Какой ближе к вашему делу?", B2, chat="-1002"), False)
 chk("владелец: ответ без двух строк — по-прежнему отказ", guard("Готово, файл в папке.", B2, chat="111"), True, "Мой ход")
+# 22.11.2026: the two lines are required only in the owner's private chat and in a work group the home names
+chk("внутренняя группа, не названная в MILA_HOD_CHATS (есть в internal-chats.json): без двух строк — уходит", guard("Коллеги, сводка готова. Что смотрим первым?", B2, chat="-1003"), False)
+def guard_env(text, chat, **e):
+    global env; keep = env; env = dict({k: v for k, v in keep.items() if k not in ("MILA_HOD_CHATS", "MILA_DEV_CHAT")}, **e)
+    try: return guard(text, B2, chat=chat)
+    finally: env = keep
+chk("ни MILA_DEV_CHAT, ни MILA_HOD_CHATS: в группе -1001 без двух строк — уходит", guard_env("Сводка готова. Что смотрим первым?", "-1001"), False)
+chk("ни одной переменной: владельцу без двух строк — отказ", guard_env("Готово, файл в папке.", "111"), True, "Мой ход")
+chk("MILA_DEV_CHAT=-1001: в этой группе без двух строк — отказ", guard_env("Сводка готова.", "-1001", MILA_DEV_CHAT="-1001"), True, "Мой ход")
+chk("MILA_HOD_CHATS со списком и пробелами: вторая группа из списка без двух строк — отказ", guard_env("Сводка готова.", "-1003", MILA_HOD_CHATS="-1001, -1003"), True, "Мой ход")
+chk("MILA_HOD_CHATS со списком: клиентская группа, которой в нём нет, — уходит", guard_env("Виктор, вот три примера. Какой ближе?", "-1002", MILA_HOD_CHATS="-1001, -1003"), False)
 # clients and guests: no two labels, but a timed promise and the buttons are still checked
 shutil.rmtree(J, ignore_errors=True); json.dump(jobs, open(J, "w"), ensure_ascii=False); no_beats(); beat()
 C = "-1002"
