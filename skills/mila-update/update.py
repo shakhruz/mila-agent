@@ -574,6 +574,84 @@ def cc_version():
     return tuple(int(x) for x in m.groups()) if m else None
 
 
+def missing_guards(src, cfg=None, coming=()):
+    """Сторожа ядра из release.json (guards), которых нет в settings.json дома: по key внутри того же события.
+    Файл сторожа обязан быть на месте в доме и компилироваться — иначе не подключаю (сломанный хук хуже отсутствующего)."""
+    try: g = json.load(open(os.path.join(src, "release.json"), encoding="utf-8")).get("guards") or []
+    except (OSError, ValueError): return []
+    if cfg is None:
+        p = os.path.join(CLAUDE, "settings.json")
+        try: cfg = json.load(open(p, encoding="utf-8")) if os.path.isfile(p) and not os.path.islink(p) else {}
+        except (OSError, ValueError): return []
+    hooks = cfg.get("hooks") if isinstance(cfg, dict) and isinstance(cfg.get("hooks"), dict) else {}
+    out = []
+    for x in g:
+        if not (isinstance(x, dict) and isinstance(x.get("event"), str) and isinstance(x.get("key"), str) and isinstance(x.get("hook"), dict)
+                and isinstance(x["hook"].get("command"), str) and isinstance(x.get("file"), str) and ".." not in x["file"].split("/")): continue
+        have = any(x["key"] in str(h.get("command", "")) for e in (hooks.get(x["event"]) or []) if isinstance(e, dict)
+                   for h in (e.get("hooks") or []) if isinstance(h, dict))
+        if have: continue
+        f = P(x["file"])
+        if _bad_dst(f): continue
+        if f in coming: out.append(x); continue                    # придёт с этим релизом (план) — файл проверит apply
+        if os.path.islink(f) or not os.path.isfile(f): continue
+        try: compile(open(f, encoding="utf-8").read(), f, "exec")
+        except (OSError, SyntaxError, ValueError): continue
+        out.append(x)
+    return out
+
+
+def connect_guards(src, tag):
+    """Подключить недостающих сторожей ядра в settings.json: бэкап, дописать только их (чужие и свои хуки дома не трогаю,
+    порядок не меняю), проверить, что JSON читается и каждый подключённый ключ на месте; при сбое — откат из бэкапа. → список или None."""
+    p = os.path.join(CLAUDE, "settings.json")
+    if os.path.islink(p) or not inside_home(p): return None
+    try: cfg = json.load(open(p, encoding="utf-8")) if os.path.isfile(p) else {}
+    except (OSError, ValueError): return None                       # чужой кривой файл не чиню
+    if not isinstance(cfg, dict): return None
+    add = missing_guards(src, cfg)
+    if not add: return None
+    hooks = cfg.setdefault("hooks", {})
+    if not isinstance(hooks, dict): return None
+    for x in add:
+        grp = {"hooks": [dict(x["hook"])]}
+        if x.get("matcher"): grp = {"matcher": x["matcher"], "hooks": [dict(x["hook"])]}
+        hooks.setdefault(x["event"], []).append(grp)
+    b = backup([p], tag + "-guards") if os.path.isfile(p) else None
+    st = os.lstat(p) if os.path.isfile(p) else None; tmp = p + ".new"
+    try: os.unlink(tmp)
+    except FileNotFoundError: pass
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, stat.S_IMODE(st.st_mode) if st else 0o600)
+    try:
+        if st and os.geteuid() == 0: os.fchown(fd, st.st_uid, st.st_gid)
+        os.write(fd, json.dumps(cfg, ensure_ascii=False, indent=2).encode())
+    finally:
+        os.close(fd)
+    os.replace(tmp, p)
+    try:
+        chk = json.load(open(p, encoding="utf-8"))
+        if missing_guards(src, chk): raise ValueError("после записи сторожа не на месте")
+    except (OSError, ValueError) as e:
+        if b: restore_settings(b, p)
+        jlog({"event": "guards_failed", "why": type(e).__name__}); return None
+    names = [os.path.basename(x["file"]) + " (" + x["event"] + ")" for x in add]
+    jlog({"event": "guards", "added": names, "backup": b})
+    return names
+
+
+def restore_settings(b, p):
+    """Вернуть settings.json из бэкапа этого запуска (архив backup(): член — путь без ведущего «/»)."""
+    try:
+        with tarfile.open(b, "r:gz") as t:
+            m = t.getmember(p.lstrip("/"))
+            if not m.isfile(): return
+            data = t.extractfile(m).read()
+        tmp = p + ".restore"
+        with open(tmp, "wb") as f: f.write(data)
+        os.replace(tmp, p)
+    except (OSError, KeyError, tarfile.TarError): pass
+
+
 def migrate_settings(tag):
     """у установок через install.sh хук send-guard записан без "onFailure": "block" —
     упал сторож, и сообщение уходит. Единственная правка settings.json при обновлении: дописать этот ключ хукам send-guard
@@ -634,8 +712,8 @@ def do_apply(src, m, rows, yes, take=(), tag=None, sha_="", channel="", src_labe
     for r in todo: put(r["src"], r["dst"], r["kind"])
     for r in side: put(r["src"], os.path.join(newdir, r["name"]), r["kind"])
     mig = migrate_settings(tag)   # точечная миграция настроек (settings.json целиком не перезаписываем — он в never)
-    if mig: touched_extra = [mig]
-    else: touched_extra = []
+    grd = connect_guards(src, tag)   # недостающие сторожа ядра — только дописать, свои хуки дома не трогаю
+    touched_extra = ([mig] if mig else []) + ([os.path.join(CLAUDE, "settings.json")] if grd else [])
     files = dict(load_version().get("files", {}))
     for r in rows:
         if r in todo or r["state"] == "как есть": files[r["dst"]] = r["new"]
@@ -997,6 +1075,10 @@ def plan_text(src, m, rows, cur_tag, tag):
         nm = " и ".join(GUARD_TAKE[n] if i == 0 else GUARD_TAKE[n].lower() for i, n in enumerate(take))
         tail.append(("%s у вас отличаются от ядра и ставились не обновлением" if len(take) > 1 else "%s у вас отличается от ядра и ставился не обновлением") % nm
                     + " — советую заменить вместе с обновлением.")
+    mg = [os.path.basename(x["file"]) for x in missing_guards(src, coming={r["dst"] for r in rows if r["state"] in ("новое", "обновится")})]
+    if mg:                                                   # сторожа — защита: подключаю сама, хозяину — одной строкой
+        tail.append("Подключу сторожей ядра: %d (%s)." % (len(mg), ", ".join(sorted(set(mg)))))
+        if lvl != "высокий": lvl, why = "высокий", "подключаются сторожа ядра в настройках"
     tail.append("Риск: %s — %s. Отменить можно." % (lvl, why))
     def change_lines(names):   # ужимаю имена в «что изменится», а не пользу
         if not ch: return ["Что изменится: ничего — у вас уже всё из этой версии."]
@@ -1013,7 +1095,7 @@ def plan_text(src, m, rows, cur_tag, tag):
                 text = s; break
         if text: break
     if not text: text = "\n".join(head + (["Что получите:"] + gl[:2] if gl else []) + change_lines(False) + tail)[:900]
-    d = {"from": cur_tag, "to": tag, "get": [l for v, l in og], "get_versions": sorted({v for v, l in og}, key=vkey), "get_order": [v for v, l in og], "change": ch, "keep": keep, "risk": lvl, "risk_why": why, "manual": mf, "recommend_take": take, "word": word}
+    d = {"from": cur_tag, "to": tag, "get": [l for v, l in og], "get_versions": sorted({v for v, l in og}, key=vkey), "get_order": [v for v, l in og], "change": ch, "keep": keep, "risk": lvl, "risk_why": why, "manual": mf, "recommend_take": take, "word": word, "guards_missing": mg}
     return text[:900], d
 
 

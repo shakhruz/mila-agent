@@ -118,5 +118,95 @@
     "znakomstvo": "onboarding",
     "OBDUMYVANIE.md": "THINKING-BUDGET.md"
   },
-  "renamed_note": "v1.4.0 international names; old names are aliases in legacy/skills/ (MOVED.md + script wrappers, no SKILL.md), delivered by mila-update to homes that had them, until v1.7.0 (removal needs a migration that checks crons for old paths); fresh installs don't get them"
+  "renamed_note": "v1.4.0 international names; old names are aliases in legacy/skills/ (MOVED.md + script wrappers, no SKILL.md), delivered by mila-update to homes that had them, until v1.7.0 (removal needs a migration that checks crons for old paths); fresh installs don't get them",
+  "guards_note": "Core guards wired into settings.json: births get them from the template, updates add only the missing ones (by key, within the event); a home's own hooks are never touched.",
+  "guards": [
+    {
+      "event": "SessionStart",
+      "key": "hooks/session-start.py",
+      "file": "{claude}/hooks/session-start.py",
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/session-start.py"
+      }
+    },
+    {
+      "event": "SessionStart",
+      "key": "mila-tasks/hooks/task-open.py",
+      "file": "{claude}/skills/mila-tasks/hooks/task-open.py",
+      "hook": {
+        "type": "command",
+        "command": "f=$HOME/.claude/skills/mila-tasks/hooks/task-open.py; [ -f \"$f\" ] && exec python3 \"$f\"; exit 0"
+      }
+    },
+    {
+      "event": "SessionStart",
+      "key": "hooks/crons-keeper.py",
+      "file": "{claude}/hooks/crons-keeper.py",
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/crons-keeper.py"
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "key": "hooks/telegram-inbox-feed.py",
+      "file": "{claude}/hooks/telegram-inbox-feed.py",
+      "hook": {
+        "type": "command",
+        "command": "$HOME/.claude/hooks/telegram-inbox-feed.py"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "matcher": "mcp__plugin_(mila-)?telegram_telegram__reply|mcp__plugin_(mila-)?telegram_telegram__edit_message",
+      "key": "hooks/send-guard.py",
+      "file": "{claude}/hooks/send-guard.py",
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/send-guard.py",
+        "onFailure": "block"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "matcher": "mcp__plugin_(mila-)?telegram_telegram__reply",
+      "key": "mila-tasks/hooks/task-sent.py",
+      "file": "{claude}/skills/mila-tasks/hooks/task-sent.py",
+      "hook": {
+        "type": "command",
+        "command": "f=$HOME/.claude/skills/mila-tasks/hooks/task-sent.py; [ -f \"$f\" ] && exec python3 \"$f\"; exit 0"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "matcher": "CronCreate|CronDelete",
+      "key": "hooks/crons-keeper.py",
+      "file": "{claude}/hooks/crons-keeper.py",
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/crons-keeper.py"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "matcher": "Write|Edit|MultiEdit",
+      "key": "hooks/pd-mask.py",
+      "file": "{claude}/hooks/pd-mask.py",
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/pd-mask.py"
+      }
+    },
+    {
+      "event": "Stop",
+      "key": "hooks/reply-required.py",
+      "file": "{claude}/hooks/reply-required.py",
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/reply-required.py",
+        "timeout": 20
+      }
+    }
+  ]
 }
