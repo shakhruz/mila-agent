@@ -1,0 +1,7 @@
+{
+ "format": 1,
+ "note": "Past core versions that never lived in this repository's history. Each row: where it goes, its sha256, and where it came from. Change only through review, like code.",
+ "files": [
+  {"dst": "{claude}/hooks/send-guard.py", "sha256": "331a6e26d7186ac8e89f64afe988a6af4a0e39ca7a8f44f6e2c8e94d02a8e860", "from": "birth template of the fleet before the core repository (October 2026); the current core send-guard is a superset of it"}
+ ]
+}
