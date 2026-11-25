@@ -10,7 +10,10 @@ U="python3 $HERE/update.py"; ok=0; n=0
 chk() { n=$((n+1)); if eval "$2"; then ok=$((ok+1)); echo "✅ $1"; else echo "❌ $1"; fi; }
 $U apply --src "$T/rel" --yes "тест: база" >/dev/null 2>&1
 G="$CLAUDE_CONFIG_DIR/hooks/send-guard.py"; V="$CLAUDE_CONFIG_DIR/mila-update/version.json"
-OLDREV=$(git -C "$REPO" log --format=%H -- templates/home/.claude/hooks/send-guard.py | sed -n 5p)
+LAST=$(git -C "$REPO" tag --list 'v*' | sort -V | tail -1)
+CURH=$(git -C "$REPO" rev-parse "HEAD:templates/home/.claude/hooks/send-guard.py")
+OLDREV=""; for r in $(git -C "$REPO" log --format=%H -- templates/home/.claude/hooks/send-guard.py); do   # первая версия, отличная от текущей
+  [ "$(git -C "$REPO" rev-parse "$r:templates/home/.claude/hooks/send-guard.py" 2>/dev/null)" != "$CURH" ] && { OLDREV=$r; break; }; done
 git -C "$REPO" show "$OLDREV:templates/home/.claude/hooks/send-guard.py" > "$G"
 python3 - "$V" "$G" <<'PY'
 import json, sys
@@ -24,6 +27,11 @@ chk "known-hashes.json собран и содержит эту прошлую в
 chk "с known-hashes.json — прошлая версия ядра больше не «отличается»" "[ \"\$(state)\" = нет ]"
 $U apply --src "$T/rel" --yes "тест: без take" >/dev/null 2>&1
 chk "apply без --take обновил прошлую версию до ядра" "cmp -s $G $T/rel/templates/home/.claude/hooks/send-guard.py"
+git -C "$REPO" show "$OLDREV:templates/home/.claude/hooks/send-guard.py" > "$G"   # откат хозяина: version.json файл ЗНАЕТ
+staterow() { $U diff --src "$T/rel" --json | python3 -c "import json,sys; print([r['state'] for r in json.load(sys.stdin)['rows'] if r['name']=='send-guard.py'][0])"; }
+chk "откат на прошлую версию ядра, а version.json файл знает — «ваша правка», не затираю" "[ \"\$(staterow)\" = 'ваша правка' ]"
+$U apply --src "$T/rel" --yes "тест: откат" >/dev/null 2>&1
+chk "apply без --take откат хозяина не тронул" "! cmp -s $G $T/rel/templates/home/.claude/hooks/send-guard.py"
 python3 - "$V" "$G" <<'PY'
 import json, sys
 p, g = sys.argv[1], sys.argv[2]; v = json.load(open(p)); v["files"].pop(g, None); json.dump(v, open(p, "w"))
@@ -38,7 +46,9 @@ echo '{"files": {"{claude}/hooks/send-guard.py": ["xyz", 5]}}' > "$T/rel/known-h
 chk "мусорные хеши отбрасываются" "[ \"\$(state)\" = отличается ]"
 echo '{"files":[{"dst":"/etc/passwd","sha256":"'$(printf 'a%.0s' $(seq 64))'","from":"x"}]}' > "$T/extra.json"
 EX="$T/exrepo"; git clone -q "$REPO" "$EX" 2>/dev/null; cp "$T/extra.json" "$EX/known-hashes.extra.json"
-chk "extra: место вне {claude}/{work}/{home} — сборка отказывает" "! python3 $REPO/tools/known_hashes.py --repo $EX --out $T/k2.json --tags v1.7.14 >/dev/null 2>&1"
+chk "extra: место вне {claude}/{work}/{home} — сборка отказывает" "! python3 $REPO/tools/known_hashes.py --repo $EX --out $T/k2.json --tags $LAST >/dev/null 2>&1"
+echo '{"files":[{"dst":"{claude}/../x","sha256":"'$(printf 'c%.0s' $(seq 64))'","from":"x"}]}' > "$EX/known-hashes.extra.json"
+chk "extra: «..» в месте — сборка отказывает" "! python3 $REPO/tools/known_hashes.py --repo $EX --out $T/k4.json --tags $LAST >/dev/null 2>&1"
 echo '{"files":[{"dst":"{claude}/hooks/send-guard.py","sha256":"'$(printf 'b%.0s' $(seq 64))'","from":"шаблон рождения на сервере"}]}' > "$EX/known-hashes.extra.json"
-chk "extra: строка с dst, sha256 и «откуда» — в списке" "python3 $REPO/tools/known_hashes.py --repo $EX --out $T/k3.json --tags v1.7.14 >/dev/null && grep -q bbbbbbbbbb $T/k3.json"
+chk "extra: строка с dst, sha256 и «откуда» — в списке" "python3 $REPO/tools/known_hashes.py --repo $EX --out $T/k3.json --tags $LAST >/dev/null && grep -q bbbbbbbbbb $T/k3.json"
 echo "итог $ok/$n"; [ $ok -eq $n ]

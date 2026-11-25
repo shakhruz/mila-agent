@@ -78,7 +78,7 @@ def extra(repo):
     out = {}
     for row in d.get("files", []):
         k, h, src = row.get("dst"), row.get("sha256"), row.get("from")
-        if not (isinstance(k, str) and k.startswith(("{claude}/", "{work}/", "{home}/")) and isinstance(h, str) and re.fullmatch(r"[0-9a-f]{16}|[0-9a-f]{64}", h) and src):
+        if not (isinstance(k, str) and k.startswith(("{claude}/", "{work}/", "{home}/")) and ".." not in k.split("/") and isinstance(h, str) and re.fullmatch(r"[0-9a-f]{16}|[0-9a-f]{64}", h) and src):
             raise SystemExit("known-hashes.extra.json: строка без dst/sha256/from или не по форме: %r" % row)
         out.setdefault(k, set()).add(h[:16])
     return out

@@ -337,7 +337,7 @@ def compare(src):
         if cur is None: st = "новое"
         elif cur == new: st = "как есть"
         elif known.get(p["dst"]) == cur: st = "обновится"           # стоит наша прошлая версия — хозяин не правил
-        elif cur in past.get(p.get("tpl"), ()): st = "обновится"    # стоит прошлая версия ядра (до version.json, шаблоном рождения) — не правка хозяина
+        elif p["dst"] not in known and cur in past.get(p.get("tpl"), ()): st = "обновится"   # только первая сверка: прошлая версия ядра, поставленная не обновлением; откат хозяина (файл в version.json) — «ваша правка»
         elif p["dst"] not in known: st = "отличается"                           # первая сверка: у Милы может быть НОВЕЕ релиза — не беру без --take
         else: st = "ваша правка"                                    # хозяин правил нашу версию — не затираю, новую кладу в mila-update/new/
         rows.append(dict(p, state=st, new=new, cur=cur))
