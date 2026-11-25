@@ -2,6 +2,8 @@
 # шаг «подключить сторожа ядра»: недостающие сторожа из release.json (guards) дописываются в settings.json дома;
 # свои хуки дома и их порядок не трогаются; повторный запуск ничего не меняет; сломанный файл сторожа не подключается;
 # settings.json-ссылка и кривой JSON не трогаются; шаблон рождения подключает ровно guards.
+# снятый хозяином сторож не возвращается (version.json помнит подключённых), возврат — по --take; событие не списком — пропуск;
+# откат настроек из бэкапа сохраняет режим.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 T="$(mktemp -d)"; trap 'chmod -R u+w "$T" 2>/dev/null; rm -rf "$T"' EXIT; export HOME="$T/home" CLAUDE_CONFIG_DIR="$T/home/.claude" MILA_WORK="$T/home/work"
@@ -34,9 +36,52 @@ cp "$S" "$T/s1"; $U apply --src "$T/rel" --yes "тест: повтор" >/dev/nu
 chk "повторный apply ничего не меняет" "cmp -s $S $T/s1 && [ \$(ls $CLAUDE_CONFIG_DIR/mila-update/backups/*guards.tgz | wc -l) -eq 1 ]"
 $U plan --src "$T/rel" > "$T/p2.txt" 2>&1
 chk "план после — строки про сторожей нет" "! grep -q 'Подключу сторожей' $T/p2.txt"
+V="$CLAUDE_CONFIG_DIR/mila-update/version.json"
+chk "version.json помнит подключённых сторожей (9, «событие:key»)" "python3 -c \"import json,sys; g=json.load(open('$V'))['guards']; sys.exit(0 if len(g)==9 and 'Stop:hooks/reply-required.py' in g else 1)\""
+# хозяин снял сторожа сам — обновление его не возвращает (иначе снятое возвращалось бы каждым обновлением)
 python3 - "$S" <<'PY'
 import json, sys
-p = sys.argv[1]; d = json.load(open(p)); d["hooks"]["PostToolUse"] = [g for g in d["hooks"]["PostToolUse"] if "pd-mask" not in json.dumps(g)]; json.dump(d, open(p, "w"))
+p = sys.argv[1]; d = json.load(open(p)); d["hooks"]["Stop"] = [g for g in d["hooks"]["Stop"] if "reply-required" not in json.dumps(g)]; json.dump(d, open(p, "w"))
+PY
+$U plan --src "$T/rel" > "$T/p3.txt" 2>&1
+chk "снятый хозяином: план говорит «не возвращаю» и не обещает подключить" "grep -q 'снятых вами, не возвращаю: 1 (reply-required.py)' $T/p3.txt && ! grep -q 'Подключу сторожей' $T/p3.txt"
+cp "$S" "$T/s2"; $U apply --src "$T/rel" --yes "тест: снятый" >/dev/null 2>&1
+chk "снятый хозяином сторож обновлением не возвращается (settings.json тот же)" "cmp -s $S $T/s2 && ! grep -q 'reply-required' $S"
+$U apply --src "$T/rel" --yes "тест: снятый, второй раз" >/dev/null 2>&1
+chk "и вторым обновлением тоже (запись о нём в version.json не теряется)" "! grep -q 'reply-required' $S && grep -q 'Stop:hooks/reply-required.py' $V"
+$U apply --src "$T/rel" --yes "тест: вернуть" --take reply-required.py >/dev/null 2>&1
+chk "по слову хозяина (--take reply-required.py) сторож возвращается" "[ \$(grep -o 'reply-required.py' $S | wc -l) -eq 1 ]"
+chk "права после возврата те же (600)" "[ \"\$(stat -c %a $S 2>/dev/null || stat -f %Lp $S)\" = 600 ]"
+# событие в settings.json не списком (валидный JSON) — не падаю посреди обновления, чужое не трогаю
+python3 - "$S" "$V" <<'PY'
+import json, sys
+p, v = sys.argv[1:3]; d = json.load(open(p)); d["hooks"]["Stop"] = {"hooks": []}; json.dump(d, open(p, "w"))
+w = json.load(open(v)); w["guards"] = [g for g in w["guards"] if not g.startswith("Stop:")]; json.dump(w, open(v, "w"))
+PY
+cp "$S" "$T/s3"; $U apply --src "$T/rel" --yes "тест: не список" > "$T/a3.txt" 2>&1; rc=$?
+chk "событие не списком: обновление проходит, settings.json не тронут, строка в журнале" "[ $rc -eq 0 ] && grep -q '\"ok\": true' $T/a3.txt && cmp -s $S $T/s3 && grep -q guards_skipped $CLAUDE_CONFIG_DIR/mila-update/journal.jsonl"
+$U plan --src "$T/rel" > "$T/p4.txt" 2>&1
+chk "событие не списком: план не обещает подключить" "! grep -q 'Подключу сторожей' $T/p4.txt"
+python3 - "$S" <<'PY'
+import json, sys
+p = sys.argv[1]; d = json.load(open(p)); d["hooks"]["Stop"] = []; json.dump(d, open(p, "w"))
+PY
+$U apply --src "$T/rel" --yes "тест: снова список" >/dev/null 2>&1
+chk "ещё не подключавшийся сторож (нет в version.json) подключается" "grep -q 'reply-required' $S"
+# откат настроек из бэкапа: режим как у файла до правки, не по umask
+cat > "$T/restore.py" <<'PY'
+import glob, os, stat, sys
+sys.path.insert(0, sys.argv[1]); import update as U
+p = sys.argv[2]; st = os.lstat(p); want = open(p, 'rb').read()
+b = U.backup([p], 'test-restore'); open(p, 'w').write('{}'); os.chmod(p, 0o644)
+U.restore_settings(b, p, st)
+sys.exit(0 if open(p, 'rb').read() == want and stat.S_IMODE(os.lstat(p).st_mode) == 0o600 and not glob.glob(p + '.restore') else 1)
+PY
+chk "откат settings.json из бэкапа сохраняет режим (600 при umask 022)" "(umask 022; python3 $T/restore.py $HERE $S)"
+python3 - "$S" "$V" <<'PY'
+import json, sys
+p, v = sys.argv[1:3]; d = json.load(open(p)); d["hooks"]["PostToolUse"] = [g for g in d["hooks"]["PostToolUse"] if "pd-mask" not in json.dumps(g)]; json.dump(d, open(p, "w"))
+w = json.load(open(v)); w["guards"] = [g for g in w["guards"] if "pd-mask" not in g]; json.dump(w, open(v, "w"))   # как будто ещё не подключали
 PY
 echo "def сломан(:" >> "$CLAUDE_CONFIG_DIR/hooks/pd-mask.py"
 $U apply --src "$T/rel" --yes "тест: сломанный" >/dev/null 2>&1

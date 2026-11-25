@@ -15,7 +15,7 @@ import json, sys
 p, g = sys.argv[1], sys.argv[2]; v = json.load(open(p)); v["files"].pop(g, None); json.dump(v, open(p, "w"))
 open(g, "a").write("# старый сторож, поставленный руками\n")
 PY
-chk "подготовка: сторож стоит и в version.json его нет" "[ -f $G ] && ! grep -q 'hooks/send-guard.py' $CLAUDE_CONFIG_DIR/mila-update/version.json"
+chk "подготовка: сторож стоит и в version.json его нет" "[ -f $G ] && ! python3 -c \"import json,sys; sys.exit(0 if any(k.endswith('hooks/send-guard.py') for k in json.load(open('$CLAUDE_CONFIG_DIR/mila-update/version.json')).get('files', {})) else 1)\""
 $U plan --src "$T/rel" > "$T/p.txt"; $U plan --src "$T/rel" --json > "$T/p.json"
 chk "план: отдельная строка «Сторож отправки … советую заменить»" "grep -q '^Сторож отправки у вас отличается от ядра и ставился не обновлением — советую заменить' $T/p.txt"
 chk "план --json: recommend_take = [send-guard.py]" "python3 -c \"import json,sys; sys.exit(0 if json.load(open('$T/p.json'))['recommend_take'] == ['send-guard.py'] else 1)\""

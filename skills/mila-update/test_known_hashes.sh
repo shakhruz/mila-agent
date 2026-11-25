@@ -20,7 +20,7 @@ import json, sys
 p, g = sys.argv[1], sys.argv[2]; v = json.load(open(p)); v["files"].pop(g, None); json.dump(v, open(p, "w"))
 PY
 state() { $U plan --src "$T/rel" --json | python3 -c "import json,sys; d=json.load(sys.stdin); print('отличается' if 'send-guard.py' in d.get('keep',{}).get('отличается',[]) else 'нет')"; }
-chk "подготовка: стоит прошлая версия ядра, в version.json её нет" "! cmp -s $G $T/rel/templates/home/.claude/hooks/send-guard.py && ! grep -q 'hooks/send-guard.py' $V"
+chk "подготовка: стоит прошлая версия ядра, в version.json её нет" "! cmp -s $G $T/rel/templates/home/.claude/hooks/send-guard.py && ! python3 -c \"import json,sys; sys.exit(0 if any(k.endswith('hooks/send-guard.py') for k in json.load(open('$V')).get('files', {})) else 1)\""
 chk "без known-hashes.json — как раньше: «отличается» (контроль)" "[ \"\$(state)\" = отличается ]"
 python3 "$REPO/tools/known_hashes.py" --repo "$REPO" --out "$T/rel/known-hashes.json" >/dev/null
 chk "known-hashes.json собран и содержит эту прошлую версию" "python3 -c \"import json,hashlib,sys; d=json.load(open('$T/rel/known-hashes.json'))['files']; h=hashlib.sha256(open('$G','rb').read()).hexdigest()[:16]; sys.exit(0 if h in d['{claude}/hooks/send-guard.py'] else 1)\""

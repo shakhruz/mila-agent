@@ -574,23 +574,57 @@ def cc_version():
     return tuple(int(x) for x in m.groups()) if m else None
 
 
-def missing_guards(src, cfg=None, coming=()):
-    """Сторожа ядра из release.json (guards), которых нет в settings.json дома: по key внутри того же события.
-    Файл сторожа обязан быть на месте в доме и компилироваться — иначе не подключаю (сломанный хук хуже отсутствующего)."""
+def guard_id(x): return x["event"] + ":" + x["key"]
+
+
+def known_guards():
+    """Сторожа, которых обновление уже видело подключёнными в этом доме (version.json → guards: «событие:key»)."""
+    g = load_version().get("guards")
+    return {s for s in g if isinstance(s, str)} if isinstance(g, list) else set()
+
+
+def release_guards(src):
     try: g = json.load(open(os.path.join(src, "release.json"), encoding="utf-8")).get("guards") or []
     except (OSError, ValueError): return []
+    return [x for x in g if isinstance(x, dict) and isinstance(x.get("event"), str) and isinstance(x.get("key"), str) and isinstance(x.get("hook"), dict)
+            and isinstance(x["hook"].get("command"), str) and isinstance(x.get("file"), str) and ".." not in x["file"].split("/")] if isinstance(g, list) else []
+
+
+def guard_wired(x, hooks):
+    return any(x["key"] in str(h.get("command", "")) for e in (hooks.get(x["event"]) or []) if isinstance(e, dict)
+               for h in (e.get("hooks") if isinstance(e.get("hooks"), list) else []) if isinstance(h, dict))
+
+
+def wired_guards(src):
+    """«событие:key» сторожей релиза, которые сейчас подключены в settings.json дома (не читается — пусто)."""
+    p = os.path.join(CLAUDE, "settings.json")
+    try: cfg = json.load(open(p, encoding="utf-8")) if os.path.isfile(p) and not os.path.islink(p) else {}
+    except (OSError, ValueError): return set()
+    hooks = cfg.get("hooks") if isinstance(cfg, dict) and isinstance(cfg.get("hooks"), dict) else {}
+    return {guard_id(x) for x in release_guards(src) if isinstance(hooks.get(x["event"]), list) and guard_wired(x, hooks)}
+
+
+def missing_guards(src, cfg=None, coming=(), removed=None, back=(), bad=None):
+    """Сторожа ядра из release.json (guards), которых нет в settings.json дома: по key внутри того же события.
+    Файл сторожа обязан быть на месте в доме и компилироваться — иначе не подключаю (сломанный хук хуже отсутствующего).
+    Сторож, который уже был подключён (version.json → guards), а в settings.json его нет, — снят хозяином: не возвращаю
+    (уходит в removed), пока его не назвали в back (apply --take <имя файла сторожа>). Событие не списком — не трогаю (bad)."""
+    g = release_guards(src)
+    if not g: return []
     if cfg is None:
         p = os.path.join(CLAUDE, "settings.json")
         try: cfg = json.load(open(p, encoding="utf-8")) if os.path.isfile(p) and not os.path.islink(p) else {}
         except (OSError, ValueError): return []
     hooks = cfg.get("hooks") if isinstance(cfg, dict) and isinstance(cfg.get("hooks"), dict) else {}
-    out = []
+    out = []; known = known_guards()
     for x in g:
-        if not (isinstance(x, dict) and isinstance(x.get("event"), str) and isinstance(x.get("key"), str) and isinstance(x.get("hook"), dict)
-                and isinstance(x["hook"].get("command"), str) and isinstance(x.get("file"), str) and ".." not in x["file"].split("/")): continue
-        have = any(x["key"] in str(h.get("command", "")) for e in (hooks.get(x["event"]) or []) if isinstance(e, dict)
-                   for h in (e.get("hooks") or []) if isinstance(h, dict))
-        if have: continue
+        if hooks.get(x["event"]) is not None and not isinstance(hooks[x["event"]], list):   # валидный JSON, но не список групп — чужое устройство, не дописываю
+            if bad is not None and x["event"] not in bad: bad.append(x["event"])
+            continue
+        if guard_wired(x, hooks): continue
+        if guard_id(x) in known and not ({os.path.basename(x["file"]), x["key"]} & set(back)):
+            if removed is not None: removed.append(x)
+            continue
         f = P(x["file"])
         if _bad_dst(f): continue
         if f in coming: out.append(x); continue                    # придёт с этим релизом (план) — файл проверит apply
@@ -601,15 +635,19 @@ def missing_guards(src, cfg=None, coming=()):
     return out
 
 
-def connect_guards(src, tag):
+def connect_guards(src, tag, back=()):
     """Подключить недостающих сторожей ядра в settings.json: бэкап, дописать только их (чужие и свои хуки дома не трогаю,
-    порядок не меняю), проверить, что JSON читается и каждый подключённый ключ на месте; при сбое — откат из бэкапа. → список или None."""
+    порядок не меняю), проверить, что JSON читается и каждый подключённый ключ на месте; при сбое — откат из бэкапа. → список или None.
+    Снятых хозяином не возвращаю (кроме названных в back) — строка в журнале."""
     p = os.path.join(CLAUDE, "settings.json")
     if os.path.islink(p) or not inside_home(p): return None
     try: cfg = json.load(open(p, encoding="utf-8")) if os.path.isfile(p) else {}
     except (OSError, ValueError): return None                       # чужой кривой файл не чиню
     if not isinstance(cfg, dict): return None
-    add = missing_guards(src, cfg)
+    removed, bad = [], []
+    add = missing_guards(src, cfg, removed=removed, back=back, bad=bad)
+    if removed: jlog({"event": "guards_kept_removed", "keys": [guard_id(x) for x in removed]})
+    if bad: jlog({"event": "guards_skipped", "why": "событие в settings.json не список", "events": bad})
     if not add: return None
     hooks = cfg.setdefault("hooks", {})
     if not isinstance(hooks, dict): return None
@@ -624,30 +662,39 @@ def connect_guards(src, tag):
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, stat.S_IMODE(st.st_mode) if st else 0o600)
     try:
         if st and os.geteuid() == 0: os.fchown(fd, st.st_uid, st.st_gid)
+        if st: os.fchmod(fd, stat.S_IMODE(st.st_mode))             # режим как был — umask не при чём
         os.write(fd, json.dumps(cfg, ensure_ascii=False, indent=2).encode())
     finally:
         os.close(fd)
     os.replace(tmp, p)
     try:
         chk = json.load(open(p, encoding="utf-8"))
-        if missing_guards(src, chk): raise ValueError("после записи сторожа не на месте")
+        if missing_guards(src, chk, back=back): raise ValueError("после записи сторожа не на месте")
     except (OSError, ValueError) as e:
-        if b: restore_settings(b, p)
+        if b: restore_settings(b, p, st)
         jlog({"event": "guards_failed", "why": type(e).__name__}); return None
     names = [os.path.basename(x["file"]) + " (" + x["event"] + ")" for x in add]
     jlog({"event": "guards", "added": names, "backup": b})
     return names
 
 
-def restore_settings(b, p):
-    """Вернуть settings.json из бэкапа этого запуска (архив backup(): член — путь без ведущего «/»)."""
+def restore_settings(b, p, st=None):
+    """Вернуть settings.json из бэкапа этого запуска (архив backup(): член — путь без ведущего «/»).
+    Режим и владелец — как у файла до правки (st), не по umask: настройки не открываются группе и не уходят к root."""
     try:
         with tarfile.open(b, "r:gz") as t:
             m = t.getmember(p.lstrip("/"))
             if not m.isfile(): return
             data = t.extractfile(m).read()
-        tmp = p + ".restore"
-        with open(tmp, "wb") as f: f.write(data)
+        tmp = p + ".restore"; mode = stat.S_IMODE(st.st_mode) if st else 0o600
+        try: os.unlink(tmp)
+        except FileNotFoundError: pass
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
+        try:
+            if st and os.geteuid() == 0: os.fchown(fd, st.st_uid, st.st_gid)
+            os.fchmod(fd, mode); os.write(fd, data)
+        finally:
+            os.close(fd)
         os.replace(tmp, p)
     except (OSError, KeyError, tarfile.TarError): pass
 
@@ -712,14 +759,16 @@ def do_apply(src, m, rows, yes, take=(), tag=None, sha_="", channel="", src_labe
     for r in todo: put(r["src"], r["dst"], r["kind"])
     for r in side: put(r["src"], os.path.join(newdir, r["name"]), r["kind"])
     mig = migrate_settings(tag)   # точечная миграция настроек (settings.json целиком не перезаписываем — он в never)
-    grd = connect_guards(src, tag)   # недостающие сторожа ядра — только дописать, свои хуки дома не трогаю
+    seen = known_guards()            # до записи version.json: кого обновление уже видело подключённым
+    grd = connect_guards(src, tag, back=take)   # недостающие сторожа ядра — только дописать, свои хуки дома не трогаю; снятых хозяином не возвращаю
+    seen = sorted(seen | wired_guards(src))     # подключён сейчас — запомнить: позже снимет хозяин — это его решение, а не «ещё не подключали»
     touched_extra = [mig] if mig else []   # settings.json сюда не идёт: он сохраняет свои права (600), читаемым для копии не делаю
     files = dict(load_version().get("files", {}))
     for r in rows:
         if r in todo or r["state"] == "как есть": files[r["dst"]] = r["new"]
     os.makedirs(STATE, exist_ok=True)
     json.dump({"version": m.get("version"), "tag": tag, "installed_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "channel": channel or CFG["channel"],
-               "sha": sha_, "source": src_label or REPO, "files": files, "snapshot": snap, "snapshot_ts": time.time()}, open(VERSION, "w"), ensure_ascii=False, indent=1)
+               "sha": sha_, "source": src_label or REPO, "files": files, "snapshot": snap, "snapshot_ts": time.time(), "guards": seen}, open(VERSION, "w"), ensure_ascii=False, indent=1)
     touched = [r["dst"] for r in todo] + [os.path.join(newdir, r["name"]) for r in side] + [os.path.join(newdir, "было-" + r["name"]) for r in kept] + [VERSION] + touched_extra
     for q in touched: readable(q)
     if side or kept:   # путь до new/<тег> — только сами каталоги (go+rx), не всё содержимое STATE (журнал и бэкапы не открываем)
@@ -1075,7 +1124,10 @@ def plan_text(src, m, rows, cur_tag, tag):
         nm = " и ".join(GUARD_TAKE[n] if i == 0 else GUARD_TAKE[n].lower() for i, n in enumerate(take))
         tail.append(("%s у вас отличаются от ядра и ставились не обновлением" if len(take) > 1 else "%s у вас отличается от ядра и ставился не обновлением") % nm
                     + " — советую заменить вместе с обновлением.")
-    mg = [os.path.basename(x["file"]) for x in missing_guards(src, coming={r["dst"] for r in rows if r["state"] in ("новое", "обновится")})]
+    rm = []
+    mg = [os.path.basename(x["file"]) for x in missing_guards(src, coming={r["dst"] for r in rows if r["state"] in ("новое", "обновится")}, removed=rm)]
+    rm = sorted({os.path.basename(x["file"]) for x in rm})
+    if rm: tail.append("Сторожей, снятых вами, не возвращаю: %d (%s)." % (len(rm), ", ".join(rm)))
     if mg:                                                   # сторожа — защита: подключаю сама, хозяину — одной строкой
         tail.append("Подключу сторожей ядра: %d (%s)." % (len(mg), ", ".join(sorted(set(mg)))))
         if lvl != "высокий": lvl, why = "высокий", "подключаются сторожа ядра в настройках"
@@ -1095,7 +1147,7 @@ def plan_text(src, m, rows, cur_tag, tag):
                 text = s; break
         if text: break
     if not text: text = "\n".join(head + (["Что получите:"] + gl[:2] if gl else []) + change_lines(False) + tail)[:900]
-    d = {"from": cur_tag, "to": tag, "get": [l for v, l in og], "get_versions": sorted({v for v, l in og}, key=vkey), "get_order": [v for v, l in og], "change": ch, "keep": keep, "risk": lvl, "risk_why": why, "manual": mf, "recommend_take": take, "word": word, "guards_missing": mg}
+    d = {"from": cur_tag, "to": tag, "get": [l for v, l in og], "get_versions": sorted({v for v, l in og}, key=vkey), "get_order": [v for v, l in og], "change": ch, "keep": keep, "risk": lvl, "risk_why": why, "manual": mf, "recommend_take": take, "word": word, "guards_missing": mg, "guards_removed": rm}
     return text[:900], d
 
 
