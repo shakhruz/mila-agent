@@ -39,7 +39,8 @@ PY
 # the update plan reads the «Для хозяина» lines of the version being released only once release.json names it: check the plan with the new
 # version before the commit and the tag, so a section the plan test cannot accept never becomes a release
 bash skills/mila-update/test_plan.sh | tail -1 | grep -Eq 'итог ([0-9]+)/\1$' || { git checkout -q -- release.json; echo "test_plan.sh не зелёный с release.json v$V: раздел «Для хозяина» этой версии не проходит проверку плана обновления (release.json возвращён)" >&2; exit 1; }
-git add release.json; git commit -qm "release v$V"
+python3 tools/known_hashes.py --out known-hashes.json || { echo "known-hashes.json не собран" >&2; exit 1; }   # прошлые версии ядра — updater узнаёт их в домах
+git add release.json known-hashes.json; git commit -qm "release v$V"
 if [ "$NOTAG" = "--no-tag" ]; then echo "коммит release v$V создан, тег не ставлю (--no-tag)"; exit 0; fi
 if [ -n "$(git config user.signingkey || true)" ]; then
   git tag -s "v$V" -m "Mila v$V"; echo "тег v$V подписан"

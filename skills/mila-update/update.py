@@ -258,7 +258,7 @@ def plan(src):
             why = _bad_src(s, src) or _bad_dst(dst)
             if why:
                 bad.append("%s → %s: %s" % (z.get("what"), name, why)); continue
-            pairs.append({"what": z["what"], "name": name, "src": s, "dst": dst, "kind": z["kind"]})
+            pairs.append({"what": z["what"], "name": name, "src": s, "dst": dst, "kind": z["kind"], "tpl": z["dst"].replace("*", name)})
     if bad: raise ManifestRefused("; ".join(bad[:20]))
     return m, pairs
 
@@ -316,16 +316,28 @@ def fleet_chown():
             q = os.path.dirname(q)
 
 
+def past_versions(src):
+    """known-hashes.json релиза: место назначения → sha256 прошлых версий ядра (tools/known_hashes.py). Нет или кривой — пусто."""
+    try: d = json.load(open(os.path.join(src, "known-hashes.json"), encoding="utf-8"))
+    except FileNotFoundError: return {}
+    except Exception as e: soft_err("known-hashes", e); return {}
+    f = d.get("files") if isinstance(d, dict) else None
+    if not isinstance(f, dict): return {}
+    return {k: {h for h in v if isinstance(h, str) and re.fullmatch(r"[0-9a-f]{16}", h)} for k, v in f.items() if isinstance(k, str) and isinstance(v, list)}   # хеши как у sha(): 16 знаков
+
+
 def compare(src):
     preflight()
     m, pairs = plan(src)
     known = load_version().get("files", {})   # хэши того, что ставили мы в прошлый раз
+    past = past_versions(src)                 # хэши всех прошлых версий ядра — «наша прошлая версия», даже если ставили не обновлением
     rows = []
     for p in pairs:
         new, cur = sha(p["src"]), sha(p["dst"])
         if cur is None: st = "новое"
         elif cur == new: st = "как есть"
         elif known.get(p["dst"]) == cur: st = "обновится"           # стоит наша прошлая версия — хозяин не правил
+        elif cur in past.get(p.get("tpl"), ()): st = "обновится"    # стоит прошлая версия ядра (до version.json, шаблоном рождения) — не правка хозяина
         elif p["dst"] not in known: st = "отличается"                           # первая сверка: у Милы может быть НОВЕЕ релиза — не беру без --take
         else: st = "ваша правка"                                    # хозяин правил нашу версию — не затираю, новую кладу в mila-update/new/
         rows.append(dict(p, state=st, new=new, cur=cur))
