@@ -52,6 +52,16 @@ chk "и вторым обновлением тоже (запись о нём в 
 $U apply --src "$T/rel" --yes "тест: вернуть" --take reply-required.py >/dev/null 2>&1
 chk "по слову хозяина (--take reply-required.py) сторож возвращается" "[ \$(grep -o 'reply-required.py' $S | wc -l) -eq 1 ]"
 chk "права после возврата те же (600)" "[ \"\$(stat -c %a $S 2>/dev/null || stat -f %Lp $S)\" = 600 ]"
+# сторож безопасности (release.json → guards_required) обязателен: снятого возвращаю и говорю об этом в плане
+python3 - "$S" <<'PY'
+import json, sys
+p = sys.argv[1]; d = json.load(open(p)); d["hooks"]["PreToolUse"] = [g for g in d["hooks"]["PreToolUse"] if "send-guard" not in json.dumps(g)]; json.dump(d, open(p, "w"))
+PY
+$U plan --src "$T/rel" --json > "$T/p5.json" 2>/dev/null; $U plan --src "$T/rel" > "$T/p5.txt" 2>&1
+chk "снят сторож безопасности: план — «Верну снятого сторожа безопасности: 1 (send-guard.py)», риск высокий" "grep -q 'Верну снятого сторожа безопасности: 1 (send-guard.py)' $T/p5.txt && grep -q 'Риск: высокий' $T/p5.txt && ! grep -q 'Подключу сторожей' $T/p5.txt && python3 -c \"import json,sys; d=json.load(open('$T/p5.json')); sys.exit(0 if d['guards_returned'] == ['send-guard.py'] and d['guards_missing'] == ['send-guard.py'] else 1)\""
+$U apply --src "$T/rel" --yes "тест: обязательный" >/dev/null 2>&1
+chk "сторож безопасности возвращён обновлением, строка в журнале" "[ \$(grep -o 'send-guard.py' $S | wc -l) -eq 1 ] && grep -q guards_returned $CLAUDE_CONFIG_DIR/mila-update/journal.jsonl"
+chk "обязательные — только из списка guards и только безопасность (reply-required в него не входит)" "python3 -c \"import json,sys; m=json.load(open('$REPO/release.json')); r=m['guards_required']; sys.exit(0 if r and set(r) <= {g['key'] for g in m['guards']} and not any('reply-required' in k for k in r) else 1)\""
 # событие в settings.json не списком (валидный JSON) — не падаю посреди обновления, чужое не трогаю
 python3 - "$S" "$V" <<'PY'
 import json, sys

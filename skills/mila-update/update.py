@@ -590,6 +590,14 @@ def release_guards(src):
             and isinstance(x["hook"].get("command"), str) and isinstance(x.get("file"), str) and ".." not in x["file"].split("/")] if isinstance(g, list) else []
 
 
+def required_guards(src):
+    """Сторожа безопасности (release.json → guards_required, список key): обязательны — снятого обновление возвращает и говорит об этом в плане.
+    Остальные — сторожа удобства: снятого хозяином не возвращаю."""
+    try: r = json.load(open(os.path.join(src, "release.json"), encoding="utf-8")).get("guards_required") or []
+    except (OSError, ValueError): return set()
+    return {k for k in r if isinstance(k, str)} if isinstance(r, list) else set()
+
+
 def guard_wired(x, hooks):
     return any(x["key"] in str(h.get("command", "")) for e in (hooks.get(x["event"]) or []) if isinstance(e, dict)
                for h in (e.get("hooks") if isinstance(e.get("hooks"), list) else []) if isinstance(h, dict))
@@ -604,11 +612,12 @@ def wired_guards(src):
     return {guard_id(x) for x in release_guards(src) if isinstance(hooks.get(x["event"]), list) and guard_wired(x, hooks)}
 
 
-def missing_guards(src, cfg=None, coming=(), removed=None, back=(), bad=None):
+def missing_guards(src, cfg=None, coming=(), removed=None, back=(), bad=None, returned=None):
     """Сторожа ядра из release.json (guards), которых нет в settings.json дома: по key внутри того же события.
     Файл сторожа обязан быть на месте в доме и компилироваться — иначе не подключаю (сломанный хук хуже отсутствующего).
     Сторож, который уже был подключён (version.json → guards), а в settings.json его нет, — снят хозяином: не возвращаю
-    (уходит в removed), пока его не назвали в back (apply --take <имя файла сторожа>). Событие не списком — не трогаю (bad)."""
+    (уходит в removed), пока его не назвали в back (apply --take <имя файла сторожа>). Сторож безопасности (guards_required) возвращаю и снятого —
+    он попадает и в ответ, и в returned. Событие не списком — не трогаю (bad)."""
     g = release_guards(src)
     if not g: return []
     if cfg is None:
@@ -616,22 +625,27 @@ def missing_guards(src, cfg=None, coming=(), removed=None, back=(), bad=None):
         try: cfg = json.load(open(p, encoding="utf-8")) if os.path.isfile(p) and not os.path.islink(p) else {}
         except (OSError, ValueError): return []
     hooks = cfg.get("hooks") if isinstance(cfg, dict) and isinstance(cfg.get("hooks"), dict) else {}
-    out = []; known = known_guards()
+    out = []; known = known_guards(); must = required_guards(src)
     for x in g:
         if hooks.get(x["event"]) is not None and not isinstance(hooks[x["event"]], list):   # валидный JSON, но не список групп — чужое устройство, не дописываю
             if bad is not None and x["event"] not in bad: bad.append(x["event"])
             continue
         if guard_wired(x, hooks): continue
-        if guard_id(x) in known and not ({os.path.basename(x["file"]), x["key"]} & set(back)):
+        was = guard_id(x) in known and not ({os.path.basename(x["file"]), x["key"]} & set(back))
+        if was and x["key"] not in must:
             if removed is not None: removed.append(x)
             continue
         f = P(x["file"])
         if _bad_dst(f): continue
-        if f in coming: out.append(x); continue                    # придёт с этим релизом (план) — файл проверит apply
+        if f in coming:                                            # придёт с этим релизом (план) — файл проверит apply
+            out.append(x)
+            if was and returned is not None: returned.append(x)
+            continue
         if os.path.islink(f) or not os.path.isfile(f): continue
         try: compile(open(f, encoding="utf-8").read(), f, "exec")
         except (OSError, SyntaxError, ValueError): continue
         out.append(x)
+        if was and returned is not None: returned.append(x)
     return out
 
 
@@ -644,8 +658,9 @@ def connect_guards(src, tag, back=()):
     try: cfg = json.load(open(p, encoding="utf-8")) if os.path.isfile(p) else {}
     except (OSError, ValueError): return None                       # чужой кривой файл не чиню
     if not isinstance(cfg, dict): return None
-    removed, bad = [], []
-    add = missing_guards(src, cfg, removed=removed, back=back, bad=bad)
+    removed, bad, ret = [], [], []
+    add = missing_guards(src, cfg, removed=removed, back=back, bad=bad, returned=ret)
+    if ret: jlog({"event": "guards_returned", "why": "сторож безопасности обязателен", "keys": [guard_id(x) for x in ret]})
     if removed: jlog({"event": "guards_kept_removed", "keys": [guard_id(x) for x in removed]})
     if bad: jlog({"event": "guards_skipped", "why": "событие в settings.json не список", "events": bad})
     if not add: return None
@@ -1124,12 +1139,15 @@ def plan_text(src, m, rows, cur_tag, tag):
         nm = " и ".join(GUARD_TAKE[n] if i == 0 else GUARD_TAKE[n].lower() for i, n in enumerate(take))
         tail.append(("%s у вас отличаются от ядра и ставились не обновлением" if len(take) > 1 else "%s у вас отличается от ядра и ставился не обновлением") % nm
                     + " — советую заменить вместе с обновлением.")
-    rm = []
-    mg = [os.path.basename(x["file"]) for x in missing_guards(src, coming={r["dst"] for r in rows if r["state"] in ("новое", "обновится")}, removed=rm)]
+    rm, rt = [], []
+    mgx = missing_guards(src, coming={r["dst"] for r in rows if r["state"] in ("новое", "обновится")}, removed=rm, returned=rt)
+    mg = [os.path.basename(x["file"]) for x in mgx]; fresh = sorted({os.path.basename(x["file"]) for x in mgx if x not in rt})
+    rt = sorted({os.path.basename(x["file"]) for x in rt})
     rm = sorted({os.path.basename(x["file"]) for x in rm})
+    if rt: tail.append("Верну снятого сторожа безопасности: %d (%s) — он обязателен." % (len(rt), ", ".join(rt)))
     if rm: tail.append("Сторожей, снятых вами, не возвращаю: %d (%s)." % (len(rm), ", ".join(rm)))
     if mg:                                                   # сторожа — защита: подключаю сама, хозяину — одной строкой
-        tail.append("Подключу сторожей ядра: %d (%s)." % (len(mg), ", ".join(sorted(set(mg)))))
+        if fresh: tail.append("Подключу сторожей ядра: %d (%s)." % (len([x for x in mgx if os.path.basename(x["file"]) in fresh]), ", ".join(fresh)))
         if lvl != "высокий": lvl, why = "высокий", "подключаются сторожа ядра в настройках"
     tail.append("Риск: %s — %s. Отменить можно." % (lvl, why))
     def change_lines(names):   # ужимаю имена в «что изменится», а не пользу
@@ -1147,7 +1165,7 @@ def plan_text(src, m, rows, cur_tag, tag):
                 text = s; break
         if text: break
     if not text: text = "\n".join(head + (["Что получите:"] + gl[:2] if gl else []) + change_lines(False) + tail)[:900]
-    d = {"from": cur_tag, "to": tag, "get": [l for v, l in og], "get_versions": sorted({v for v, l in og}, key=vkey), "get_order": [v for v, l in og], "change": ch, "keep": keep, "risk": lvl, "risk_why": why, "manual": mf, "recommend_take": take, "word": word, "guards_missing": mg, "guards_removed": rm}
+    d = {"from": cur_tag, "to": tag, "get": [l for v, l in og], "get_versions": sorted({v for v, l in og}, key=vkey), "get_order": [v for v, l in og], "change": ch, "keep": keep, "risk": lvl, "risk_why": why, "manual": mf, "recommend_take": take, "word": word, "guards_missing": mg, "guards_removed": rm, "guards_returned": rt}
     return text[:900], d
 
 
