@@ -101,6 +101,15 @@ try:
             lines.append("повестка 24 ч (mila_cron.py agenda): " + " | ".join(x[:160] for x in rows))
 except Exception:
     pass
+try:
+    # обязательные сторожа: живы ли (компиляция и контроль «обязан отказать»); сломанный — заменить релизной копией, иначе заглушка-отказ.
+    # guard_check.py лежит рядом (hooks/); его нет в старом доме — молча дальше.
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import guard_check as _gc
+    _st = _gc.run(fix=True); _gc.tell_admin(_st)
+    lines[:0] = _gc.lines(_st)                 # о сторожах — первой строкой
+except Exception:
+    pass
 if lines:
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart",
                                              "additionalContext": "Старт сессии Компаньона: " + " · ".join(lines)}},

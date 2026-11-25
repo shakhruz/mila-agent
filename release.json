@@ -194,15 +194,6 @@
       "key": "hooks/send-guard.py",
       "file": "{claude}/hooks/send-guard.py",
       "control": {
-        "deny": {"tool_name": "mcp__plugin_mila-telegram_telegram__reply", "tool_input": {"chat_id": "1", "text": "файл /srv/x"}},
-        "allow": {"tool_name": "Bash", "tool_input": {"command": "ls"}}
-      },
-      "hook": {
-        "type": "command",
-        "command": "python3 $HOME/.claude/hooks/send-guard.py",
-        "onFailure": "block"
-      },
-      "control": {
         "deny": {
           "tool_name": "mcp__plugin_mila-telegram_telegram__reply",
           "tool_input": {
@@ -216,6 +207,11 @@
             "command": "ls"
           }
         }
+      },
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/send-guard.py",
+        "onFailure": "block"
       }
     },
     {
@@ -234,14 +230,6 @@
       "key": "hooks/secret-guard.py",
       "file": "{claude}/hooks/secret-guard.py",
       "control": {
-        "deny": {"tool_name": "Read", "tool_input": {"file_path": "{home}/.mila-auth/x"}},
-        "allow": {"tool_name": "Read", "tool_input": {"file_path": "{home}/work/USER.md"}}
-      },
-      "hook": {
-        "type": "command",
-        "command": "python3 $HOME/.claude/hooks/secret-guard.py"
-      },
-      "control": {
         "deny": {
           "tool_name": "Read",
           "tool_input": {
@@ -254,6 +242,10 @@
             "file_path": "{home}/work/USER.md"
           }
         }
+      },
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/secret-guard.py"
       }
     },
     {
@@ -293,6 +285,16 @@
       "hook": {
         "type": "command",
         "command": "python3 $HOME/.claude/hooks/pd-mask.py"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "matcher": "Write|Edit|MultiEdit",
+      "key": "hooks/guard_check.py",
+      "file": "{claude}/hooks/guard_check.py",
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/guard_check.py --hook"
       }
     },
     {

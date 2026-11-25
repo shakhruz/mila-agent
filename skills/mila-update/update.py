@@ -331,12 +331,14 @@ def compare(src):
     m, pairs = plan(src)
     known = load_version().get("files", {})   # хэши того, что ставили мы в прошлый раз
     past = past_versions(src)                 # хэши всех прошлых версий ядра — «наша прошлая версия», даже если ставили не обновлением
+    stubs = guard_stubs()                     # заглушки на месте сломанных сторожей — наши файлы
     rows = []
     for p in pairs:
         new, cur = sha(p["src"]), sha(p["dst"])
         if cur is None: st = "новое"
         elif cur == new: st = "как есть"
         elif known.get(p["dst"]) == cur: st = "обновится"           # стоит наша прошлая версия — хозяин не правил
+        elif stubs.get(p["dst"]) == cur: st = "обновится"           # стоит заглушка сломанного сторожа — возвращаю релизный сторож
         elif p["dst"] not in known and cur in past.get(p.get("tpl"), ()): st = "обновится"   # только первая сверка: прошлая версия ядра, поставленная не обновлением; откат хозяина (файл в version.json) — «ваша правка»
         elif p["dst"] not in known: st = "отличается"                           # первая сверка: у Милы может быть НОВЕЕ релиза — не беру без --take
         else: st = "ваша правка"                                    # хозяин правил нашу версию — не затираю, новую кладу в mila-update/new/
@@ -638,6 +640,21 @@ def guard_controls(src):
             if x["key"] in must and isinstance(x.get("control"), dict) and isinstance(x["control"].get("deny"), dict) and isinstance(x["control"].get("allow"), dict)}
 
 
+def guard_zones(src):
+    """Зона каждого обязательного сторожа (matcher его хука) — в version.json: по ней guard_check.py строит заглушку-отказ."""
+    must = required_guards(src)
+    return {x["key"]: x["matcher"] for x in release_guards(src) if x["key"] in must and isinstance(x.get("matcher"), str) and x["matcher"]}
+
+
+def guard_stubs():
+    """{путь: sha16} заглушек, которые guard_check.py поставил на место сломанных сторожей (guards-state.json). Заглушка — наш файл,
+    а не правка хозяина: обновление заменяет её релизным сторожем без --take. Правка хозяина поверх заглушки меняет хеш — и остаётся его."""
+    try: d = json.load(open(os.path.join(STATE, "guards-state.json"), encoding="utf-8"))
+    except (OSError, ValueError): return {}
+    st = d.get("stubs") if isinstance(d, dict) else None
+    return {here_path(k): h for k, h in st.items() if isinstance(k, str) and isinstance(h, str) and re.fullmatch(r"[0-9a-f]{16}", h)} if isinstance(st, dict) else {}
+
+
 def guard_entries(x, hooks):
     """Группы события, в которых этот сторож уже записан. Узнаю по ИМЕНИ ФАЙЛА в команде («send-guard.py»), а не по пути:
     дом, собранный install.sh или hooks_sync, пишет полный путь, шаблон — $HOME, чужая сборка — свой; сторож тот же."""
@@ -935,7 +952,7 @@ def do_apply(src, m, rows, yes, take=(), tag=None, sha_="", channel="", src_labe
     os.makedirs(STATE, exist_ok=True)
     json.dump({"version": m.get("version"), "tag": tag, "installed_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "channel": channel or CFG["channel"],
                "sha": sha_, "source": src_label or REPO, "files": files, "snapshot": snap, "snapshot_ts": time.time(), "guards": seen, "deny": sorted(seen_deny | wired_deny(src)),
-               "guard_copies": copies, "guards_required": sorted(required_guards(src)), "guard_controls": guard_controls(src)}, open(VERSION, "w"), ensure_ascii=False, indent=1)
+               "guard_copies": copies, "guards_required": sorted(required_guards(src)), "guard_controls": guard_controls(src), "guard_zones": guard_zones(src)}, open(VERSION, "w"), ensure_ascii=False, indent=1)
     touched = [r["dst"] for r in todo] + [os.path.join(newdir, r["name"]) for r in side] + [os.path.join(newdir, "было-" + r["name"]) for r in kept] + [VERSION] + touched_extra
     for q in touched: readable(q)
     if side or kept:   # путь до new/<тег> — только сами каталоги (go+rx), не всё содержимое STATE (журнал и бэкапы не открываем)

@@ -24,10 +24,10 @@ PY
 }
 chmod 600 "$S"
 $U plan --src "$T/rel" > "$T/p.txt" 2>&1
-chk "план: строка «Подключу сторожей ядра: 16» (17 без уже стоящего send-guard; два из них придут в папке навыка) и риск «высокий»" "grep -q 'Подключу сторожей ядра: 16 (' $T/p.txt && grep -q 'Риск: высокий' $T/p.txt"
+chk "план: строка «Подключу сторожей ядра: 17» (18 без уже стоящего send-guard; два из них придут в папке навыка) и риск «высокий»" "grep -q 'Подключу сторожей ядра: 17 (' $T/p.txt && grep -q 'Риск: высокий' $T/p.txt"
 $U apply --src "$T/rel" --yes "тест: сторожа" >/dev/null 2>&1
 K=$(keys)
-chk "все сторожа ядра подключены" "for k in SessionStart:session-start.py SessionStart:task-open.py SessionStart:crons-keeper.py UserPromptSubmit:telegram-inbox-feed.py PreToolUse:send-guard.py PreToolUse:secret-guard.py PostToolUse:task-sent.py PostToolUse:crons-keeper.py PostToolUse:pd-mask.py Stop:reply-required.py; do echo \"$K\" | grep -q \"\$k\" || exit 1; done"
+chk "все сторожа ядра подключены" "for k in SessionStart:session-start.py SessionStart:task-open.py SessionStart:crons-keeper.py UserPromptSubmit:telegram-inbox-feed.py PreToolUse:send-guard.py PreToolUse:secret-guard.py PostToolUse:task-sent.py PostToolUse:crons-keeper.py PostToolUse:pd-mask.py PostToolUse:guard_check.py Stop:reply-required.py; do echo \"$K\" | grep -q \"\$k\" || exit 1; done"
 chk "свой хук дома на месте и первым в своём событии" "python3 -c \"import json,sys; d=json.load(open('$S')); sys.exit(0 if 'my-own.py' in d['hooks']['PreToolUse'][0]['hooks'][0]['command'] else 1)\""
 chk "план: «Расширю зону сторожа безопасности: send-guard.py (+topic, widget, widget_data)» и «Добавлю запреты на места ключей: 4»" "grep -q 'Расширю зону сторожа безопасности: send-guard.py (+topic, widget, widget_data)' $T/p.txt && grep -q 'Добавлю запреты на места ключей: 4\.' $T/p.txt"
 chk "зона уже подключённого send-guard расширена до зоны релиза, запись та же (путь дома не переписан)" "python3 - <<PY
@@ -46,7 +46,7 @@ chk "повторный apply ничего не меняет" "cmp -s $S $T/s1 &
 $U plan --src "$T/rel" > "$T/p2.txt" 2>&1
 chk "план после — строки про сторожей нет" "! grep -q 'Подключу сторожей' $T/p2.txt"
 V="$CLAUDE_CONFIG_DIR/mila-update/version.json"
-chk "version.json помнит подключённых сторожей (17, «событие:key») и запреты (4)" "python3 -c \"import json,sys; v=json.load(open('$V')); g=v['guards']; sys.exit(0 if len(g)==17 and 'Stop:hooks/reply-required.py' in g and len(v['deny'])==4 else 1)\""
+chk "version.json помнит подключённых сторожей (18, «событие:key») и запреты (4)" "python3 -c \"import json,sys; v=json.load(open('$V')); g=v['guards']; sys.exit(0 if len(g)==18 and 'Stop:hooks/reply-required.py' in g and len(v['deny'])==4 else 1)\""
 GC="$CLAUDE_CONFIG_DIR/mila-update/guards"
 chk "релизные копии обязательных сторожей лежат вне hooks/ (три файла, 600, папка 700), удобства — нет" "[ \"\$(ls $GC | sort | tr '\\n' ' ')\" = 'pd-mask.py secret-guard.py send-guard.py ' ] && [ \"\$(stat -c %a $GC/secret-guard.py 2>/dev/null || stat -f %Lp $GC/secret-guard.py)\" = 600 ] && [ \"\$(stat -c %a $GC 2>/dev/null || stat -f %Lp $GC)\" = 700 ]"
 chk "копия равна файлу релиза, и её sha256 записан в version.json (guard_copies), там же список обязательных" "python3 - <<PY
@@ -155,13 +155,26 @@ chk "settings.json — ссылка: не трогаю (и ссылка оста
 rm "$S"; echo '{"hooks": ' > "$S"
 $U apply --src "$T/rel" --yes "тест: кривой" >/dev/null 2>&1
 chk "кривой settings.json не чиню и не затираю" "[ \"\$(cat $S)\" = '{\"hooks\": ' ]"
+# заглушка на месте сломанного сторожа — наш файл: обновление возвращает релизный сторож без --take; правка хозяина поверх неё — его
+F="$T/home2"; export HOME="$F" CLAUDE_CONFIG_DIR="$F/.claude" MILA_WORK="$F/work"; mkdir -p "$CLAUDE_CONFIG_DIR" "$MILA_WORK"; echo "знакомство: пройдено" > "$MILA_WORK/USER.md"
+echo '{}' > "$CLAUDE_CONFIG_DIR/settings.json"; $U apply --src "$T/rel" --yes "тест: чистый дом" >/dev/null 2>&1
+SG="$CLAUDE_CONFIG_DIR/hooks/secret-guard.py"; GCK="python3 $CLAUDE_CONFIG_DIR/hooks/guard_check.py"; REL_SG="$T/rel/templates/home/.claude/hooks/secret-guard.py"
+chk "подготовка: в чистом доме сторож тайны равен релизному, проверка сторожей — ok" "cmp -s $SG $REL_SG && $GCK --json | grep -q '\"guards\": \"ok\"'"
+printf 'def (:\n' > "$SG"; rm "$CLAUDE_CONFIG_DIR/mila-update/guards/secret-guard.py"; $GCK >/dev/null 2>&1
+chk "подготовка: сторож сломан, копии нет → стоит заглушка, состояние blocked" "grep -q 'mila-guard-stub' $SG && $GCK --json --no-fix | grep -q '\"guards\": \"blocked\"'"
+$U plan --src "$T/rel" > "$T/p7.txt" 2>&1; $U apply --src "$T/rel" --yes "тест: заглушка" >/dev/null 2>&1
+chk "apply без --take заменяет заглушку релизным сторожем; после него проверка — ok" "cmp -s $SG $REL_SG && $GCK --json | grep -q '\"guards\": \"ok\"'"
+printf 'def (:\n' > "$SG"; rm "$CLAUDE_CONFIG_DIR/mila-update/guards/secret-guard.py"; $GCK >/dev/null 2>&1; echo '# правка хозяина' >> "$SG"
+$U apply --src "$T/rel" --yes "тест: правка поверх заглушки" >/dev/null 2>&1
+chk "правка хозяина поверх заглушки — «ваша правка»: обновление её не затирает" "grep -q 'правка хозяина' $SG"
+export HOME="$T/home" CLAUDE_CONFIG_DIR="$T/home/.claude" MILA_WORK="$T/home/work"
 chk "шаблон рождения: каждая его запись есть в guards слово в слово; сверх шаблона в guards — только ход работы (hod-stream ×4, его включают установка и раскатка)" "python3 - <<'PY'
 import json, sys
 m = json.load(open('$REPO/release.json'))['guards']; t = json.load(open('$REPO/templates/home/.claude/settings.json'))['hooks']
 want = sorted((g['event'], g.get('matcher') or '', json.dumps(g['hook'], sort_keys=True)) for g in m)
 have = sorted((ev, grp.get('matcher') or '', json.dumps(h, sort_keys=True)) for ev, l in t.items() for grp in l for h in grp['hooks'])
 extra = [w for w in want if w not in have]
-sys.exit(0 if all(h in want for h in have) and len(have) == len(set(have)) == 13 and sorted(e[0] for e in extra) == ['PostToolUse', 'PreToolUse', 'Stop', 'UserPromptSubmit'] and all('hod-stream.py' in e[2] for e in extra) else 1)
+sys.exit(0 if all(h in want for h in have) and len(have) == len(set(have)) == 14 and sorted(e[0] for e in extra) == ['PostToolUse', 'PreToolUse', 'Stop', 'UserPromptSubmit'] and all('hod-stream.py' in e[2] for e in extra) else 1)
 PY"
 chk "запреты шаблона рождения — те же deny_required" "python3 -c \"import json,sys; t=json.load(open('$REPO/templates/home/.claude/settings.json')).get('permissions',{}).get('deny',[]); r=json.load(open('$REPO/release.json'))['deny_required']; sys.exit(0 if len(r) == 4 and all(x in t for x in r) else 1)\""
 # один список: всё, что подключал tools/hooks_sync.py до объединения (версия 1.7.14, список заморожен здесь), есть в guards
@@ -192,16 +205,24 @@ cp "$B/.claude/settings.json" "$T/b1"
 UB="env HOME=$B CLAUDE_CONFIG_DIR=$B/.claude MILA_WORK=$B/work python3 $HERE/update.py"
 $UB plan --src "$T/rel" > "$T/pb.txt" 2>&1
 chk "прежний hooks_sync записал 15 строк (13 сторожей и 2 mila-tasks) и 4 запрета" "python3 -c \"import json,sys; a=json.load(open('$T/b0.json'))['added']; sys.exit(0 if len([x for x in a if not x.startswith('deny')]) == 15 and len([x for x in a if x.startswith('deny')]) == 4 else 1)\""
-chk "дом после прежнего hooks_sync: план не обещает ни подключить, ни расширить, ни добавить запрет" "grep -q 'Риск: ' $T/pb.txt && ! grep -qE 'Подключу сторожей|Расширю зону|запрет' $T/pb.txt"
+chk "дом после прежнего hooks_sync: план обещает одно — подключить новый сторож проверки сторожей; ни расширить, ни добавить запрет" "grep -q 'Подключу сторожей ядра: 1 (guard_check.py)' $T/pb.txt && ! grep -qE 'Расширю зону|запрет' $T/pb.txt"
 $UB apply --src "$T/rel" --yes "тест: дом после hooks_sync" > "$T/ab.txt" 2>&1
-chk "дом после прежнего hooks_sync: обновление прошло, settings.json байт в байт тот же, бэкапа настроек нет" "grep -q '\"ok\": true' $T/ab.txt && cmp -s $B/.claude/settings.json $T/b1 && ! ls $B/.claude/mila-update/backups/*guards.tgz >/dev/null 2>&1"
+chk "дом после прежнего hooks_sync: обновление прошло; всё прежнее в settings.json то же и в том же порядке, добавлена ровно одна запись — guard_check на PostToolUse (её прежний hooks_sync не знал)" "grep -q '\"ok\": true' $T/ab.txt && python3 - <<PY
+import json, sys
+a = json.load(open('$T/b1')); b = json.load(open('$B/.claude/settings.json'))
+new = b['hooks']['PostToolUse'][-1]
+b['hooks']['PostToolUse'] = b['hooks']['PostToolUse'][:-1]
+sys.exit(0 if json.dumps(a, ensure_ascii=False) == json.dumps(b, ensure_ascii=False) and list(a) == list(b) and 'guard_check.py --hook' in new['hooks'][0]['command'] and new['matcher'] == 'Write|Edit|MultiEdit' else 1)
+PY"
+cp "$B/.claude/settings.json" "$T/b1"; $UB apply --src "$T/rel" --yes "тест: дом после hooks_sync, второй раз" > /dev/null 2>&1
+chk "второе обновление того же дома — settings.json байт в байт тот же" "cmp -s $B/.claude/settings.json $T/b1"
 python3 -I "$REPO/tools/hooks_sync.py" --home "$B" --guards > "$T/b2.json"
 chk "и новый hooks_sync --guards (тот же код обновления) там ничего не добавляет" "grep -q '\"added\": \[\]' $T/b2.json && cmp -s $B/.claude/settings.json $T/b1"
 # и наоборот: пустой дом, собранный новым hooks_sync --guards, обновление тоже не меняет
 C="$T/c"; mkdir -p "$C/.claude/skills/mila-tasks" "$C/work"; cp -R "$B/.claude/hooks" "$C/.claude/hooks"; cp -R "$B/.claude/skills/mila-tasks/hooks" "$C/.claude/skills/mila-tasks/hooks"; echo "знакомство: пройдено" > "$C/work/USER.md"
 echo '{}' > "$C/.claude/settings.json"; chmod 600 "$C/.claude/settings.json"
 python3 -I "$REPO/tools/hooks_sync.py" --home "$C" --guards --dry-run > "$T/c0.json"
-chk "hooks_sync --guards --dry-run: называет 17 сторожей и 4 запрета, файл не тронут" "python3 -c \"import json,sys; a=json.load(open('$T/c0.json'))['added']; sys.exit(0 if len([x for x in a if not x.startswith('deny')]) == 17 and len([x for x in a if x.startswith('deny')]) == 4 else 1)\" && [ \"\$(cat $C/.claude/settings.json)\" = '{}' ]"
+chk "hooks_sync --guards --dry-run: называет 18 сторожей и 4 запрета, файл не тронут" "python3 -c \"import json,sys; a=json.load(open('$T/c0.json'))['added']; sys.exit(0 if len([x for x in a if not x.startswith('deny')]) == 18 and len([x for x in a if x.startswith('deny')]) == 4 else 1)\" && [ \"\$(cat $C/.claude/settings.json)\" = '{}' ]"
 python3 -I "$REPO/tools/hooks_sync.py" --home "$C" --guards > "$T/c1.json"; cp "$C/.claude/settings.json" "$T/c1"
 UC="env HOME=$C CLAUDE_CONFIG_DIR=$C/.claude MILA_WORK=$C/work python3 $HERE/update.py"
 $UC apply --src "$T/rel" --yes "тест: дом после нового hooks_sync" > "$T/ac.txt" 2>&1
