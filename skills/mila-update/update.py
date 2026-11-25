@@ -630,6 +630,14 @@ def keep_guard_copies(src, rows):
     return out
 
 
+def guard_controls(src):
+    """Положительный контроль обязательных сторожей из релиза ({"deny": вход, "allow": вход}) — в version.json, для guard_check.py:
+    сторож, который компилируется, но не отказывает там, где обязан, — сломан так же, как некомпилируемый."""
+    must = required_guards(src)
+    return {x["key"]: x["control"] for x in release_guards(src)
+            if x["key"] in must and isinstance(x.get("control"), dict) and isinstance(x["control"].get("deny"), dict) and isinstance(x["control"].get("allow"), dict)}
+
+
 def guard_entries(x, hooks):
     """Группы события, в которых этот сторож уже записан. Узнаю по ИМЕНИ ФАЙЛА в команде («send-guard.py»), а не по пути:
     дом, собранный install.sh или hooks_sync, пишет полный путь, шаблон — $HOME, чужая сборка — свой; сторож тот же."""
@@ -927,7 +935,7 @@ def do_apply(src, m, rows, yes, take=(), tag=None, sha_="", channel="", src_labe
     os.makedirs(STATE, exist_ok=True)
     json.dump({"version": m.get("version"), "tag": tag, "installed_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "channel": channel or CFG["channel"],
                "sha": sha_, "source": src_label or REPO, "files": files, "snapshot": snap, "snapshot_ts": time.time(), "guards": seen, "deny": sorted(seen_deny | wired_deny(src)),
-               "guard_copies": copies, "guards_required": sorted(required_guards(src))}, open(VERSION, "w"), ensure_ascii=False, indent=1)
+               "guard_copies": copies, "guards_required": sorted(required_guards(src)), "guard_controls": guard_controls(src)}, open(VERSION, "w"), ensure_ascii=False, indent=1)
     touched = [r["dst"] for r in todo] + [os.path.join(newdir, r["name"]) for r in side] + [os.path.join(newdir, "было-" + r["name"]) for r in kept] + [VERSION] + touched_extra
     for q in touched: readable(q)
     if side or kept:   # путь до new/<тег> — только сами каталоги (go+rx), не всё содержимое STATE (журнал и бэкапы не открываем)

@@ -193,6 +193,10 @@
       "matcher": "mcp__plugin_(mila-)?telegram_telegram__reply|mcp__plugin_(mila-)?telegram_telegram__edit_message|mcp__plugin_(mila-)?telegram_telegram__topic|mcp__plugin_(mila-)?telegram_telegram__widget|mcp__plugin_(mila-)?telegram_telegram__widget_data",
       "key": "hooks/send-guard.py",
       "file": "{claude}/hooks/send-guard.py",
+      "control": {
+        "deny": {"tool_name": "mcp__plugin_mila-telegram_telegram__reply", "tool_input": {"chat_id": "1", "text": "файл /srv/x"}},
+        "allow": {"tool_name": "Bash", "tool_input": {"command": "ls"}}
+      },
       "hook": {
         "type": "command",
         "command": "python3 $HOME/.claude/hooks/send-guard.py",
@@ -229,6 +233,10 @@
       "matcher": "Bash|Read|Grep|Glob|Edit|Write|MultiEdit|WebFetch|Monitor",
       "key": "hooks/secret-guard.py",
       "file": "{claude}/hooks/secret-guard.py",
+      "control": {
+        "deny": {"tool_name": "Read", "tool_input": {"file_path": "{home}/.mila-auth/x"}},
+        "allow": {"tool_name": "Read", "tool_input": {"file_path": "{home}/work/USER.md"}}
+      },
       "hook": {
         "type": "command",
         "command": "python3 $HOME/.claude/hooks/secret-guard.py"
