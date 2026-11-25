@@ -47,6 +47,18 @@ $U plan --src "$T/rel" > "$T/p2.txt" 2>&1
 chk "план после — строки про сторожей нет" "! grep -q 'Подключу сторожей' $T/p2.txt"
 V="$CLAUDE_CONFIG_DIR/mila-update/version.json"
 chk "version.json помнит подключённых сторожей (17, «событие:key») и запреты (4)" "python3 -c \"import json,sys; v=json.load(open('$V')); g=v['guards']; sys.exit(0 if len(g)==17 and 'Stop:hooks/reply-required.py' in g and len(v['deny'])==4 else 1)\""
+GC="$CLAUDE_CONFIG_DIR/mila-update/guards"
+chk "релизные копии обязательных сторожей лежат вне hooks/ (три файла, 600, папка 700), удобства — нет" "[ \"\$(ls $GC | sort | tr '\\n' ' ')\" = 'pd-mask.py secret-guard.py send-guard.py ' ] && [ \"\$(stat -c %a $GC/secret-guard.py 2>/dev/null || stat -f %Lp $GC/secret-guard.py)\" = 600 ] && [ \"\$(stat -c %a $GC 2>/dev/null || stat -f %Lp $GC)\" = 700 ]"
+chk "копия равна файлу релиза, и её sha256 записан в version.json (guard_copies), там же список обязательных" "python3 - <<PY
+import json, hashlib, sys
+v = json.load(open('$V')); c = v['guard_copies']
+ok = sorted(c) == ['hooks/pd-mask.py', 'hooks/secret-guard.py', 'hooks/send-guard.py'] and v['guards_required'] == sorted(c)
+for k in c:
+    name = k.split('/')[-1]; data = open('$GC/' + name, 'rb').read()
+    rel = [p for p in ('$T/rel/templates/home/.claude/hooks/' + name, '$T/rel/install/' + name) if __import__('os').path.isfile(p)]
+    ok = ok and hashlib.sha256(data).hexdigest() == c[k] and rel and open(rel[0], 'rb').read() == data
+sys.exit(0 if ok else 1)
+PY"
 # хозяин снял сторожа сам — обновление его не возвращает (иначе снятое возвращалось бы каждым обновлением)
 python3 - "$S" <<'PY'
 import json, sys

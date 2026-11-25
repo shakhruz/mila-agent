@@ -598,6 +598,38 @@ def required_guards(src):
     return {k for k in r if isinstance(k, str)} if isinstance(r, list) else set()
 
 
+GUARD_COPIES = os.path.join(STATE, "guards")
+
+
+def keep_guard_copies(src, rows):
+    """Копия каждого обязательного сторожа (guards_required) из релиза — в ~/.claude/mila-update/guards/<имя> (600) и её sha256.
+    Нужна, чтобы сломанный сторож можно было вернуть к релизному виду без сети. Копия лежит вне hooks/ и никем не исполняется.
+    Это защита от опечатки и сбоя, не от умысла: копию и её sha пишет тот же пользователь, что и сам сторож.
+    → {key: sha256} только тех, чья копия записана и компилируется."""
+    must, out = required_guards(src), {}
+    by_dst = {r["dst"]: r for r in rows}
+    for x in release_guards(src):
+        if x["key"] not in must: continue
+        r = by_dst.get(P(x["file"]))
+        if not r or r.get("kind") != "file" or os.path.islink(r["src"]) or not os.path.isfile(r["src"]): continue
+        try:
+            data = open(r["src"], "rb").read(); compile(data.decode("utf-8"), r["src"], "exec")
+        except (OSError, SyntaxError, ValueError): continue
+        dst = os.path.join(GUARD_COPIES, os.path.basename(x["file"])); tmp = dst + ".new"
+        try:
+            os.makedirs(GUARD_COPIES, mode=0o700, exist_ok=True)
+            if os.path.islink(GUARD_COPIES) or not inside_home(dst): continue
+            try: os.unlink(tmp)
+            except FileNotFoundError: pass
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            try: os.fchmod(fd, 0o600); os.write(fd, data)
+            finally: os.close(fd)
+            os.replace(tmp, dst)
+        except OSError: continue
+        out[x["key"]] = hashlib.sha256(data).hexdigest()
+    return out
+
+
 def guard_entries(x, hooks):
     """Группы события, в которых этот сторож уже записан. Узнаю по ИМЕНИ ФАЙЛА в команде («send-guard.py»), а не по пути:
     дом, собранный install.sh или hooks_sync, пишет полный путь, шаблон — $HOME, чужая сборка — свой; сторож тот же."""
@@ -887,13 +919,15 @@ def do_apply(src, m, rows, yes, take=(), tag=None, sha_="", channel="", src_labe
     seen = known_guards(); seen_deny = known_deny()   # до записи version.json: кого обновление уже видело подключённым
     grd = connect_guards(src, tag, back=take)   # недостающие сторожа ядра — только дописать, свои хуки дома не трогаю; снятых хозяином не возвращаю
     seen = sorted(seen | wired_guards(src))     # подключён сейчас — запомнить: позже снимет хозяин — это его решение, а не «ещё не подключали»
+    copies = dict(load_version().get("guard_copies") or {}); copies.update(keep_guard_copies(src, rows))   # релизные копии обязательных сторожей — для самопочинки
     touched_extra = [mig] if mig else []   # settings.json сюда не идёт: он сохраняет свои права (600), читаемым для копии не делаю
     files = dict(load_version().get("files", {}))
     for r in rows:
         if r in todo or r["state"] == "как есть": files[r["dst"]] = r["new"]
     os.makedirs(STATE, exist_ok=True)
     json.dump({"version": m.get("version"), "tag": tag, "installed_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "channel": channel or CFG["channel"],
-               "sha": sha_, "source": src_label or REPO, "files": files, "snapshot": snap, "snapshot_ts": time.time(), "guards": seen, "deny": sorted(seen_deny | wired_deny(src))}, open(VERSION, "w"), ensure_ascii=False, indent=1)
+               "sha": sha_, "source": src_label or REPO, "files": files, "snapshot": snap, "snapshot_ts": time.time(), "guards": seen, "deny": sorted(seen_deny | wired_deny(src)),
+               "guard_copies": copies, "guards_required": sorted(required_guards(src))}, open(VERSION, "w"), ensure_ascii=False, indent=1)
     touched = [r["dst"] for r in todo] + [os.path.join(newdir, r["name"]) for r in side] + [os.path.join(newdir, "было-" + r["name"]) for r in kept] + [VERSION] + touched_extra
     for q in touched: readable(q)
     if side or kept:   # путь до new/<тег> — только сами каталоги (go+rx), не всё содержимое STATE (журнал и бэкапы не открываем)
