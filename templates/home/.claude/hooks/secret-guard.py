@@ -34,6 +34,38 @@ def outside_literal_heredocs(cmd):
     return HEREDOC.sub(cut, cmd)
 
 
+# A note written to a file — cat > note.md <<'EOF' … EOF — only stores its text: a report that NAMES a secret place, a key's
+# variable or the Bot API address does not touch them. The body of such a heredoc is skipped for the place, name and tg-api
+# rules, narrowly: the quoted heredoc feeds cat or tee that writes a text file (NOTE_EXT), and the rest of the command starts
+# no shell, interpreter or substitution at all — so the same command cannot run what it has just written. python3 - <<'EOF'
+# and bash <<'EOF' run their body: never skipped.
+NOTE_EXT = re.compile(r"\.(md|txt|json|jsonl|log|csv)$", re.I)
+_DEST = r"[\w./~${}-]+"
+_TAG = r"<<-?\s*(?:'\w+'|\"\w+\")"
+WRITER = re.compile(r"(?:^|&&|;)\s*(?:cat\s*>>?\s*(?P<a>%s)\s*%s|cat\s*%s\s*>>?\s*(?P<b>%s)|tee\s+(?:-a\s+)?(?P<c>%s)\s*%s(?:\s*>\s*/dev/null)?)\s*$"
+                    % (_DEST, _TAG, _TAG, _DEST, _DEST, _TAG))
+RUNNERS = re.compile(r"(^|[\s;&|(`$/])(bash|sh|zsh|dash|ksh|fish|source|eval|xargs|env|exec|python[\d.]*|node|bun|deno|perl|ruby|php|awk|gawk|sed|find|make|"
+                     r"ssh|docker|podman|sudo|nohup|timeout|watch|parallel|chmod|install|busybox)\b|(^|[;&|]\s*)\.\s|(^|[;&|]\s*)['\"]?\$|\$\(|`|<\(|\|", re.M)
+
+
+def outside_note_heredocs(cmd):
+    """The command without the bodies of note-writing heredocs (see NOTE_EXT above); anything else is left whole."""
+    found = list(HEREDOC.finditer(cmd))
+    if not found: return cmd
+    openers = [(m, m.group(0).split("\n", 1)[0]) for m in found]
+    rest = HEREDOC.sub(lambda m: m.group(0).split("\n", 1)[0] + "\n" + m.group("tag"), cmd)   # the command with every literal body cut
+    for m, first in openers:                                  # each opener must be a plain writer of a text file
+        w = WRITER.search(first)
+        if not w or not NOTE_EXT.search(w.group("a") or w.group("b") or w.group("c")): return cmd
+    # what is left besides the writers themselves must start nothing that could run a file
+    bare = rest
+    for m, first in openers:
+        w = WRITER.search(first)
+        bare = bare.replace(first[w.start():].lstrip("&; "), " ", 1)
+    if RUNNERS.search(bare): return cmd
+    return rest
+
+
 def secret_places(home):
     """The places by their real path — a link in ~/work to ~/.mila-auth is the same file (audit 09.11 №13)."""
     out = [os.path.join(home, ".mila-auth"), os.path.join(home, "work", "secrets"), os.path.join(home, ".claude", ".credentials.json")]
@@ -157,16 +189,17 @@ def check(tool, args, cwd=None):
         return None
     if tool in ("Bash", "Monitor"):
         cmd = str(args.get("command") or "")
-        if TG_API.search(cmd):
+        seen = outside_note_heredocs(cmd)     # the text of a note written to a file is not a call and not a read
+        if TG_API.search(seen):
             return "команда вызывает Telegram напрямую, мимо плагина и его фильтров", "tg-api", "api.telegram.org"
         if email_out(cmd):
             return "команда отправляет почту аккаунта в сеть — наружу её не отправляю", "email", "account-email"
     if tool in ("Bash", "Monitor"):   # Monitor runs a shell command too: the same rules
         if ALLOWED.search(cmd) and not DUMP.search(cmd):
             return None
-        m = PLACES.search(cmd)
+        m = PLACES.search(seen)
         if m: return "команда трогает файлы входа или сейфа", "place", m.group(0)
-        m = NAMES.search(cmd)
+        m = NAMES.search(seen)
         if m: return "команда называет переменную с ключом", "name", m.group(0).upper()
         m = DUMP.search(outside_literal_heredocs(cmd))
         if m: return "команда выводит всё окружение (там ключи)", "dump", m.group(2).split()[0].lower()

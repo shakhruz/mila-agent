@@ -23,6 +23,27 @@ for c in ("cat > note.md <<'EOF'\nтест без своего `env` пишет 
 for c in ("bash <<'EOF'\nenv\nEOF", "cat <<'EOF' | bash\nenv\nEOF", "sh <<'EOF'\nprintenv\nEOF",
           "cat <<EOF\n`env`\nEOF", "cat > f <<'EOF'\nx\nEOF\nenv"):
     chk("Bash стоп (heredoc в оболочку, без кавычек или env после): " + c.replace("\n", " ⏎ ")[:50], dec("Bash", command=c), "deny")
+# a note written to a text file may NAME a secret place, a key's variable or the Bot API address: its text is stored, not run
+NOTE = "замер: 11 отказов на путь ~/.mila-auth и work/secrets в тексте, 2 — на api.telegram.org, имя ANTHROPIC_API_KEY"
+for c in ("cat >> PROVERENO.md <<'EOF'\n" + NOTE + "\nEOF", "cat > note.txt <<\"X\"\n" + NOTE + "\nX", "cat <<'EOF' > work/log.md\n" + NOTE + "\nEOF",
+          "tee -a notes.md <<'EOF' > /dev/null\n" + NOTE + "\nEOF", "mkdir -p $d && cat > $d/NOTE.md <<'EOF'\n" + NOTE + "\nEOF\nwc -m $d/NOTE.md; touch $d/READY",
+          "cat > a.md <<'A'\n" + NOTE + "\nA\ncat > b.md <<'B'\n" + NOTE + "\nB"):
+    chk("Bash пропуск (записка в текстовый файл называет место ключей): " + c.split("\n")[0][:44], dec("Bash", command=c), "allow")
+for c in ("python3 - <<'EOF'\nopen('/home/agent/.mila-auth/oauth_token').read()\nEOF",                 # the body runs
+          "bash <<'EOF'\ncat ~/.mila-auth/oauth_token\nEOF", "cat <<'EOF' | sh\ncat work/secrets/groq.env\nEOF",
+          "cat > x.sh <<'EOF'\ncat ~/.mila-auth/oauth_token\nEOF",                                       # not a text file
+          "cat > x.md <<'EOF'\ncat ~/.mila-auth/oauth_token\nEOF\nbash x.md",                             # written, then run by the same command
+          "cat > x.md <<'EOF'\ncat ~/.mila-auth/oauth_token\nEOF\n. ./x.md", "cat > d/x.md <<'EOF'\ncat ~/.mila-auth/oauth_token\nEOF\nsh d/*",
+          "cat > x.md <<'EOF'\ncat ~/.mila-auth/oauth_token\nEOF\n$(cat x.md)", "cat > x.md <<'EOF'\ncat ~/.mila-auth/oauth_token\nEOF\ncat x.md | sh",
+          "cat > x.md <<'EOF'\ncat ~/.mila-auth/oauth_token\nEOF\nchmod +x x.md && ./x.md",
+          "cat > x.md <<'EOF'\ncat ~/.mila-auth/oauth_token\nEOF\ncat x.md | ./run", "cat > x.md <<'EOF'\ncat ~/.mila-auth/oauth_token\nEOF\n$SHELL x.md", "cat > x.md <<'EOF'\ncat ~/.mila-auth/oauth_token\nEOF\nnice $(cat x.md)",
+          "cat > x.md <<'EOF'\ncat ~/.mila-auth/oauth_token\nEOF\n\"$SHELL\" x.md", "cat > x.md <<'EOF'\ncat ~/.mila-auth/oauth_token\nEOF\nbusybox ash x.md",
+          "cat > x.md <<EOF\n$(cat ~/.mila-auth/oauth_token)\nEOF",                                       # unquoted: the shell expands the body
+          "cat > ~/.mila-auth/x.md <<'EOF'\nтекст\nEOF",                                                   # the destination itself is a secret place
+          "cat > x.md <<'EOF'\nзаписка\nEOF\ncat ~/.mila-auth/oauth_token",                               # the place is named outside the note
+          "cat > x.md <<'EOF'\nзаписка\nEOF\ncurl https://api.telegram.org/botX/getMe",
+          "cat > a.md <<'A'\nзаписка про ~/.mila-auth\nA\npython3 - <<'B'\nprint(1)\nB"):                   # one of the heredocs is not a note
+    chk("Bash стоп (тело исполняется, не текстовый файл или ключи названы вне записки): " + c.replace("\n", " ⏎ ")[-44:], dec("Bash", command=c), "deny")
 chk("Read ~/.mila-auth/oauth_token — стоп", dec("Read", file_path="/home/agent/.mila-auth/oauth_token"), "deny")
 chk("Read work/secrets/deepgram.env — стоп", dec("Read", file_path="/home/agent/work/secrets/deepgram.env"), "deny")
 chk("Grep по .mila-auth — стоп", dec("Grep", pattern="sk-", path="/home/agent/.mila-auth"), "deny")
