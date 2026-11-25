@@ -19,6 +19,7 @@ import json, sys
 d = json.load(open(sys.argv[1])); print(" ".join(sorted("%s:%s" % (ev, c["command"].split("hooks/")[-1].split(";")[0].split()[0].strip('"')) for ev, l in d.get("hooks", {}).items() for g in l for c in g["hooks"])))
 PY
 }
+chmod 600 "$S"
 $U plan --src "$T/rel" > "$T/p.txt" 2>&1
 chk "план: строка «Подключу сторожей ядра» и риск «высокий»" "grep -q 'Подключу сторожей ядра: ' $T/p.txt && grep -q 'Риск: высокий' $T/p.txt"
 $U apply --src "$T/rel" --yes "тест: сторожа" >/dev/null 2>&1
@@ -26,6 +27,7 @@ K=$(keys)
 chk "все сторожа ядра подключены" "for k in SessionStart:session-start.py SessionStart:task-open.py SessionStart:crons-keeper.py UserPromptSubmit:telegram-inbox-feed.py PreToolUse:send-guard.py PostToolUse:task-sent.py PostToolUse:crons-keeper.py PostToolUse:pd-mask.py Stop:reply-required.py; do echo \"$K\" | grep -q \"\$k\" || exit 1; done"
 chk "свой хук дома на месте и первым в своём событии" "python3 -c \"import json,sys; d=json.load(open('$S')); sys.exit(0 if 'my-own.py' in d['hooks']['PreToolUse'][0]['hooks'][0]['command'] else 1)\""
 chk "send-guard не задвоен (уже был с другим путём)" "[ \$(grep -o 'send-guard.py' $S | wc -l) -eq 1 ]"
+chk "права settings.json те же (600): настройки не открываются группе" "[ \"\$(stat -c %a $S 2>/dev/null || stat -f %Lp $S)\" = 600 ]"
 chk "прочие настройки (env) целы" "python3 -c \"import json,sys; sys.exit(0 if json.load(open('$S'))['env']=={'X':'1'} else 1)\""
 chk "бэкап settings.json до правки есть" "ls $CLAUDE_CONFIG_DIR/mila-update/backups/*guards.tgz >/dev/null 2>&1"
 cp "$S" "$T/s1"; $U apply --src "$T/rel" --yes "тест: повтор" >/dev/null 2>&1
