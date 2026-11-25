@@ -713,7 +713,7 @@ def do_apply(src, m, rows, yes, take=(), tag=None, sha_="", channel="", src_labe
     for r in side: put(r["src"], os.path.join(newdir, r["name"]), r["kind"])
     mig = migrate_settings(tag)   # точечная миграция настроек (settings.json целиком не перезаписываем — он в never)
     grd = connect_guards(src, tag)   # недостающие сторожа ядра — только дописать, свои хуки дома не трогаю
-    touched_extra = ([mig] if mig else []) + ([os.path.join(CLAUDE, "settings.json")] if grd else [])
+    touched_extra = [mig] if mig else []   # settings.json сюда не идёт: он сохраняет свои права (600), читаемым для копии не делаю
     files = dict(load_version().get("files", {}))
     for r in rows:
         if r in todo or r["state"] == "как есть": files[r["dst"]] = r["new"]
