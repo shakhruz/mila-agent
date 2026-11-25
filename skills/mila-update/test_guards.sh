@@ -26,7 +26,7 @@ $U plan --src "$T/rel" > "$T/p.txt" 2>&1
 chk "план: строка «Подключу сторожей ядра» и риск «высокий»" "grep -q 'Подключу сторожей ядра: ' $T/p.txt && grep -q 'Риск: высокий' $T/p.txt"
 $U apply --src "$T/rel" --yes "тест: сторожа" >/dev/null 2>&1
 K=$(keys)
-chk "все сторожа ядра подключены" "for k in SessionStart:session-start.py SessionStart:task-open.py SessionStart:crons-keeper.py UserPromptSubmit:telegram-inbox-feed.py PreToolUse:send-guard.py PostToolUse:task-sent.py PostToolUse:crons-keeper.py PostToolUse:pd-mask.py Stop:reply-required.py; do echo \"$K\" | grep -q \"\$k\" || exit 1; done"
+chk "все сторожа ядра подключены" "for k in SessionStart:session-start.py SessionStart:task-open.py SessionStart:crons-keeper.py UserPromptSubmit:telegram-inbox-feed.py PreToolUse:send-guard.py PreToolUse:secret-guard.py PostToolUse:task-sent.py PostToolUse:crons-keeper.py PostToolUse:pd-mask.py Stop:reply-required.py; do echo \"$K\" | grep -q \"\$k\" || exit 1; done"
 chk "свой хук дома на месте и первым в своём событии" "python3 -c \"import json,sys; d=json.load(open('$S')); sys.exit(0 if 'my-own.py' in d['hooks']['PreToolUse'][0]['hooks'][0]['command'] else 1)\""
 chk "send-guard не задвоен (уже был с другим путём)" "[ \$(grep -o 'send-guard.py' $S | wc -l) -eq 1 ]"
 chk "права settings.json те же (600): настройки не открываются группе" "[ \"\$(stat -c %a $S 2>/dev/null || stat -f %Lp $S)\" = 600 ]"
@@ -37,7 +37,7 @@ chk "повторный apply ничего не меняет" "cmp -s $S $T/s1 &
 $U plan --src "$T/rel" > "$T/p2.txt" 2>&1
 chk "план после — строки про сторожей нет" "! grep -q 'Подключу сторожей' $T/p2.txt"
 V="$CLAUDE_CONFIG_DIR/mila-update/version.json"
-chk "version.json помнит подключённых сторожей (9, «событие:key»)" "python3 -c \"import json,sys; g=json.load(open('$V'))['guards']; sys.exit(0 if len(g)==9 and 'Stop:hooks/reply-required.py' in g else 1)\""
+chk "version.json помнит подключённых сторожей (10, «событие:key»)" "python3 -c \"import json,sys; g=json.load(open('$V'))['guards']; sys.exit(0 if len(g)==10 and 'Stop:hooks/reply-required.py' in g else 1)\""
 # хозяин снял сторожа сам — обновление его не возвращает (иначе снятое возвращалось бы каждым обновлением)
 python3 - "$S" <<'PY'
 import json, sys
@@ -61,7 +61,17 @@ $U plan --src "$T/rel" --json > "$T/p5.json" 2>/dev/null; $U plan --src "$T/rel"
 chk "снят сторож безопасности: план — «Верну снятого сторожа безопасности: 1 (send-guard.py)», риск высокий" "grep -q 'Верну снятого сторожа безопасности: 1 (send-guard.py)' $T/p5.txt && grep -q 'Риск: высокий' $T/p5.txt && ! grep -q 'Подключу сторожей' $T/p5.txt && python3 -c \"import json,sys; d=json.load(open('$T/p5.json')); sys.exit(0 if d['guards_returned'] == ['send-guard.py'] and d['guards_missing'] == ['send-guard.py'] else 1)\""
 $U apply --src "$T/rel" --yes "тест: обязательный" >/dev/null 2>&1
 chk "сторож безопасности возвращён обновлением, строка в журнале" "[ \$(grep -o 'send-guard.py' $S | wc -l) -eq 1 ] && grep -q guards_returned $CLAUDE_CONFIG_DIR/mila-update/journal.jsonl"
-chk "обязательные — только из списка guards и только безопасность (reply-required в него не входит)" "python3 -c \"import json,sys; m=json.load(open('$REPO/release.json')); r=m['guards_required']; sys.exit(0 if r and set(r) <= {g['key'] for g in m['guards']} and not any('reply-required' in k for k in r) else 1)\""
+chk "обязательные — ровно три сторожа безопасности (send-guard, secret-guard, pd-mask), все есть в guards" "python3 -c \"import json,sys; m=json.load(open('$REPO/release.json')); r=m['guards_required']; sys.exit(0 if sorted(r) == ['hooks/pd-mask.py', 'hooks/secret-guard.py', 'hooks/send-guard.py'] and set(r) <= {g['key'] for g in m['guards']} else 1)\""
+python3 - "$S" <<'PY'
+import json, sys
+p = sys.argv[1]; d = json.load(open(p))
+for ev in ("PreToolUse", "PostToolUse"): d["hooks"][ev] = [g for g in d["hooks"][ev] if "secret-guard" not in json.dumps(g) and "pd-mask" not in json.dumps(g)]
+json.dump(d, open(p, "w"))
+PY
+$U plan --src "$T/rel" > "$T/p6.txt" 2>&1
+chk "сняты secret-guard и pd-mask: план — «Верну снятого сторожа безопасности: 2 (pd-mask.py, secret-guard.py)»" "grep -q 'Верну снятого сторожа безопасности: 2 (pd-mask.py, secret-guard.py)' $T/p6.txt"
+$U apply --src "$T/rel" --yes "тест: два обязательных" >/dev/null 2>&1
+chk "secret-guard и pd-mask возвращены обновлением (по одному разу, права 600)" "[ \$(grep -o 'secret-guard.py' $S | wc -l) -eq 1 ] && [ \$(grep -o 'pd-mask.py' $S | wc -l) -eq 1 ] && [ \"\$(stat -c %a $S 2>/dev/null || stat -f %Lp $S)\" = 600 ]"
 # событие в settings.json не списком (валидный JSON) — не падаю посреди обновления, чужое не трогаю
 python3 - "$S" "$V" <<'PY'
 import json, sys

@@ -67,6 +67,15 @@
             "command": "python3 $HOME/.claude/hooks/secret-guard.py"
           }
         ]
+      },
+      {
+        "matcher": "Bash|Read|Grep|Glob|Edit|Write|MultiEdit|WebFetch|Monitor",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/hooks/secret-guard.py"
+          }
+        ]
       }
     ],
     "PostToolUse": [

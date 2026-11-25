@@ -121,7 +121,7 @@
   "renamed_note": "v1.4.0 international names; old names are aliases in legacy/skills/ (MOVED.md + script wrappers, no SKILL.md), delivered by mila-update to homes that had them, until v1.7.0 (removal needs a migration that checks crons for old paths); fresh installs don't get them",
   "guards_note": "Core guards wired into settings.json: births get them from the template, updates add only the missing ones (by key, within the event); a home's own hooks are never touched.",
   "guards_required_note": "сторожа безопасности: обязательны, снятого обновление возвращает (в плане — «Верну снятого»); остальные guards — удобство: снятого хозяином не возвращаем",
-  "guards_required": ["hooks/send-guard.py"],
+  "guards_required": ["hooks/send-guard.py", "hooks/secret-guard.py", "hooks/pd-mask.py"],
   "guards": [
     {
       "event": "SessionStart",
@@ -168,6 +168,16 @@
         "type": "command",
         "command": "python3 $HOME/.claude/hooks/send-guard.py",
         "onFailure": "block"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "matcher": "Bash|Read|Grep|Glob|Edit|Write|MultiEdit|WebFetch|Monitor",
+      "key": "hooks/secret-guard.py",
+      "file": "{claude}/hooks/secret-guard.py",
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/secret-guard.py"
       }
     },
     {
