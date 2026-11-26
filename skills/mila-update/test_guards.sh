@@ -205,4 +205,21 @@ E="$T/e"; mkdir -p "$E/.claude"; cp -R "$B/.claude/hooks" "$E/.claude/hooks"
 echo '{"hooks": {"PostToolUse": [{"matcher": "CronCreate", "hooks": [{"type": "command", "command": "python3 h/crons-keeper.py"}]}]}}' > "$E/.claude/settings.json"
 python3 -I "$REPO/tools/hooks_sync.py" --home "$E" --guards > "$T/e1.json"
 chk "сторож удобства с узкой зоной (crons-keeper на один CronCreate): зона та же, второй записи нет, в ответе о нём ни слова" "python3 -c \"import json,sys; d=json.load(open('$E/.claude/settings.json'))['hooks']['PostToolUse']; c=[g for g in d if 'crons-keeper' in json.dumps(g)]; a=json.load(open('$T/e1.json'))['added']; sys.exit(0 if len(c) == 1 and c[0]['matcher'] == 'CronCreate' and not any('crons-keeper.py (PostToolUse)' in x or x.startswith('matcher: crons') for x in a) else 1)\""
+# запись прошла, а запрета на месте нет (проверка после записи) — откат из бэкапа, дом как был
+F="$T/f"; mkdir -p "$F/.claude"; cp -R "$B/.claude/hooks" "$F/.claude/hooks"; echo '{"env": {"X": "1"}}' > "$F/.claude/settings.json"; cp "$F/.claude/settings.json" "$T/f1"
+cat > "$T/after.py" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1]); import update as U
+real, calls = U.missing_deny, []
+def fake(src, cfg):
+    calls.append(1)
+    return real(src, cfg) if len(calls) == 1 else ["не записалось"]
+U.missing_deny = fake
+sys.exit(0 if U.connect_guards(sys.argv[2], "test-after") is None and len(calls) == 2 else 1)
+PY
+chk "после записи запрета нет на месте — подключение отказано, settings.json возвращён из бэкапа байт в байт, строка guards_failed" "env HOME=$F MILA_HOME=$F CLAUDE_CONFIG_DIR=$F/.claude python3 $T/after.py $HERE $T/rel && cmp -s $F/.claude/settings.json $T/f1 && grep -q guards_failed $F/.claude/mila-update/journal.jsonl"
+# обёртка не глотает сбой обновления: код 3 и «ok: false», а не «добавлено: ничего»
+cp -R "$T/rel" "$T/rel2"; echo 'import sys; sys.exit(1)' > "$T/rel2/skills/mila-update/update.py"
+python3 -I "$T/rel2/tools/hooks_sync.py" --home "$F" --guards > "$T/f2.json" 2>/dev/null; rc=$?
+chk "hooks_sync --guards: обновление упало — код 3, «ok: false», settings.json не тронут" "[ $rc -eq 3 ] && grep -q '\"ok\": false' $T/f2.json && cmp -s $F/.claude/settings.json $T/f1"
 echo "итог $ok/$n"; [ $ok -eq $n ]
