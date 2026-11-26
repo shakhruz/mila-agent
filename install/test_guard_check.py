@@ -199,4 +199,17 @@ chk("version.json нет: код 0, состояние ok, проверять н
 r, st = run(c, "--json")
 chk("--json печатает состояние", json.loads(r.stdout).get("guards") == "ok")
 
+# the module itself: a key cannot lead out of the home, and a stub with no zone is never put (it would refuse nothing, or everything)
+import importlib.util
+_t = tempfile.mkdtemp(prefix="gchk-m-"); _old = os.environ.get("CLAUDE_CONFIG_DIR"); os.environ["CLAUDE_CONFIG_DIR"] = os.path.join(_t, ".claude")
+_spec = importlib.util.spec_from_file_location("guard_check_under_test", os.path.join(HERE, "guard_check.py")); G = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(G)
+if _old is None: os.environ.pop("CLAUDE_CONFIG_DIR", None)
+else: os.environ["CLAUDE_CONFIG_DIR"] = _old
+chk("ключ сторожа с «..», с корня или не строкой — места нет (None)", all(G.guard_path(k) is None for k in ("../x.py", "hooks/../../x.py", "/etc/x.py", None, 7)))
+chk("обычный ключ — место внутри ~/.claude", G.guard_path("hooks/a.py") == os.path.join(_t, ".claude", "hooks", "a.py") and G.guard_path("mila-tasks/hooks/t.py") == os.path.join(_t, ".claude", "skills", "mila-tasks", "hooks", "t.py"))
+_f = os.path.join(_t, "g.py"); open(_f, "w").write("def (:\n")
+chk("заглушка без зоны (пустой matcher) не ставится: сломанный файл на месте, рядом ничего нового", G.put_stub(_f, "g.py", "") is None and G.put_stub(_f, "g.py", " | ") is None
+    and open(_f).read() == "def (:\n" and os.listdir(_t) == ["g.py"])
+shutil.rmtree(_t, ignore_errors=True)
+
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
