@@ -598,9 +598,68 @@ def required_guards(src):
     return {k for k in r if isinstance(k, str)} if isinstance(r, list) else set()
 
 
+def guard_entries(x, hooks):
+    """Группы события, в которых этот сторож уже записан. Узнаю по ИМЕНИ ФАЙЛА в команде («send-guard.py»), а не по пути:
+    дом, собранный install.sh или hooks_sync, пишет полный путь, шаблон — $HOME, чужая сборка — свой; сторож тот же."""
+    name = os.path.basename(x["key"])
+    return [e for e in (hooks.get(x["event"]) or []) if isinstance(e, dict)
+            and any(isinstance(h, dict) and name in str(h.get("command", "")) for h in (e.get("hooks") if isinstance(e.get("hooks"), list) else []))]
+
+
 def guard_wired(x, hooks):
-    return any(x["key"] in str(h.get("command", "")) for e in (hooks.get(x["event"]) or []) if isinstance(e, dict)
-               for h in (e.get("hooks") if isinstance(e.get("hooks"), list) else []) if isinstance(h, dict))
+    return bool(guard_entries(x, hooks))
+
+
+def cc_at_least(v):
+    """Claude Code этой Милы не старше v («2.1.295»)? Версию не узнали — нет: запись, которую старая версия не поймёт, не пишу."""
+    m = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", str(v or ""))
+    cur = cc_version()
+    return bool(m) and cur is not None and cur >= tuple(int(z) for z in m.groups())
+
+
+def narrow_guards(src, cfg):
+    """Обязательный сторож подключён, но его зона уже, чем в релизе (старый дом: у сторожа тайны нет WebFetch и Monitor,
+    у сторожа отправки — topic и widget). → [(запись релиза, группа в settings.json, [недостающие инструменты])]."""
+    hooks = cfg.get("hooks") if isinstance(cfg, dict) and isinstance(cfg.get("hooks"), dict) else {}
+    must, out = required_guards(src), []
+    for x in release_guards(src):
+        if x["key"] not in must or not isinstance(x.get("matcher"), str) or not isinstance(hooks.get(x["event"]), list): continue
+        want = [t for t in x["matcher"].split("|") if t]
+        for e in guard_entries(x, hooks):
+            if not isinstance(e.get("matcher"), str) or not e["matcher"]: continue          # без matcher — на все инструменты: шире некуда
+            have = e["matcher"].split("|")
+            miss = [t for t in want if t not in have]
+            if miss: out.append((x, e, miss))
+    return out
+
+
+def required_deny(src):
+    try: r = json.load(open(os.path.join(src, "release.json"), encoding="utf-8")).get("deny_required") or []
+    except (OSError, ValueError): return []
+    return [k for k in r if isinstance(k, str) and k] if isinstance(r, list) else []
+
+
+def missing_deny(src, cfg):
+    """Обязательные правила permissions.deny (места ключей), которых нет в settings.json. deny не список — не трогаю (пусто)."""
+    perm = cfg.get("permissions") if isinstance(cfg, dict) else None
+    deny = perm.get("deny") if isinstance(perm, dict) else None
+    if perm is not None and not isinstance(perm, dict): return []
+    if deny is not None and not isinstance(deny, list): return []
+    return [r for r in required_deny(src) if r not in (deny or [])]
+
+
+def known_deny():
+    g = load_version().get("deny")
+    return {s for s in g if isinstance(s, str)} if isinstance(g, list) else set()
+
+
+def load_settings():
+    """settings.json дома для чтения: словарь, {} (файла нет) или None (ссылка, кривой JSON, не словарь)."""
+    p = os.path.join(CLAUDE, "settings.json")
+    if os.path.islink(p): return None
+    try: cfg = json.load(open(p, encoding="utf-8")) if os.path.isfile(p) else {}
+    except (OSError, ValueError): return None
+    return cfg if isinstance(cfg, dict) else None
 
 
 def wired_guards(src):
@@ -631,13 +690,14 @@ def missing_guards(src, cfg=None, coming=(), removed=None, back=(), bad=None, re
             if bad is not None and x["event"] not in bad: bad.append(x["event"])
             continue
         if guard_wired(x, hooks): continue
+        if x.get("min_cc") and not cc_at_least(x["min_cc"]): continue      # событие, которого старая Claude Code не знает
         was = guard_id(x) in known and not ({os.path.basename(x["file"]), x["key"]} & set(back))
         if was and x["key"] not in must:
             if removed is not None: removed.append(x)
             continue
         f = P(x["file"])
         if _bad_dst(f): continue
-        if f in coming:                                            # придёт с этим релизом (план) — файл проверит apply
+        if f in coming or any(f.startswith(c.rstrip("/") + "/") for c in coming):   # придёт с этим релизом (сам или в папке навыка) — файл проверит apply
             out.append(x)
             if was and returned is not None: returned.append(x)
             continue
@@ -649,10 +709,11 @@ def missing_guards(src, cfg=None, coming=(), removed=None, back=(), bad=None, re
     return out
 
 
-def connect_guards(src, tag, back=()):
-    """Подключить недостающих сторожей ядра в settings.json: бэкап, дописать только их (чужие и свои хуки дома не трогаю,
-    порядок не меняю), проверить, что JSON читается и каждый подключённый ключ на месте; при сбое — откат из бэкапа. → список или None.
-    Снятых хозяином не возвращаю (кроме названных в back) — строка в журнале."""
+def connect_guards(src, tag, back=(), dry=False):
+    """Привести settings.json дома к сторожам ядра одной записью: бэкап → дописать недостающих сторожей (чужие и свои хуки дома
+    не трогаю, порядок не меняю), расширить зону обязательных сторожей, дописать обязательные запреты ключей → проверить →
+    при сбое откат из бэкапа. Снятых хозяином сторожей удобства не возвращаю (кроме названных в back). → словарь или None
+    (нечего делать или нельзя: ссылка, кривой JSON). dry=True — только посчитать, ничего не писать."""
     p = os.path.join(CLAUDE, "settings.json")
     if os.path.islink(p) or not inside_home(p): return None
     try: cfg = json.load(open(p, encoding="utf-8")) if os.path.isfile(p) else {}
@@ -660,16 +721,34 @@ def connect_guards(src, tag, back=()):
     if not isinstance(cfg, dict): return None
     removed, bad, ret = [], [], []
     add = missing_guards(src, cfg, removed=removed, back=back, bad=bad, returned=ret)
-    if ret: jlog({"event": "guards_returned", "why": "сторож безопасности обязателен", "keys": [guard_id(x) for x in ret]})
-    if removed: jlog({"event": "guards_kept_removed", "keys": [guard_id(x) for x in removed]})
+    wide = narrow_guards(src, cfg)
+    deny = missing_deny(src, cfg); deny_back = sorted(set(deny) & known_deny())
+    names = [os.path.basename(x["file"]) + " (" + x["event"] + ")" for x in add]
+    widened = ["%s +%s" % (os.path.basename(x["file"]), "+".join(m)) for x, _e, m in wide]
+    res = {"added": names, "widened": widened, "deny": deny, "deny_returned": deny_back,
+           "returned": [guard_id(x) for x in ret], "kept_removed": [guard_id(x) for x in removed], "backup": None}
+    if dry or not (add or wide or deny):
+        if not dry:
+            if removed: jlog({"event": "guards_kept_removed", "keys": res["kept_removed"]})
+            if bad: jlog({"event": "guards_skipped", "why": "событие в settings.json не список", "events": bad})
+        return res if dry else None
+    if ret: jlog({"event": "guards_returned", "why": "сторож безопасности обязателен", "keys": res["returned"]})
+    if removed: jlog({"event": "guards_kept_removed", "keys": res["kept_removed"]})
     if bad: jlog({"event": "guards_skipped", "why": "событие в settings.json не список", "events": bad})
-    if not add: return None
     hooks = cfg.setdefault("hooks", {})
     if not isinstance(hooks, dict): return None
+    onfail = cc_at_least(".".join(map(str, ONFAIL_MIN)))
     for x in add:
-        grp = {"hooks": [dict(x["hook"])]}
-        if x.get("matcher"): grp = {"matcher": x["matcher"], "hooks": [dict(x["hook"])]}
+        hk = dict(x["hook"])
+        if "onFailure" in hk and not onfail: hk.pop("onFailure")    # старая Claude Code могла бы отбросить весь хук из-за незнакомого поля
+        grp = {"hooks": [hk]}
+        if x.get("matcher"): grp = {"matcher": x["matcher"], "hooks": [hk]}
         hooks.setdefault(x["event"], []).append(grp)
+    for _x, e, miss in wide: e["matcher"] += "|" + "|".join(miss)
+    if deny:
+        d = cfg.setdefault("permissions", {}).setdefault("deny", [])
+        for r in deny:
+            if r not in d: d.append(r)
     b = backup([p], tag + "-guards") if os.path.isfile(p) else None
     st = os.lstat(p) if os.path.isfile(p) else None; tmp = p + ".new"
     try: os.unlink(tmp)
@@ -684,13 +763,44 @@ def connect_guards(src, tag, back=()):
     os.replace(tmp, p)
     try:
         chk = json.load(open(p, encoding="utf-8"))
-        if missing_guards(src, chk, back=back): raise ValueError("после записи сторожа не на месте")
+        if missing_guards(src, chk, back=back) or narrow_guards(src, chk) or missing_deny(src, chk): raise ValueError("после записи сторожа или запреты не на месте")
     except (OSError, ValueError) as e:
         if b: restore_settings(b, p, st)
         jlog({"event": "guards_failed", "why": type(e).__name__}); return None
-    names = [os.path.basename(x["file"]) + " (" + x["event"] + ")" for x in add]
-    jlog({"event": "guards", "added": names, "backup": b})
-    return names
+    res["backup"] = b
+    jlog({"event": "guards", "added": names, "widened": widened, "deny": deny, "backup": b})
+    return res
+
+
+def wired_deny(src):
+    cfg = load_settings() or {}
+    perm = cfg.get("permissions") if isinstance(cfg.get("permissions"), dict) else {}
+    deny = perm.get("deny") if isinstance(perm.get("deny"), list) else []
+    return {r for r in required_deny(src) if r in deny}
+
+
+def remember_guards(src, seen, seen_deny):
+    """Дописать в version.json, кого обновление видело подключённым (сторожа и запреты), не трогая остального.
+    Нет version.json (дом ещё не обновлялся) — не создаю: файл без версии сказал бы «установлено неизвестно что»."""
+    if os.path.islink(VERSION) or not os.path.isfile(VERSION): return
+    try: raw = json.load(open(VERSION, encoding="utf-8"))
+    except (OSError, ValueError): return
+    if not isinstance(raw, dict): return
+    raw["guards"] = sorted(seen | wired_guards(src)); raw["deny"] = sorted(seen_deny | wired_deny(src))
+    tmp = VERSION + ".new"
+    with open(tmp, "w", encoding="utf-8") as f: json.dump(raw, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, VERSION)
+
+
+def cmd_guards(a):
+    """update.py guards [--src DIR] [--dry-run] — только шаг «сторожа ядра» без обновления файлов: для раскатки и для
+    tools/hooks_sync.py --guards (один механизм подключения). Печатает JSON: added, widened, deny, backup."""
+    src = a.src or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    seen, seen_deny = known_guards(), known_deny()
+    res = connect_guards(src, time.strftime("guards-%Y%m%d-%H%M%S"), dry=bool(a.dry_run))
+    if not a.dry_run and load_settings() is not None: remember_guards(src, seen, seen_deny)
+    out = res or {"added": [], "widened": [], "deny": [], "deny_returned": [], "returned": [], "kept_removed": [], "backup": None}
+    print(json.dumps(dict(out, ok=True, dry_run=bool(a.dry_run)), ensure_ascii=False))
 
 
 def restore_settings(b, p, st=None):
@@ -774,7 +884,7 @@ def do_apply(src, m, rows, yes, take=(), tag=None, sha_="", channel="", src_labe
     for r in todo: put(r["src"], r["dst"], r["kind"])
     for r in side: put(r["src"], os.path.join(newdir, r["name"]), r["kind"])
     mig = migrate_settings(tag)   # точечная миграция настроек (settings.json целиком не перезаписываем — он в never)
-    seen = known_guards()            # до записи version.json: кого обновление уже видело подключённым
+    seen = known_guards(); seen_deny = known_deny()   # до записи version.json: кого обновление уже видело подключённым
     grd = connect_guards(src, tag, back=take)   # недостающие сторожа ядра — только дописать, свои хуки дома не трогаю; снятых хозяином не возвращаю
     seen = sorted(seen | wired_guards(src))     # подключён сейчас — запомнить: позже снимет хозяин — это его решение, а не «ещё не подключали»
     touched_extra = [mig] if mig else []   # settings.json сюда не идёт: он сохраняет свои права (600), читаемым для копии не делаю
@@ -783,7 +893,7 @@ def do_apply(src, m, rows, yes, take=(), tag=None, sha_="", channel="", src_labe
         if r in todo or r["state"] == "как есть": files[r["dst"]] = r["new"]
     os.makedirs(STATE, exist_ok=True)
     json.dump({"version": m.get("version"), "tag": tag, "installed_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "channel": channel or CFG["channel"],
-               "sha": sha_, "source": src_label or REPO, "files": files, "snapshot": snap, "snapshot_ts": time.time(), "guards": seen}, open(VERSION, "w"), ensure_ascii=False, indent=1)
+               "sha": sha_, "source": src_label or REPO, "files": files, "snapshot": snap, "snapshot_ts": time.time(), "guards": seen, "deny": sorted(seen_deny | wired_deny(src))}, open(VERSION, "w"), ensure_ascii=False, indent=1)
     touched = [r["dst"] for r in todo] + [os.path.join(newdir, r["name"]) for r in side] + [os.path.join(newdir, "было-" + r["name"]) for r in kept] + [VERSION] + touched_extra
     for q in touched: readable(q)
     if side or kept:   # путь до new/<тег> — только сами каталоги (go+rx), не всё содержимое STATE (журнал и бэкапы не открываем)
@@ -1149,6 +1259,14 @@ def plan_text(src, m, rows, cur_tag, tag):
     if mg:                                                   # сторожа — защита: подключаю сама, хозяину — одной строкой
         if fresh: tail.append("Подключу сторожей ядра: %d (%s)." % (len([x for x in mgx if os.path.basename(x["file"]) in fresh]), ", ".join(fresh)))
         if lvl != "высокий": lvl, why = "высокий", "подключаются сторожа ядра в настройках"
+    cfg_now = load_settings()
+    if cfg_now is not None:
+        wide = sorted({"%s (+%s)" % (os.path.basename(x["file"]), ", ".join(re.sub(r"^mcp__.*__", "", t) for t in ms)) for x, _e, ms in narrow_guards(src, cfg_now)})
+        dn = missing_deny(src, cfg_now); dn_back = [r for r in dn if r in known_deny()]; dn_new = [r for r in dn if r not in dn_back]
+        if wide: tail.append("Расширю зону сторожа безопасности: %s." % "; ".join(wide))
+        if dn_back: tail.append("Верну снятого: запрет на места ключей — %d (%s) — он обязателен." % (len(dn_back), ", ".join(dn_back)))
+        if dn_new: tail.append("Добавлю запреты на места ключей: %d." % len(dn_new))     # коротко: план живёт в одном сообщении
+        if (wide or dn) and lvl != "высокий": lvl, why = "высокий", "меняются настройки защиты"
     tail.append("Риск: %s — %s. Отменить можно." % (lvl, why))
     def change_lines(names):   # ужимаю имена в «что изменится», а не пользу
         if not ch: return ["Что изменится: ничего — у вас уже всё из этой версии."]
@@ -2095,6 +2213,7 @@ def main():
     sp = ap.add_subparsers(dest="cmd", required=True)
     for c in ("status", "check", "rollback", "installed", "health", "slot", "effect"): sp.add_parser(c)
     p = sp.add_parser("nightly"); p.add_argument("--dry-run", action="store_true")
+    p = sp.add_parser("guards"); p.add_argument("--src"); p.add_argument("--dry-run", action="store_true")
     p = sp.add_parser("config"); p.add_argument("--set", action="append")
     p = sp.add_parser("manual"); p.add_argument("--what"); p.add_argument("--why"); p.add_argument("--by")
     p = sp.add_parser("bootstrap-note"); p.add_argument("--name")
@@ -2118,7 +2237,7 @@ def main():
     try:
         {"status": cmd_status, "check": cmd_check, "diff": cmd_diff, "apply": cmd_apply, "plan": cmd_plan, "effect": cmd_effect, "manual": cmd_manual, "bootstrap-note": cmd_bootstrap_note, "rollback": cmd_rollback,
          "install-skill": cmd_install_skill, "remove-skill": cmd_remove_skill, "installed": cmd_installed, "catalog": cmd_catalog, "nightly": cmd_nightly,
-         "config": cmd_config, "health": cmd_health, "slot": cmd_slot,
+         "config": cmd_config, "health": cmd_health, "slot": cmd_slot, "guards": cmd_guards,
          "packs": cmd_packs, "pack-plan": cmd_pack_plan, "install-pack": cmd_install_pack, "remove-pack": cmd_remove_pack}[a.cmd.replace("_", "-")](a)
     finally:   # и при sys.exit внутри команды: что записали — хозяину дома (MILA_CHOWN)
         if a.cmd in ("apply", "rollback", "install-skill", "remove-skill", "nightly", "install-pack", "remove-pack"):

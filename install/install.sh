@@ -677,7 +677,7 @@ if ONFAIL_OK and not any('done-guard.py' in json.dumps(x) for x in hooks.get('Po
 # secret-guard: модель своими инструментами не трогает токен входа (~/.mila-auth) и сейф (~/work/secrets); плюс deny-правила Read/Edit
 gg = 'python3 ' + os.path.join(cfg_dir, 'hooks', 'secret-guard.py')
 if not any('secret-guard.py' in json.dumps(x) for x in hooks.get('PreToolUse', [])):
-    ck_missing.append(('PreToolUse', {'matcher': 'Bash|Read|Grep|Glob|Edit|Write|MultiEdit', 'hooks': [{'type': 'command', 'command': gg}]}))
+    ck_missing.append(('PreToolUse', {'matcher': 'Bash|Read|Grep|Glob|Edit|Write|MultiEdit|WebFetch|Monitor', 'hooks': [{'type': 'command', 'command': gg}]}))   # the same zone as release.json → guards (install/test_install_hooks.sh compares)
 _deny = cfg.setdefault('permissions', {}).setdefault('deny', [])
 for _r in ('Read(~/.mila-auth/**)', 'Edit(~/.mila-auth/**)', 'Read(~/work/secrets/**)', 'Edit(~/work/secrets/**)'):
     if _r not in _deny:

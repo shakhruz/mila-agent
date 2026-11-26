@@ -119,9 +119,20 @@
     "OBDUMYVANIE.md": "THINKING-BUDGET.md"
   },
   "renamed_note": "v1.4.0 international names; old names are aliases in legacy/skills/ (MOVED.md + script wrappers, no SKILL.md), delivered by mila-update to homes that had them, until v1.7.0 (removal needs a migration that checks crons for old paths); fresh installs don't get them",
-  "guards_note": "Core guards wired into settings.json: births get them from the template, updates add only the missing ones (by key, within the event); a home's own hooks are never touched.",
-  "guards_required_note": "сторожа безопасности: обязательны, снятого обновление возвращает (в плане — «Верну снятого»); остальные guards — удобство: снятого хозяином не возвращаем",
-  "guards_required": ["hooks/send-guard.py", "hooks/secret-guard.py", "hooks/pd-mask.py"],
+  "guards_note": "the hooks of the core, one list for the birth template, for the update and for tools/hooks_sync.py: event, matcher, key (how a wired hook is recognised), file (must exist and compile), hook; min_cc — only from this Claude Code version; control — an input the guard must refuse and one it must let through",
+  "guards_required_note": "safety, required: a removed one is wired back by the update and the plan says so; a required guard wired with a narrower matcher gets the missing tools. Every other guard is a convenience: removed by the owner, it stays removed",
+  "guards_required": [
+    "hooks/send-guard.py",
+    "hooks/secret-guard.py",
+    "hooks/pd-mask.py"
+  ],
+  "deny_required_note": "permissions.deny rules that keep the sign-in files and the safe closed to the session's tools — required like a safety guard: a removed rule is put back and the plan says so",
+  "deny_required": [
+    "Read(~/.mila-auth/**)",
+    "Edit(~/.mila-auth/**)",
+    "Read(~/work/secrets/**)",
+    "Edit(~/work/secrets/**)"
+  ],
   "guards": [
     {
       "event": "SessionStart",
@@ -160,14 +171,57 @@
       }
     },
     {
+      "event": "UserPromptSubmit",
+      "key": "hooks/skill-hint.py",
+      "file": "{claude}/hooks/skill-hint.py",
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/skill-hint.py"
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "key": "hooks/hod-stream.py",
+      "file": "{claude}/hooks/hod-stream.py",
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/hod-stream.py"
+      }
+    },
+    {
       "event": "PreToolUse",
-      "matcher": "mcp__plugin_(mila-)?telegram_telegram__reply|mcp__plugin_(mila-)?telegram_telegram__edit_message",
+      "matcher": "mcp__plugin_(mila-)?telegram_telegram__reply|mcp__plugin_(mila-)?telegram_telegram__edit_message|mcp__plugin_(mila-)?telegram_telegram__topic|mcp__plugin_(mila-)?telegram_telegram__widget|mcp__plugin_(mila-)?telegram_telegram__widget_data",
       "key": "hooks/send-guard.py",
       "file": "{claude}/hooks/send-guard.py",
       "hook": {
         "type": "command",
         "command": "python3 $HOME/.claude/hooks/send-guard.py",
         "onFailure": "block"
+      },
+      "control": {
+        "deny": {
+          "tool_name": "mcp__plugin_mila-telegram_telegram__reply",
+          "tool_input": {
+            "chat_id": "1",
+            "text": "файл /srv/x"
+          }
+        },
+        "allow": {
+          "tool_name": "Bash",
+          "tool_input": {
+            "command": "ls"
+          }
+        }
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "matcher": "mcp__plugin_(mila-)?telegram_telegram__reply|mcp__plugin_(mila-)?telegram_telegram__edit_message|mcp__plugin_(mila-)?telegram_telegram__topic|mcp__plugin_(mila-)?telegram_telegram__widget|mcp__plugin_(mila-)?telegram_telegram__widget_data",
+      "key": "hooks/done-guard.py",
+      "file": "{claude}/hooks/done-guard.py",
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/done-guard.py"
       }
     },
     {
@@ -178,6 +232,29 @@
       "hook": {
         "type": "command",
         "command": "python3 $HOME/.claude/hooks/secret-guard.py"
+      },
+      "control": {
+        "deny": {
+          "tool_name": "Read",
+          "tool_input": {
+            "file_path": "{home}/.mila-auth/x"
+          }
+        },
+        "allow": {
+          "tool_name": "Read",
+          "tool_input": {
+            "file_path": "{home}/work/USER.md"
+          }
+        }
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "key": "hooks/hod-stream.py",
+      "file": "{claude}/hooks/hod-stream.py",
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/hod-stream.py"
       }
     },
     {
@@ -211,13 +288,40 @@
       }
     },
     {
+      "event": "PostToolUse",
+      "key": "hooks/hod-stream.py",
+      "file": "{claude}/hooks/hod-stream.py",
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/hod-stream.py"
+      }
+    },
+    {
+      "event": "PostToolUseFailure",
+      "key": "hooks/done-guard.py",
+      "file": "{claude}/hooks/done-guard.py",
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/done-guard.py"
+      },
+      "min_cc": "2.1.295"
+    },
+    {
       "event": "Stop",
       "key": "hooks/reply-required.py",
       "file": "{claude}/hooks/reply-required.py",
       "hook": {
         "type": "command",
-        "command": "python3 $HOME/.claude/hooks/reply-required.py",
-        "timeout": 20
+        "command": "python3 $HOME/.claude/hooks/reply-required.py"
+      }
+    },
+    {
+      "event": "Stop",
+      "key": "hooks/hod-stream.py",
+      "file": "{claude}/hooks/hod-stream.py",
+      "hook": {
+        "type": "command",
+        "command": "python3 $HOME/.claude/hooks/hod-stream.py"
       }
     }
   ]

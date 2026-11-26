@@ -27,7 +27,7 @@ Audit 21.10.2026: the core reached none of the running Milas — `mila-update` h
 
 ## 5. Skills and hooks — separate channel, no restart
 - `mila-update nightly` by a timer on every Mila: compare the installed version with the latest stable tag, apply core zones (skills, hooks, launcher, constitution) with a backup, never touch memory, NOW, settings, secrets, personal skills.
-- Hooks in `settings.json` are not touched by `mila-update`; new hook registrations go through `tools/hooks_sync.py` (idempotent, with a backup).
+- Hooks in `settings.json`: one list — `guards` in `release.json` — feeds the birth template, the update and `tools/hooks_sync.py`. Every `mila-update` apply wires the core's hooks that are missing (it only adds; a home's own hooks and their order stay), with a backup and a line in the plan. Safety guards (`guards_required`) and the deny rules for the key places (`deny_required`) come back even if someone removed them, and the plan says so; any other hook the owner removed stays removed. `tools/hooks_sync.py --guards` runs the same code (`update.py guards`) for a roll without an update.
 - A newborn is not updated before onboarding ends.
 - Every apply is in `~/.claude/mila-update/journal.jsonl`; `update.py rollback` undoes the last one.
 
