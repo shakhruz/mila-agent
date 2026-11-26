@@ -156,6 +156,8 @@ chk("журнал: правило email без самой почты", "ok" if a
 # on main the guard also stands on Monitor and keeps the account's e-mail from the network: the note exemption changes neither
 chk("Monitor пропуск: записка в текстовый файл называет место ключей", dec("Monitor", command="cat > note.md <<'EOF'\n" + NOTE + "\nEOF"), "allow")
 chk("Monitor отказ: тело heredoc исполняется", dec("Monitor", command="python3 - <<'EOF'\nopen('/home/agent/.mila-auth/oauth_token').read()\nEOF"), "deny")
+for run in ("python3 note.md", "python3.12 note.md", "node note.md", "perl note.md"):
+    chk("отказ: записка и тут же запуск файла — льготы нет: " + run, dec("Bash", command="cat > note.md <<'EOF'\n" + NOTE + "\nEOF\n" + run), "deny")
 chk("отказ: после записки — чтение места ключей той же командой", dec("Bash", command="cat > note.md <<'EOF'\n" + NOTE + "\nEOF\ncat ~/.mila-auth/oauth_token"), "deny")
 shutil.rmtree(CFG, ignore_errors=True)
 print("итог %d/%d" % (ok, n)); sys.exit(0 if ok == n else 1)
