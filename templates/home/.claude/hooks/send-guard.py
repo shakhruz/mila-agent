@@ -315,6 +315,44 @@ def _nm_job(name, work):
     return (nxt, now), None
 
 
+def _nm_split(body):
+    """(mark, «Мой ход» text, «Ваш ход» text, the answer above them, lines) — mark is None when the answer does not end with the two lines."""
+    lines = [re.sub(r"\\(.)", r"\1", l).strip(" \t*_•·") for l in body.split("\n")]
+    lines = [l for l in lines if l]
+    mark = next((mk for mk in NM_MARK if len(lines) >= 2 and lines[-2].startswith(mk[0]) and lines[-1].startswith(mk[1])), None)
+    if not mark: return None, "", "", "\n".join(lines), lines
+    return mark, lines[-2][len(mark[0]):].strip(), lines[-1][len(mark[1]):].strip(), "\n".join(lines[:-2]), lines
+
+
+def _nm_form(mine):
+    return next((k for k, rx in NM_FORMS if re.match(r"(?i)\W*(?:%s)" % rx, mine)), None)
+
+
+def nm_planner(mine, work):
+    """«стоит в Планировщике — «имя», придёт …»: the job is in the schedule, alive, and the time, the day and «сегодня / завтра»
+    match its next run. Said in ANY chat, it is a promise that something will come by itself — so it is checked in any chat."""
+    out = []
+    m = re.search(r"[«\"“]([^»\"”]{1,60})[»\"”]", mine)
+    if not m: out.append("«стоит в Планировщике» — с именем задачи в кавычках: по нему сверяю расписание")
+    else:
+        got, err = _nm_job(m.group(1).strip(), work)
+        if err: out.append("обещанное «само придёт» не стоит в расписании (%s) — сначала поставьте задачу (mila_cron.py add)" % err)
+        else:
+            nxt, now = got; low = mine.lower()
+            dead = _nm_alive(work, now)
+            if dead: out.append("«стоит в Планировщике» обещать нельзя: Планировщик здесь не работает (%s) — задача не сработает. Скажите прямо, что само не придёт, "
+                                "или запустите службу: python3 ~/.claude/hooks/doctor.py подскажет как" % dead)
+            hm = re.findall(r"\b(\d{1,2})[:.](\d{2})\b", mine)
+            if not hm: out.append("«стоит в Планировщике» — со временем из расписания: ближайший срок %s" % nxt.strftime("%d.%m %H:%M"))
+            elif not any((int(h), int(mi)) == (nxt.hour, nxt.minute) for h, mi in hm):
+                out.append("время в «Моём ходе» не совпадает с расписанием: ближайший срок задачи — %s" % nxt.strftime("%d.%m %H:%M"))
+            day = next((i for i, w in enumerate(NM_DAYS) if w in low), None)
+            if day is not None and day != nxt.weekday(): out.append("день недели в «Моём ходе» не совпадает с расписанием: ближайший срок — %s" % nxt.strftime("%d.%m %H:%M"))
+            if "завтра" in low and (nxt.date() - now.date()).days != 1: out.append("«завтра» не совпадает с расписанием: ближайший срок — %s" % nxt.strftime("%d.%m %H:%M"))
+            if "сегодня" in low and nxt.date() != now.date(): out.append("«сегодня» не совпадает с расписанием: ближайший срок — %s" % nxt.strftime("%d.%m %H:%M"))
+    return out
+
+
 def next_move(body, a, work):
     """reasons why this answer does not end with a proper «Мой ход / Ваш ход» — an empty list when it does."""
     lines = [re.sub(r"\\(.)", r"\1", l).strip(" \t*_•·") for l in body.split("\n")]
@@ -330,25 +368,7 @@ def next_move(body, a, work):
     form = next((k for k, rx in NM_FORMS if re.match(r"(?i)\W*(?:%s)" % rx, mine)), None)
     if form is None:
         out.append("«Мой ход» — одна из трёх форм: «делаю сейчас — …», «стоит в Планировщике — «имя задачи», придёт …» или «ничего не запущено — …»")
-    if form == 2:
-        m = re.search(r"[«\"“]([^»\"”]{1,60})[»\"”]", mine)
-        if not m: out.append("«стоит в Планировщике» — с именем задачи в кавычках: по нему сверяю расписание")
-        else:
-            got, err = _nm_job(m.group(1).strip(), work)
-            if err: out.append("обещанное «само придёт» не стоит в расписании (%s) — сначала поставьте задачу (mila_cron.py add)" % err)
-            else:
-                nxt, now = got; low = mine.lower()
-                dead = _nm_alive(work, now)
-                if dead: out.append("«стоит в Планировщике» обещать нельзя: Планировщик здесь не работает (%s) — задача не сработает. Скажите прямо, что само не придёт, "
-                                    "или запустите службу: python3 ~/.claude/hooks/doctor.py подскажет как" % dead)
-                hm = re.findall(r"\b(\d{1,2})[:.](\d{2})\b", mine)
-                if not hm: out.append("«стоит в Планировщике» — со временем из расписания: ближайший срок %s" % nxt.strftime("%d.%m %H:%M"))
-                elif not any((int(h), int(mi)) == (nxt.hour, nxt.minute) for h, mi in hm):
-                    out.append("время в «Моём ходе» не совпадает с расписанием: ближайший срок задачи — %s" % nxt.strftime("%d.%m %H:%M"))
-                day = next((i for i, w in enumerate(NM_DAYS) if w in low), None)
-                if day is not None and day != nxt.weekday(): out.append("день недели в «Моём ходе» не совпадает с расписанием: ближайший срок — %s" % nxt.strftime("%d.%m %H:%M"))
-                if "завтра" in low and (nxt.date() - now.date()).days != 1: out.append("«завтра» не совпадает с расписанием: ближайший срок — %s" % nxt.strftime("%d.%m %H:%M"))
-                if "сегодня" in low and nxt.date() != now.date(): out.append("«сегодня» не совпадает с расписанием: ближайший срок — %s" % nxt.strftime("%d.%m %H:%M"))
+    if form == 2: out += nm_planner(mine, work)
     if form != 2 and nm_promise(head + "\n" + mine):
         out.append("в ответе обещание со временем, а в «Моём ходе» нет задачи Планировщика — поставьте задачу и назовите её, или уберите обещание")
     if NM_IDLE.search(yours) or (form == 3 and NM_IDLE.search(mine)):
@@ -380,7 +400,10 @@ def next_move_people(body, a, work):
     lines = [l.strip() for l in body.split("\n") if l.strip()]
     if not lines: return []
     out = []
-    if nm_promise(body):
+    mark, mine, _yours, _head, _ = _nm_split(body)
+    planner = bool(mark) and _nm_form(mine) == 2
+    if planner: out += nm_planner(mine, work)      # the two lines are not required here — but once written, «стоит в Планировщике» must be true
+    if nm_promise(body) and not planner:
         hm = {(int(h), int(mi)) for h, mi in re.findall(r"\b(\d{1,2})[:.](\d{2})\b", body)}
         job = _nm_job_at(hm, work) if hm else None
         if not job or _nm_alive(work, job[1]):
