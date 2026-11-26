@@ -24,7 +24,7 @@ PY
 }
 chmod 600 "$S"
 $U plan --src "$T/rel" > "$T/p.txt" 2>&1
-chk "план: строка «Подключу сторожей ядра» и риск «высокий»" "grep -q 'Подключу сторожей ядра: ' $T/p.txt && grep -q 'Риск: высокий' $T/p.txt"
+chk "план: строка «Подключу сторожей ядра: 16» (17 без уже стоящего send-guard; два из них придут в папке навыка) и риск «высокий»" "grep -q 'Подключу сторожей ядра: 16 (' $T/p.txt && grep -q 'Риск: высокий' $T/p.txt"
 $U apply --src "$T/rel" --yes "тест: сторожа" >/dev/null 2>&1
 K=$(keys)
 chk "все сторожа ядра подключены" "for k in SessionStart:session-start.py SessionStart:task-open.py SessionStart:crons-keeper.py UserPromptSubmit:telegram-inbox-feed.py PreToolUse:send-guard.py PreToolUse:secret-guard.py PostToolUse:task-sent.py PostToolUse:crons-keeper.py PostToolUse:pd-mask.py Stop:reply-required.py; do echo \"$K\" | grep -q \"\$k\" || exit 1; done"
@@ -200,4 +200,9 @@ MILA_CC_VERSION=2.1.200 python3 -I "$REPO/tools/hooks_sync.py" --home "$D" --gua
 chk "старая Claude Code: нет PostToolUseFailure, send-guard без onFailure; сторожа на месте" "python3 -c \"import json,sys; h=json.load(open('$D/.claude/settings.json'))['hooks']; j=json.dumps(h); sys.exit(0 if 'PostToolUseFailure' not in h and 'onFailure' not in j and 'send-guard.py' in j and 'secret-guard.py' in j else 1)\""
 MILA_CC_VERSION=2.1.310 python3 -I "$REPO/tools/hooks_sync.py" --home "$D" --guards > "$T/d1.json"
 chk "Claude Code обновилась: следующий запуск дописывает PostToolUseFailure (одну запись)" "python3 -c \"import json,sys; a=json.load(open('$T/d1.json'))['added']; sys.exit(0 if a == ['done-guard.py (PostToolUseFailure)'] else 1)\""
+# зону расширяю только обязательным: сторож удобства с зоной уже, чем в релизе, — решение дома, не трогаю и второй записью не дублирую
+E="$T/e"; mkdir -p "$E/.claude"; cp -R "$B/.claude/hooks" "$E/.claude/hooks"
+echo '{"hooks": {"PostToolUse": [{"matcher": "CronCreate", "hooks": [{"type": "command", "command": "python3 h/crons-keeper.py"}]}]}}' > "$E/.claude/settings.json"
+python3 -I "$REPO/tools/hooks_sync.py" --home "$E" --guards > "$T/e1.json"
+chk "сторож удобства с узкой зоной (crons-keeper на один CronCreate): зона та же, второй записи нет, в ответе о нём ни слова" "python3 -c \"import json,sys; d=json.load(open('$E/.claude/settings.json'))['hooks']['PostToolUse']; c=[g for g in d if 'crons-keeper' in json.dumps(g)]; a=json.load(open('$T/e1.json'))['added']; sys.exit(0 if len(c) == 1 and c[0]['matcher'] == 'CronCreate' and not any('crons-keeper.py (PostToolUse)' in x or x.startswith('matcher: crons') for x in a) else 1)\""
 echo "итог $ok/$n"; [ $ok -eq $n ]
