@@ -1257,7 +1257,7 @@ def plan_text(src, m, rows, cur_tag, tag):
     if rt: tail.append("Верну снятого сторожа безопасности: %d (%s) — он обязателен." % (len(rt), ", ".join(rt)))
     if rm: tail.append("Сторожей, снятых вами, не возвращаю: %d (%s)." % (len(rm), ", ".join(rm)))
     if mg:                                                   # сторожа — защита: подключаю сама, хозяину — одной строкой
-        if fresh: tail.append("Подключу сторожей ядра: %d (%s)." % (len([x for x in mgx if os.path.basename(x["file"]) in fresh]), ", ".join(fresh)))
+        if fresh: tail.append("Подключу сторожей ядра: %d (%s)." % (len([x for x in mgx if os.path.basename(x["file"]) in fresh]), ", ".join(fresh[:4]) + (" …" if len(fresh) > 4 else "")))   # план живёт в одном сообщении: длинный список вытеснил бы «Что получите»
         if lvl != "высокий": lvl, why = "высокий", "подключаются сторожа ядра в настройках"
     cfg_now = load_settings()
     if cfg_now is not None:
